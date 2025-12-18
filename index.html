@@ -4,14 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>旅遊收支記帳程式</title>
-    <!-- 引入 Tailwind CSS 用於 RWD 設計 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Chart.js 用於圖表 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 引入 Font Awesome 用於圖標 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* 自定義樣式 */
         .receipt-preview {
             max-width: 100px;
             max-height: 100px;
@@ -62,7 +58,6 @@
             height: 300px;
             width: 100%;
         }
-        /* 滾動條美化 */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -87,13 +82,11 @@
                 <i class="fas fa-wallet text-2xl"></i>
                 <h1 class="text-xl font-bold">旅遊記帳管家</h1>
             </div>
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
                 <div id="cloudStatus" class="text-sm bg-blue-700 px-3 py-1 rounded-full">
                     <i class="fas fa-cloud"></i> 未登入
                 </div>
-                <button id="syncBtn" class="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-50 hidden">
-                    <i class="fas fa-sync-alt"></i> 同步
-                </button>
+                <div id="syncContainer" class="flex space-x-1 hidden"></div>
                 <button id="loginBtn" class="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-50">
                     <i class="fas fa-sign-in-alt"></i> 登入
                 </button>
@@ -460,7 +453,7 @@
             // 支出操作
             document.getElementById('addExpenseBtn').addEventListener('click', () => openExpenseModal());
 
-            // 表單提交
+            // 表單提交 - 關鍵修正：確保事件監聽器正確綁定
             document.getElementById('ledgerForm').addEventListener('submit', handleLedgerSubmit);
             document.getElementById('expenseForm').addEventListener('submit', handleExpenseSubmit);
             document.getElementById('loginForm').addEventListener('submit', handleLogin);
@@ -480,16 +473,16 @@
             document.getElementById('loginBtn').addEventListener('click', () => {
                 if (appData.user) {
                     // 已登入，執行登出
-                    appData.user = null;
-                    updateCloudStatus();
-                    showToast('已登出小米雲端');
+                    if (confirm('確定要登出嗎？')) {
+                        appData.user = null;
+                        updateCloudStatus();
+                        showToast('已登出小米雲端');
+                    }
                 } else {
                     // 未登入，打開登入框
                     document.getElementById('loginModal').style.display = 'block';
                 }
             });
-
-            document.getElementById('syncBtn').addEventListener('click', syncWithCloud);
 
             // 點擊模態框外部關閉
             window.addEventListener('click', function(e) {
@@ -534,6 +527,7 @@
             const form = document.getElementById('ledgerForm');
             
             form.reset();
+            form.removeAttribute('data-edit-id');
             
             if (ledgerId) {
                 // 編輯模式
@@ -549,7 +543,6 @@
             } else {
                 // 新增模式
                 title.textContent = '新增帳冊';
-                form.removeAttribute('data-edit-id');
             }
             
             modal.style.display = 'block';
@@ -564,49 +557,74 @@
             openLedgerModal(appData.currentLedgerId);
         }
 
-        // 處理帳冊表單提交
+        // 處理帳冊表單提交 - 關鍵修正：加入更多錯誤處理
         function handleLedgerSubmit(e) {
             e.preventDefault();
             
-            const name = document.getElementById('ledgerName').value.trim();
-            const categories = document.getElementById('ledgerCategoriesInput').value.split(',').map(s => s.trim()).filter(s => s);
-            const locations = document.getElementById('ledgerLocationsInput').value.split(',').map(s => s.trim()).filter(s => s);
-            const members = document.getElementById('ledgerMembersInput').value.split(',').map(s => s.trim()).filter(s => s);
-            
-            if (!name || categories.length === 0 || locations.length === 0 || members.length === 0) {
-                showToast('請填寫所有欄位');
-                return;
-            }
-            
-            const editId = document.getElementById('ledgerForm').getAttribute('data-edit-id');
-            
-            if (editId) {
-                // 編輯現有帳冊
-                const ledger = appData.ledgers.find(l => l.id === editId);
-                if (ledger) {
-                    ledger.name = name;
-                    ledger.categories = categories;
-                    ledger.locations = locations;
-                    ledger.members = members;
+            try {
+                const name = document.getElementById('ledgerName').value.trim();
+                const categoriesInput = document.getElementById('ledgerCategoriesInput').value;
+                const locationsInput = document.getElementById('ledgerLocationsInput').value;
+                const membersInput = document.getElementById('ledgerMembersInput').value;
+                
+                // 除錯日誌
+                console.log('表單提交:', { name, categoriesInput, locationsInput, membersInput });
+                
+                // 驗證輸入
+                if (!name || !categoriesInput || !locationsInput || !membersInput) {
+                    showToast('請填寫所有欄位');
+                    return;
                 }
-                showToast('帳冊已更新');
-            } else {
-                // 新增帳冊
-                const newLedger = {
-                    id: Date.now().toString(),
-                    name,
-                    categories,
-                    locations,
-                    members
-                };
-                appData.ledgers.push(newLedger);
-                appData.currentLedgerId = newLedger.id;
-                showToast('帳冊已新增');
+                
+                const categories = categoriesInput.split(',').map(s => s.trim()).filter(s => s);
+                const locations = locationsInput.split(',').map(s => s.trim()).filter(s => s);
+                const members = membersInput.split(',').map(s => s.trim()).filter(s => s);
+                
+                if (categories.length === 0 || locations.length === 0 || members.length === 0) {
+                    showToast('請確保密料以逗號分隔且有內容');
+                    return;
+                }
+                
+                const editId = document.getElementById('ledgerForm').getAttribute('data-edit-id');
+                const isNew = !editId;
+                
+                if (editId) {
+                    // 編輯現有帳冊
+                    const ledger = appData.ledgers.find(l => l.id === editId);
+                    if (ledger) {
+                        ledger.name = name;
+                        ledger.categories = categories;
+                        ledger.locations = locations;
+                        ledger.members = members;
+                    }
+                    showToast('帳冊已更新');
+                } else {
+                    // 新增帳冊
+                    const newLedger = {
+                        id: Date.now().toString(),
+                        name,
+                        categories,
+                        locations,
+                        members
+                    };
+                    appData.ledgers.push(newLedger);
+                    appData.currentLedgerId = newLedger.id;
+                    showToast('帳冊已新增');
+                }
+                
+                // 先關閉模態框
+                document.getElementById('ledgerModal').style.display = 'none';
+                
+                // 然後保存和更新UI
+                saveToLocalStorage();
+                updateUI();
+                
+                console.log('儲存成功');
+                
+            } catch (error) {
+                console.error('儲存失敗:', error);
+                showToast('儲存失敗，請檢查輸入');
             }
-            
-            saveToLocalStorage();
-            updateUI();
-            document.getElementById('ledgerModal').style.display = 'none';
         }
 
         // 更新帳冊資訊顯示
@@ -1114,43 +1132,125 @@
             }
         }
 
-        // 同步到雲端（模擬）
-        function syncWithCloud() {
+        // 從雲端同步（下載）
+        function pullFromCloud() {
             if (!appData.user) {
                 showToast('請先登入小米雲端');
                 return;
             }
             
-            // 模擬同步過程
-            showToast('開始同步到小米雲端...');
+            // 模擬從雲端獲取數據
+            showToast('正在從雲端同步...');
             
             setTimeout(() => {
-                // 模擬同步成功
+                // 模擬雲端數據（這裡可以實際調用雲端API）
+                const cloudData = {
+                    ledgers: [
+                        {
+                            id: 'cloud1',
+                            name: '雲端同步範例',
+                            categories: ['餐飲', '交通', '住宿'],
+                            locations: ['台北', '台中', '高雄'],
+                            members: ['雲端A', '雲端B', '雲端C']
+                        }
+                    ],
+                    expenses: [
+                        {
+                            id: 'cloudExp1',
+                            ledgerId: 'cloud1',
+                            date: '2024-01-20',
+                            time: '14:30',
+                            category: '餐飲',
+                            location: '台北',
+                            description: '雲端午餐',
+                            amount: 600,
+                            payer: '雲端A',
+                            splitters: ['雲端A', '雲端B', '雲端C'],
+                            averageAmount: 200,
+                            isSettled: false,
+                            receipt: null
+                        }
+                    ]
+                };
+                
+                // 合併數據（避免覆蓋現有數據）
+                const existingLedgerIds = new Set(appData.ledgers.map(l => l.id));
+                const existingExpenseIds = new Set(appData.expenses.map(e => e.id));
+                
+                cloudData.ledgers.forEach(ledger => {
+                    if (!existingLedgerIds.has(ledger.id)) {
+                        appData.ledgers.push(ledger);
+                    }
+                });
+                
+                cloudData.expenses.forEach(expense => {
+                    if (!existingExpenseIds.has(expense.id)) {
+                        appData.expenses.push(expense);
+                    }
+                });
+                
+                saveToLocalStorage();
+                updateUI();
+                
+                const syncTime = new Date().toLocaleString();
+                appData.lastSync = syncTime;
+                
+                showToast(`雲端同步完成！已下載 ${cloudData.ledgers.length} 本帳冊`);
+                updateCloudStatus();
+            }, 1500);
+        }
+
+        // 上傳到雲端（同步）
+        function syncToCloud() {
+            if (!appData.user) {
+                showToast('請先登入小米雲端');
+                return;
+            }
+            
+            showToast('正在同步到雲端...');
+            
+            setTimeout(() => {
+                // 模擬上傳成功
                 const syncTime = new Date().toLocaleString();
                 appData.lastSync = syncTime;
                 saveToLocalStorage();
                 showToast(`同步成功！最後同步時間：${syncTime}`);
                 updateCloudStatus();
-            }, 2000);
+            }, 1500);
         }
 
         // 更新雲端狀態顯示
         function updateCloudStatus() {
             const statusDiv = document.getElementById('cloudStatus');
-            const syncBtn = document.getElementById('syncBtn');
+            const syncContainer = document.getElementById('syncContainer');
             const loginBtn = document.getElementById('loginBtn');
             
             if (appData.user) {
                 statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 已登入<br><span class="text-xs">${appData.user.account}</span>`;
                 statusDiv.classList.remove('bg-blue-700');
                 statusDiv.classList.add('bg-green-600');
-                syncBtn.classList.remove('hidden');
+                
+                // 顯示同步按鈕組
+                syncContainer.innerHTML = `
+                    <button id="uploadBtn" class="bg-white text-blue-600 px-2 py-1 rounded text-sm hover:bg-blue-50" title="上傳到雲端">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </button>
+                    <button id="downloadBtn" class="bg-white text-blue-600 px-2 py-1 rounded text-sm hover:bg-blue-50" title="從雲端下載">
+                        <i class="fas fa-cloud-download-alt"></i>
+                    </button>
+                `;
+                syncContainer.classList.remove('hidden');
+                
+                // 綁定同步按鈕事件
+                document.getElementById('uploadBtn').addEventListener('click', syncToCloud);
+                document.getElementById('downloadBtn').addEventListener('click', pullFromCloud);
+                
                 loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> 登出';
             } else {
                 statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 未登入`;
                 statusDiv.classList.add('bg-blue-700');
                 statusDiv.classList.remove('bg-green-600');
-                syncBtn.classList.add('hidden');
+                syncContainer.classList.add('hidden');
                 loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> 登入';
             }
         }
