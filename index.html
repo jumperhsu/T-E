@@ -3,82 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊收支記帳程式</title>
+    <title>旅遊收支記帳管家 - GitHub Gist 雲端版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .receipt-preview {
-            max-width: 100px;
-            max-height: 100px;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: transform 0.2s;
-        }
-        .receipt-preview:hover {
-            transform: scale(1.05);
-        }
-        .card-hover:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-        .tab-active {
-            background-color: #3b82f6;
-            color: white;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            padding: 20px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 85vh;
-            overflow-y: auto;
-        }
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-in-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .chart-container {
-            position: relative;
-            height: 300px;
-            width: 100%;
-        }
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        .sync-badge {
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+        .receipt-preview { max-width: 100px; max-height: 100px; cursor: pointer; border-radius: 8px; transition: transform 0.2s; }
+        .receipt-preview:hover { transform: scale(1.05); }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .tab-active { background-color: #3b82f6; color: white; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 5% auto; padding: 20px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .cloud-status-bar { transition: all 0.3s ease; cursor: pointer; }
+        .sync-badge { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .disabled { opacity: 0.5; cursor: not-allowed; }
+        .success-box { background: #dcfce7; border-left: 4px solid #22c55e; }
+        .warning-box { background: #fef3c7; border-left: 4px solid #f59e0b; }
+        .loading-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -89,13 +39,13 @@
                 <i class="fas fa-wallet text-2xl"></i>
                 <h1 class="text-xl font-bold">旅遊記帳管家</h1>
             </div>
-            <div class="flex items-center space-x-2">
-                <div id="cloudStatus" class="text-sm bg-blue-700 px-3 py-1 rounded-full">
-                    <i class="fas fa-cloud"></i> 未登入
+            <div class="flex items-center space-x-2 relative">
+                <div id="cloudStatus" class="text-sm bg-blue-700 px-3 py-1 rounded-full cloud-status-bar" title="點擊查看同步狀態">
+                    <i class="fas fa-cloud"></i> 雲端未設定
                 </div>
-                <div id="syncContainer" class="flex space-x-1 hidden"></div>
-                <button id="loginBtn" class="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-50">
-                    <i class="fas fa-sign-in-alt"></i> 登入
+                <div id="syncStatus" class="hidden text-xs bg-white text-blue-600 px-2 py-1 rounded-full"></div>
+                <button id="cloudConfigBtn" class="bg-purple-600 text-white px-3 py-1 rounded-md text-sm font-medium">
+                    <i class="fas fa-cog"></i> 雲端設定
                 </button>
             </div>
         </div>
@@ -103,19 +53,41 @@
 
     <!-- 主內容區 -->
     <main class="container mx-auto px-4 py-6">
-        <!-- 匯出/匯入快速按鈕 -->
+        <!-- 雲端設定提示 -->
+        <div id="cloudSetupInfo" class="warning-box p-4 rounded-lg mb-4 hidden animate-fade-in">
+            <h3 class="font-bold text-yellow-800 mb-2">
+                <i class="fas fa-exclamation-triangle"></i> 雲端備份未設定
+            </h3>
+            <p class="text-sm text-gray-700 mb-2">
+                點擊右上角「雲端設定」按鈕，輸入 GitHub Token 和 Gist ID 即可啟用自動備份功能。
+            </p>
+            <p class="text-sm text-gray-700">
+                提示：您也可以使用下方的「匯出/匯入」功能手動備份。
+            </p>
+        </div>
+
+        <!-- 快速操作區 -->
         <div class="bg-white rounded-xl shadow-md p-3 mb-4 animate-fade-in">
-            <div class="flex flex-wrap gap-2 justify-end">
-                <button id="exportBtn" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition">
-                    <i class="fas fa-file-export"></i> 匯出資料
-                </button>
-                <button id="importBtn" class="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 transition">
-                    <i class="fas fa-file-import"></i> 匯入資料
-                </button>
-                <input type="file" id="importFile" accept=".json" class="hidden">
-            </div>
-            <div class="text-xs text-gray-500 mt-2 text-right">
-                <i class="fas fa-info-circle"></i> 使用「匯出/匯入」在不同瀏覽器間同步資料
+            <div class="flex flex-wrap gap-2 justify-between items-center">
+                <div class="text-sm text-gray-600">
+                    <i class="fas fa-info-circle text-blue-600"></i> 
+                    <span id="syncStatusText">資料儲存在瀏覽器中</span>
+                </div>
+                <div class="flex gap-2">
+                    <button id="cloudSyncBtn" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition hidden">
+                        <i class="fas fa-cloud-upload-alt"></i> 雲端備份
+                    </button>
+                    <button id="cloudDownloadBtn" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition hidden">
+                        <i class="fas fa-cloud-download-alt"></i> 雲端還原
+                    </button>
+                    <button id="exportBtn" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition">
+                        <i class="fas fa-file-export"></i> 匯出
+                    </button>
+                    <label for="importFile" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition cursor-pointer">
+                        <i class="fas fa-file-import"></i> 匯入
+                    </label>
+                    <input type="file" id="importFile" accept=".json" class="hidden">
+                </div>
             </div>
         </div>
 
@@ -265,6 +237,46 @@
         </div>
     </main>
 
+    <!-- 雲端設定模態框 -->
+    <div id="cloudConfigModal" class="modal">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">雲端備份設定</h3>
+                <button class="closeModal text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="bg-blue-50 p-3 rounded-lg mb-4 text-sm">
+                <p class="mb-2"><strong>如何取得設定資訊：</strong></p>
+                <ol class="list-decimal list-inside space-y-1 text-gray-700">
+                    <li>建立 Personal Access Token：<a href="https://github.com/settings/tokens" target="_blank" class="text-blue-600 underline">點此前往</a>（權限只勾選 gist）</li>
+                    <li>建立 Gist：<a href="https://gist.github.com/" target="_blank" class="text-blue-600 underline">點此前往</a>（設為 Private）</li>
+                    <li>複製 Gist ID（網址最後的字串）</li>
+                </ol>
+            </div>
+
+            <form id="cloudConfigForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">GitHub Personal Access Token</label>
+                    <input type="password" id="githubToken" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ghp_...">
+                    <div class="mt-1 flex items-center">
+                        <input type="checkbox" id="showToken" class="mr-2">
+                        <label for="showToken" class="text-sm text-gray-600">顯示 token</label>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Gist ID</label>
+                    <input type="text" id="gistId" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：a1b2c3d4e5f6g7h8i9j0">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" class="closeModal bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition">取消</button>
+                    <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition">儲存設定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 新增/編輯帳冊模態框 -->
     <div id="ledgerModal" class="modal">
         <div class="modal-content animate-fade-in">
@@ -403,87 +415,199 @@
         </div>
     </div>
 
-    <!-- 登入模態框 -->
-    <div id="loginModal" class="modal">
-        <div class="modal-content animate-fade-in" style="max-width: 400px;">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold">小米雲端登入</h3>
-                <button class="closeModal text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <form id="loginForm">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">小米帳號</label>
-                    <input type="email" id="miAccount" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="example@xiaomi.com">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">密碼</label>
-                    <input type="password" id="miPassword" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••">
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" class="closeModal bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition">取消</button>
-                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">登入</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- 匯入提示模態框 -->
-    <div id="importModal" class="modal">
-        <div class="modal-content animate-fade-in" style="max-width: 500px;">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold">匯入資料</h3>
-                <button class="closeModal text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="mb-4">
-                <h4 class="font-bold mb-2">選擇匯入方式：</h4>
-                <div class="space-y-3">
-                    <button id="mergeImportBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-                        <i class="fas fa-compress"></i> 合併（保留現有資料）
-                    </button>
-                    <button id="replaceImportBtn" class="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">
-                        <i class="fas fa-trash"></i> 取代（清空現有資料）
-                    </button>
-                    <div class="text-sm text-gray-600 p-3 bg-yellow-50 rounded">
-                        <i class="fas fa-exclamation-triangle"></i> 
-                        <strong>注意：</strong>「取代」會清空您現有的所有資料，請先匯出備份。
-                    </div>
-                </div>
-            </div>
-            <div class="flex justify-end">
-                <button type="button" class="closeModal bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition">取消</button>
-            </div>
-        </div>
-    </div>
-
     <!-- 提示訊息 -->
     <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg hidden z-50">
         <span id="toastMessage"></span>
     </div>
 
+    <!-- 同步中遮罩 -->
+    <div id="syncOverlay" class="fixed inset-0 bg-black bg-opacity-30 hidden z-40 flex items-center justify-center">
+        <div class="bg-white px-6 py-4 rounded-lg shadow-lg text-center">
+            <i class="fas fa-sync-alt fa-spin text-2xl text-blue-600 mb-2"></i>
+            <div class="font-bold">處理中...</div>
+            <div class="text-sm text-gray-500 mt-1">請稍候</div>
+        </div>
+    </div>
+
     <script>
+        // ==================== GitHub Gist 雲端系統 ====================
+        
+        class GitHubGistCloudSystem {
+            constructor() {
+                this.token = null;
+                this.gistId = null;
+                this.fileName = 'travel-accounting-data.json';
+            }
+
+            // 檢查是否已設定
+            isConfigured() {
+                return this.token && this.gistId;
+            }
+
+            // 設定
+            configure(token, gistId) {
+                this.token = token;
+                this.gistId = gistId;
+                localStorage.setItem('githubToken', token);
+                localStorage.setItem('gistId', gistId);
+            }
+
+            // 從 LocalStorage 讀取設定
+            loadConfig() {
+                this.token = localStorage.getItem('githubToken');
+                this.gistId = localStorage.getItem('gistId');
+                return this.isConfigured();
+            }
+
+            // 清除設定
+            clearConfig() {
+                this.token = null;
+                this.gistId = null;
+                localStorage.removeItem('githubToken');
+                localStorage.removeItem('gistId');
+            }
+
+            // 備份到 Gist
+            async backup(data) {
+                try {
+                    if (!this.isConfigured()) {
+                        throw new Error('未設定 GitHub 憑證');
+                    }
+
+                    showSyncOverlay(true, '正在上傳到 GitHub Gist...');
+
+                    // 檢查 Gist 是否存在
+                    const gistResponse = await fetch(`https://api.github.com/gists/${this.gistId}`, {
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+
+                    if (!gistResponse.ok) {
+                        throw new Error('無法存取 Gist，請檢查 Gist ID 和 Token');
+                    }
+
+                    const gistData = await gistResponse.json();
+
+                    // 準備要上傳的內容
+                    const fileContent = JSON.stringify(data, null, 2);
+                    
+                    // 檢查 Gist 中是否已有此檔案
+                    const existingFile = gistData.files[this.fileName];
+                    
+                    if (existingFile) {
+                        // 比較內容，如果相同則不更新
+                        const existingContent = existingFile.content;
+                        if (existingContent === fileContent) {
+                            return { success: true, message: '內容相同，無需更新' };
+                        }
+                    }
+
+                    // 更新 Gist
+                    const updateResponse = await fetch(`https://api.github.com/gists/${this.gistId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            files: {
+                                [this.fileName]: {
+                                    content: fileContent
+                                }
+                            }
+                        })
+                    });
+
+                    if (!updateResponse.ok) {
+                        const error = await updateResponse.json();
+                        throw new Error(`上傳失敗: ${error.message}`);
+                    }
+
+                    return { success: true, message: '備份成功' };
+
+                } catch (error) {
+                    console.error('備份失敗:', error);
+                    return { success: false, error: error.message };
+                } finally {
+                    showSyncOverlay(false);
+                }
+            }
+
+            // 從 Gist 還原
+            async restore() {
+                try {
+                    if (!this.isConfigured()) {
+                        throw new Error('未設定 GitHub 憑證');
+                    }
+
+                    showSyncOverlay(true, '正在從 GitHub Gist 下載...');
+
+                    const response = await fetch(`https://api.github.com/gists/${this.gistId}`, {
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('無法存取 Gist，請檢查 Gist ID 和 Token');
+                    }
+
+                    const gistData = await response.json();
+                    const file = gistData.files[this.fileName];
+
+                    if (!file) {
+                        return { success: false, error: 'Gist 中找不到資料檔案' };
+                    }
+
+                    const data = JSON.parse(file.content);
+                    return { success: true, data: data };
+
+                } catch (error) {
+                    console.error('還原失敗:', error);
+                    return { success: false, error: error.message };
+                } finally {
+                    showSyncOverlay(false);
+                }
+            }
+        }
+
+        // ==================== 主應用程式 ====================
+        
         // 資料存儲結構
         let appData = {
-            ledgers: [], // 帳冊列表
-            currentLedgerId: null, // 目前選擇的帳冊ID
-            expenses: [], // 所有支出記錄
-            user: null // 使用者資訊
+            ledgers: [],
+            currentLedgerId: null,
+            expenses: []
+        };
+
+        // 雲端系統實例
+        const cloudSystem = new GitHubGistCloudSystem();
+        
+        // 同步狀態
+        let syncState = {
+            lastSyncTime: null,
+            isSyncing: false
         };
 
         // 當前正在編輯的支出ID
         let currentEditingExpenseId = null;
-
-        // 匯入檔案內容
-        let importFileContent = null;
 
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             loadFromLocalStorage();
             setupEventListeners();
             updateUI();
+            
+            // 檢查雲端設定
+            if (cloudSystem.loadConfig()) {
+                updateCloudStatus();
+            } else {
+                document.getElementById('cloudSetupInfo').classList.remove('hidden');
+            }
         });
 
         // 設置事件監聽器
@@ -512,38 +636,26 @@
             // 表單提交
             document.getElementById('ledgerForm').addEventListener('submit', handleLedgerSubmit);
             document.getElementById('expenseForm').addEventListener('submit', handleExpenseSubmit);
-            document.getElementById('loginForm').addEventListener('submit', handleLogin);
             document.getElementById('queryBtn').addEventListener('click', handleQuery);
+            document.getElementById('cloudConfigForm').addEventListener('submit', handleCloudConfig);
 
-            // 匯出/匯入操作
+            // 雲端操作
+            document.getElementById('cloudConfigBtn').addEventListener('click', openCloudConfigModal);
+            document.getElementById('cloudSyncBtn').addEventListener('click', manualBackup);
+            document.getElementById('cloudDownloadBtn').addEventListener('click', manualRestore);
+
+            // 匯出/匯入
             document.getElementById('exportBtn').addEventListener('click', exportData);
-            document.getElementById('importBtn').addEventListener('click', () => {
-                document.getElementById('importModal').style.display = 'block';
-            });
-            document.getElementById('importFile').addEventListener('change', handleFileSelect);
-            
-            // 匯入方式選擇
-            document.getElementById('mergeImportBtn').addEventListener('click', () => {
-                if (importFileContent) {
-                    processImport(importFileContent, 'merge');
-                    document.getElementById('importModal').style.display = 'none';
-                } else {
-                    showToast('請先選擇要匯入的檔案');
-                }
-            });
-            document.getElementById('replaceImportBtn').addEventListener('click', () => {
-                if (importFileContent) {
-                    if (confirm('確定要取代所有現有資料嗎？此操作無法復原。')) {
-                        processImport(importFileContent, 'replace');
-                        document.getElementById('importModal').style.display = 'none';
-                    }
-                } else {
-                    showToast('請先選擇要匯入的檔案');
-                }
-            });
+            document.getElementById('importFile').addEventListener('change', importData);
 
             // 收據上傳預覽
             document.getElementById('expenseReceipt').addEventListener('change', previewReceipt);
+
+            // Token 顯示切換
+            document.getElementById('showToken').addEventListener('change', function() {
+                const tokenInput = document.getElementById('githubToken');
+                tokenInput.type = this.checked ? 'text' : 'password';
+            });
 
             // 模態框關閉
             document.querySelectorAll('.closeModal').forEach(btn => {
@@ -552,95 +664,259 @@
                 });
             });
 
-            // 雲端操作
-            document.getElementById('loginBtn').addEventListener('click', () => {
-                if (appData.user) {
-                    // 已登入，執行登出
-                    if (confirm('確定要登出嗎？')) {
-                        appData.user = null;
-                        updateCloudStatus();
-                        showToast('已登出小米雲端');
-                    }
-                } else {
-                    // 未登入，打開登入框
-                    document.getElementById('loginModal').style.display = 'block';
-                }
-            });
-
             // 點擊模態框外部關閉
             window.addEventListener('click', function(e) {
                 if (e.target.classList.contains('modal')) {
                     e.target.style.display = 'none';
                 }
             });
+
+            // 雲端狀態點擊事件
+            document.getElementById('cloudStatus').addEventListener('click', showCloudStatusDetail);
         }
 
-        // 切換標籤頁
-        function switchTab(tabName) {
-            // 隱藏所有標籤內容
-            document.getElementById('expensesTab').classList.add('hidden');
-            document.getElementById('queryTab').classList.add('hidden');
-            document.getElementById('chartsTab').classList.add('hidden');
-            
-            // 移除所有按鈕的活動狀態
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('tab-active');
-            });
+        // ==================== 雲端設定與操作 ====================
 
-            // 顯示選定的標籤內容
-            if (tabName === 'expenses') {
-                document.getElementById('expensesTab').classList.remove('hidden');
-                document.querySelector('[data-tab="expenses"]').classList.add('tab-active');
-                updateExpenseList();
-            } else if (tabName === 'query') {
-                document.getElementById('queryTab').classList.remove('hidden');
-                document.querySelector('[data-tab="query"]').classList.add('tab-active');
-                updateQueryOptions();
-            } else if (tabName === 'charts') {
-                document.getElementById('chartsTab').classList.remove('hidden');
-                document.querySelector('[data-tab="charts"]').classList.add('tab-active');
-                updateCharts();
+        function openCloudConfigModal() {
+            const modal = document.getElementById('cloudConfigModal');
+            const tokenInput = document.getElementById('githubToken');
+            const gistIdInput = document.getElementById('gistId');
+            
+            // 載入已儲存的設定
+            if (cloudSystem.token) {
+                tokenInput.value = cloudSystem.token;
             }
-        }
-
-        // 帳冊模態框
-        function openLedgerModal(ledgerId = null) {
-            const modal = document.getElementById('ledgerModal');
-            const title = document.getElementById('ledgerModalTitle');
-            const form = document.getElementById('ledgerForm');
-            
-            form.reset();
-            form.removeAttribute('data-edit-id');
-            
-            if (ledgerId) {
-                // 編輯模式
-                const ledger = appData.ledgers.find(l => l.id === ledgerId);
-                if (ledger) {
-                    title.textContent = '編輯帳冊';
-                    document.getElementById('ledgerName').value = ledger.name;
-                    document.getElementById('ledgerCategoriesInput').value = ledger.categories.join(',');
-                    document.getElementById('ledgerLocationsInput').value = ledger.locations.join(',');
-                    document.getElementById('ledgerMembersInput').value = ledger.members.join(',');
-                    form.setAttribute('data-edit-id', ledgerId);
-                }
-            } else {
-                // 新增模式
-                title.textContent = '新增帳冊';
+            if (cloudSystem.gistId) {
+                gistIdInput.value = cloudSystem.gistId;
             }
             
             modal.style.display = 'block';
         }
 
-        // 編輯當前帳冊
-        function editCurrentLedger() {
-            if (!appData.currentLedgerId) {
-                showToast('請先選擇一個帳冊');
+        function handleCloudConfig(e) {
+            e.preventDefault();
+            
+            const token = document.getElementById('githubToken').value.trim();
+            const gistId = document.getElementById('gistId').value.trim();
+            
+            if (!token || !gistId) {
+                showToast('請填寫所有欄位');
                 return;
             }
-            openLedgerModal(appData.currentLedgerId);
+            
+            cloudSystem.configure(token, gistId);
+            document.getElementById('cloudConfigModal').style.display = 'none';
+            updateCloudStatus();
+            showToast('雲端設定已儲存');
+            
+            // 顯示雲端操作按鈕
+            document.getElementById('cloudSyncBtn').classList.remove('hidden');
+            document.getElementById('cloudDownloadBtn').classList.remove('hidden');
+            document.getElementById('cloudSetupInfo').classList.add('hidden');
         }
 
-        // 處理帳冊表單提交
+        function updateCloudStatus() {
+            const statusDiv = document.getElementById('cloudStatus');
+            const syncBtn = document.getElementById('cloudSyncBtn');
+            const downloadBtn = document.getElementById('cloudDownloadBtn');
+            
+            if (cloudSystem.isConfigured()) {
+                statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 雲端已連結`;
+                statusDiv.classList.remove('bg-blue-700');
+                statusDiv.classList.add('bg-green-600');
+                syncBtn.classList.remove('hidden');
+                downloadBtn.classList.remove('hidden');
+                document.getElementById('cloudSetupInfo').classList.add('hidden');
+            } else {
+                statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 雲端未設定`;
+                statusDiv.classList.add('bg-blue-700');
+                statusDiv.classList.remove('bg-green-600');
+                syncBtn.classList.add('hidden');
+                downloadBtn.classList.add('hidden');
+                document.getElementById('cloudSetupInfo').classList.remove('hidden');
+            }
+        }
+
+        function showCloudStatusDetail() {
+            if (!cloudSystem.isConfigured()) {
+                showToast('請先設定雲端');
+                return;
+            }
+            
+            let message = `Gist ID: ${cloudSystem.gistId}\n`;
+            if (syncState.lastSyncTime) {
+                message += `最後同步: ${syncState.lastSyncTime.toLocaleString()}\n`;
+            } else {
+                message += `尚未同步\n`;
+            }
+            alert(message);
+        }
+
+        async function manualBackup() {
+            if (!cloudSystem.isConfigured()) {
+                showToast('請先設定雲端');
+                return;
+            }
+            
+            if (appData.ledgers.length === 0) {
+                showToast('沒有資料可備份');
+                return;
+            }
+            
+            if (syncState.isSyncing) {
+                showToast('同步中，請稍候...');
+                return;
+            }
+            
+            syncState.isSyncing = true;
+            const result = await cloudSystem.backup({
+                ledgers: appData.ledgers,
+                expenses: appData.expenses,
+                lastModified: new Date().toISOString()
+            });
+            
+            if (result.success) {
+                syncState.lastSyncTime = new Date();
+                showToast('備份成功！');
+                updateSyncStatus();
+            } else {
+                showToast('備份失敗: ' + result.error);
+            }
+            
+            syncState.isSyncing = false;
+        }
+
+        async function manualRestore() {
+            if (!cloudSystem.isConfigured()) {
+                showToast('請先設定雲端');
+                return;
+            }
+            
+            if (syncState.isSyncing) {
+                showToast('同步中，請稍候...');
+                return;
+            }
+            
+            // 確認是否要覆蓋
+            if (appData.ledgers.length > 0) {
+                if (!confirm('目前已有資料，確定要從雲端還原嗎？')) {
+                    return;
+                }
+            }
+            
+            syncState.isSyncing = true;
+            const result = await cloudSystem.restore();
+            
+            if (result.success) {
+                appData.ledgers = result.data.ledgers;
+                appData.expenses = result.data.expenses;
+                appData.currentLedgerId = result.data.ledgers.length > 0 ? result.data.ledgers[0].id : null;
+                
+                saveToLocalStorage();
+                updateUI();
+                syncState.lastSyncTime = new Date();
+                showToast('還原成功！');
+                updateSyncStatus();
+            } else {
+                showToast('還原失敗: ' + result.error);
+            }
+            
+            syncState.isSyncing = false;
+        }
+
+        function updateSyncStatus() {
+            const syncStatus = document.getElementById('syncStatus');
+            
+            if (!cloudSystem.isConfigured()) {
+                syncStatus.classList.add('hidden');
+                return;
+            }
+            
+            if (syncState.lastSyncTime) {
+                const timeStr = syncState.lastSyncTime.toLocaleTimeString();
+                syncStatus.innerHTML = `<i class="fas fa-check"></i> ${timeStr}`;
+                syncStatus.classList.remove('hidden');
+                syncStatus.classList.add('bg-green-600', 'text-white');
+            } else {
+                syncStatus.classList.add('hidden');
+            }
+        }
+
+        // ==================== 資料操作（手動） ====================
+
+        // 匯出資料
+        function exportData() {
+            if (appData.ledgers.length === 0) {
+                showToast('沒有資料可匯出');
+                return;
+            }
+            
+            const exportData = {
+                version: '1.0',
+                exportDate: new Date().toISOString(),
+                data: {
+                    ledgers: appData.ledgers,
+                    expenses: appData.expenses
+                }
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `travel-accounting-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('資料已匯出');
+        }
+
+        // 匯入資料
+        function importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importData = JSON.parse(event.target.result);
+                    
+                    if (!importData.data || !importData.data.ledgers) {
+                        showToast('檔案格式錯誤');
+                        return;
+                    }
+                    
+                    // 確認是否要覆蓋
+                    if (appData.ledgers.length > 0) {
+                        if (!confirm('目前已有資料，確定要覆蓋嗎？')) {
+                            return;
+                        }
+                    }
+                    
+                    appData.ledgers = importData.data.ledgers;
+                    appData.expenses = importData.data.expenses;
+                    appData.currentLedgerId = importData.data.ledgers.length > 0 ? importData.data.ledgers[0].id : null;
+                    
+                    saveToLocalStorage();
+                    updateUI();
+                    showToast('資料已成功匯入');
+                    
+                } catch (error) {
+                    console.error('匯入失敗:', error);
+                    showToast('匯入失敗，檔案格式錯誤');
+                }
+            };
+            reader.readAsText(file);
+            
+            // 清空 input，允許重複匯入同一個檔案
+            e.target.value = '';
+        }
+
+        // ==================== 其他函數（與之前相同） ====================
+
         function handleLedgerSubmit(e) {
             e.preventDefault();
             
@@ -650,7 +926,6 @@
                 const locationsInput = document.getElementById('ledgerLocationsInput').value;
                 const membersInput = document.getElementById('ledgerMembersInput').value;
                 
-                // 驗證輸入
                 if (!name || !categoriesInput || !locationsInput || !membersInput) {
                     showToast('請填寫所有欄位');
                     return;
@@ -668,7 +943,6 @@
                 const editId = document.getElementById('ledgerForm').getAttribute('data-edit-id');
                 
                 if (editId) {
-                    // 編輯現有帳冊
                     const ledger = appData.ledgers.find(l => l.id === editId);
                     if (ledger) {
                         ledger.name = name;
@@ -678,7 +952,6 @@
                     }
                     showToast('帳冊已更新');
                 } else {
-                    // 新增帳冊
                     const newLedger = {
                         id: Date.now().toString(),
                         name,
@@ -691,10 +964,7 @@
                     showToast('帳冊已新增');
                 }
                 
-                // 先關閉模態框
                 document.getElementById('ledgerModal').style.display = 'none';
-                
-                // 然後保存和更新UI
                 saveToLocalStorage();
                 updateUI();
                 
@@ -704,130 +974,6 @@
             }
         }
 
-        // 更新帳冊資訊顯示
-        function updateLedgerInfo() {
-            const infoDiv = document.getElementById('ledgerInfo');
-            
-            if (!appData.currentLedgerId) {
-                infoDiv.classList.add('hidden');
-                return;
-            }
-            
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            if (ledger) {
-                document.getElementById('ledgerCategories').textContent = ledger.categories.join('、');
-                document.getElementById('ledgerLocations').textContent = ledger.locations.join('、');
-                document.getElementById('ledgerMembers').textContent = ledger.members.join('、');
-                infoDiv.classList.remove('hidden');
-            }
-        }
-
-        // 支出模態框
-        function openExpenseModal(expenseId = null) {
-            if (!appData.currentLedgerId) {
-                showToast('請先選擇一個帳冊');
-                return;
-            }
-            
-            const modal = document.getElementById('expenseModal');
-            const title = document.getElementById('expenseModalTitle');
-            const form = document.getElementById('expenseForm');
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            
-            form.reset();
-            currentEditingExpenseId = null;
-            document.getElementById('receiptPreview').classList.add('hidden');
-            
-            // 填充下拉選單
-            const categorySelect = document.getElementById('expenseCategory');
-            const locationSelect = document.getElementById('expenseLocation');
-            const payerSelect = document.getElementById('expensePayer');
-            const splittersContainer = document.getElementById('expenseSplitters');
-            
-            categorySelect.innerHTML = '<option value="">請選擇</option>' + 
-                ledger.categories.map(c => `<option value="${c}">${c}</option>`).join('');
-            
-            locationSelect.innerHTML = '<option value="">請選擇</option>' + 
-                ledger.locations.map(l => `<option value="${l}">${l}</option>`).join('');
-            
-            payerSelect.innerHTML = '<option value="">請選擇</option>' + 
-                ledger.members.map(m => `<option value="${m}">${m}</option>`).join('');
-            
-            // 生成分攤人員複選框
-            splittersContainer.innerHTML = ledger.members.map(m => `
-                <label class="flex items-center space-x-2 p-1 hover:bg-gray-100 rounded">
-                    <input type="checkbox" value="${m}" class="splitter-checkbox w-4 h-4">
-                    <span>${m}</span>
-                </label>
-            `).join('');
-            
-            // 監聽分攤人員選擇變化，計算平均金額
-            splittersContainer.addEventListener('change', updateAverageAmount);
-            document.getElementById('expenseAmount').addEventListener('input', updateAverageAmount);
-            
-            if (expenseId) {
-                // 編輯模式
-                const expense = appData.expenses.find(e => e.id === expenseId);
-                if (expense) {
-                    title.textContent = '編輯支出';
-                    document.getElementById('expenseDate').value = expense.date;
-                    document.getElementById('expenseTime').value = expense.time;
-                    document.getElementById('expenseCategory').value = expense.category;
-                    document.getElementById('expenseLocation').value = expense.location;
-                    document.getElementById('expenseDescription').value = expense.description;
-                    document.getElementById('expenseAmount').value = expense.amount;
-                    document.getElementById('expensePayer').value = expense.payer;
-                    document.getElementById('expenseSettled').checked = expense.isSettled;
-                    
-                    // 設置分攤人員
-                    document.querySelectorAll('.splitter-checkbox').forEach(cb => {
-                        cb.checked = expense.splitters.includes(cb.value);
-                    });
-                    
-                    // 顯示收據
-                    if (expense.receipt) {
-                        document.getElementById('receiptImagePreview').src = expense.receipt;
-                        document.getElementById('receiptPreview').classList.remove('hidden');
-                    }
-                    
-                    currentEditingExpenseId = expenseId;
-                    updateAverageAmount();
-                }
-            } else {
-                // 新增模式
-                title.textContent = '新增支出';
-                // 預設日期時間為今天
-                const now = new Date();
-                document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
-                document.getElementById('expenseTime').value = now.toTimeString().slice(0,5);
-            }
-            
-            modal.style.display = 'block';
-        }
-
-        // 更新平均分攤金額
-        function updateAverageAmount() {
-            const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
-            const selectedSplitters = Array.from(document.querySelectorAll('.splitter-checkbox:checked')).map(cb => cb.value);
-            const count = selectedSplitters.length;
-            const average = count > 0 ? (amount / count).toFixed(2) : 0;
-            document.getElementById('averageAmount').textContent = average;
-        }
-
-        // 預覽收據
-        function previewReceipt(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    document.getElementById('receiptImagePreview').src = event.target.result;
-                    document.getElementById('receiptPreview').classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        // 處理支出表單提交
         function handleExpenseSubmit(e) {
             e.preventDefault();
             
@@ -864,14 +1010,12 @@
             };
             
             if (currentEditingExpenseId) {
-                // 編輯現有支出
                 const index = appData.expenses.findIndex(e => e.id === currentEditingExpenseId);
                 if (index !== -1) {
                     appData.expenses[index] = expenseData;
                     showToast('支出已更新');
                 }
             } else {
-                // 新增支出
                 appData.expenses.push(expenseData);
                 showToast('支出已新增');
             }
@@ -881,7 +1025,194 @@
             document.getElementById('expenseModal').style.display = 'none';
         }
 
-        // 更新支出列表
+        function deleteExpense(id) {
+            if (confirm('確定要刪除此支出嗎？')) {
+                appData.expenses = appData.expenses.filter(e => e.id !== id);
+                saveToLocalStorage();
+                updateExpenseList();
+                showToast('支出已刪除');
+            }
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('expensesTab').classList.add('hidden');
+            document.getElementById('queryTab').classList.add('hidden');
+            document.getElementById('chartsTab').classList.add('hidden');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+            });
+
+            if (tabName === 'expenses') {
+                document.getElementById('expensesTab').classList.remove('hidden');
+                document.querySelector('[data-tab="expenses"]').classList.add('tab-active');
+                updateExpenseList();
+            } else if (tabName === 'query') {
+                document.getElementById('queryTab').classList.remove('hidden');
+                document.querySelector('[data-tab="query"]').classList.add('tab-active');
+                updateQueryOptions();
+            } else if (tabName === 'charts') {
+                document.getElementById('chartsTab').classList.remove('hidden');
+                document.querySelector('[data-tab="charts"]').classList.add('tab-active');
+                updateCharts();
+            }
+        }
+
+        function updateUI() {
+            const ledgerSelect = document.getElementById('ledgerSelect');
+            ledgerSelect.innerHTML = '<option value="">請選擇帳冊</option>' + 
+                appData.ledgers.map(l => `<option value="${l.id}" ${appData.currentLedgerId === l.id ? 'selected' : ''}>${l.name}</option>`).join('');
+            
+            updateLedgerInfo();
+            updateExpenseList();
+            updateQueryOptions();
+            updateSyncStatus();
+        }
+
+        function updateLedgerInfo() {
+            const infoDiv = document.getElementById('ledgerInfo');
+            
+            if (!appData.currentLedgerId) {
+                infoDiv.classList.add('hidden');
+                return;
+            }
+            
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if (ledger) {
+                document.getElementById('ledgerCategories').textContent = ledger.categories.join('、');
+                document.getElementById('ledgerLocations').textContent = ledger.locations.join('、');
+                document.getElementById('ledgerMembers').textContent = ledger.members.join('、');
+                infoDiv.classList.remove('hidden');
+            }
+        }
+
+        function openLedgerModal(ledgerId = null) {
+            const modal = document.getElementById('ledgerModal');
+            const title = document.getElementById('ledgerModalTitle');
+            const form = document.getElementById('ledgerForm');
+            
+            form.reset();
+            form.removeAttribute('data-edit-id');
+            
+            if (ledgerId) {
+                const ledger = appData.ledgers.find(l => l.id === ledgerId);
+                if (ledger) {
+                    title.textContent = '編輯帳冊';
+                    document.getElementById('ledgerName').value = ledger.name;
+                    document.getElementById('ledgerCategoriesInput').value = ledger.categories.join(',');
+                    document.getElementById('ledgerLocationsInput').value = ledger.locations.join(',');
+                    document.getElementById('ledgerMembersInput').value = ledger.members.join(',');
+                    form.setAttribute('data-edit-id', ledgerId);
+                }
+            } else {
+                title.textContent = '新增帳冊';
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function editCurrentLedger() {
+            if (!appData.currentLedgerId) {
+                showToast('請先選擇一個帳冊');
+                return;
+            }
+            openLedgerModal(appData.currentLedgerId);
+        }
+
+        function openExpenseModal(expenseId = null) {
+            if (!appData.currentLedgerId) {
+                showToast('請先選擇一個帳冊');
+                return;
+            }
+            
+            const modal = document.getElementById('expenseModal');
+            const title = document.getElementById('expenseModalTitle');
+            const form = document.getElementById('expenseForm');
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            
+            form.reset();
+            currentEditingExpenseId = null;
+            document.getElementById('receiptPreview').classList.add('hidden');
+            
+            const categorySelect = document.getElementById('expenseCategory');
+            const locationSelect = document.getElementById('expenseLocation');
+            const payerSelect = document.getElementById('expensePayer');
+            const splittersContainer = document.getElementById('expenseSplitters');
+            
+            categorySelect.innerHTML = '<option value="">請選擇</option>' + 
+                ledger.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+            locationSelect.innerHTML = '<option value="">請選擇</option>' + 
+                ledger.locations.map(l => `<option value="${l}">${l}</option>`).join('');
+            
+            payerSelect.innerHTML = '<option value="">請選擇</option>' + 
+                ledger.members.map(m => `<option value="${m}">${m}</option>`).join('');
+            
+            splittersContainer.innerHTML = ledger.members.map(m => `
+                <label class="flex items-center space-x-2 p-1 hover:bg-gray-100 rounded">
+                    <input type="checkbox" value="${m}" class="splitter-checkbox w-4 h-4">
+                    <span>${m}</span>
+                </label>
+            `).join('');
+            
+            splittersContainer.addEventListener('change', updateAverageAmount);
+            document.getElementById('expenseAmount').addEventListener('input', updateAverageAmount);
+            
+            if (expenseId) {
+                const expense = appData.expenses.find(e => e.id === expenseId);
+                if (expense) {
+                    title.textContent = '編輯支出';
+                    document.getElementById('expenseDate').value = expense.date;
+                    document.getElementById('expenseTime').value = expense.time;
+                    document.getElementById('expenseCategory').value = expense.category;
+                    document.getElementById('expenseLocation').value = expense.location;
+                    document.getElementById('expenseDescription').value = expense.description;
+                    document.getElementById('expenseAmount').value = expense.amount;
+                    document.getElementById('expensePayer').value = expense.payer;
+                    document.getElementById('expenseSettled').checked = expense.isSettled;
+                    
+                    document.querySelectorAll('.splitter-checkbox').forEach(cb => {
+                        cb.checked = expense.splitters.includes(cb.value);
+                    });
+                    
+                    if (expense.receipt) {
+                        document.getElementById('receiptImagePreview').src = expense.receipt;
+                        document.getElementById('receiptPreview').classList.remove('hidden');
+                    }
+                    
+                    currentEditingExpenseId = expenseId;
+                    updateAverageAmount();
+                }
+            } else {
+                title.textContent = '新增支出';
+                const now = new Date();
+                document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
+                document.getElementById('expenseTime').value = now.toTimeString().slice(0,5);
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function updateAverageAmount() {
+            const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
+            const selectedSplitters = Array.from(document.querySelectorAll('.splitter-checkbox:checked')).map(cb => cb.value);
+            const count = selectedSplitters.length;
+            const average = count > 0 ? (amount / count).toFixed(2) : 0;
+            document.getElementById('averageAmount').textContent = average;
+        }
+
+        function previewReceipt(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    document.getElementById('receiptImagePreview').src = event.target.result;
+                    document.getElementById('receiptPreview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
         function updateExpenseList() {
             const listContainer = document.getElementById('expenseList');
             
@@ -907,7 +1238,6 @@
                 return;
             }
             
-            // 按日期排序（新到舊）
             const sortedExpenses = [...ledgerExpenses].sort((a, b) => {
                 const dateA = new Date(`${a.date} ${a.time}`);
                 const dateB = new Date(`${b.date} ${b.time}`);
@@ -954,7 +1284,6 @@
                 `;
             }).join('');
             
-            // 綁定按鈕事件
             document.querySelectorAll('.edit-expense').forEach(btn => {
                 btn.addEventListener('click', function() {
                     openExpenseModal(this.getAttribute('data-id'));
@@ -963,13 +1292,7 @@
             
             document.querySelectorAll('.delete-expense').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    if (confirm('確定要刪除此支出嗎？')) {
-                        appData.expenses = appData.expenses.filter(e => e.id !== id);
-                        saveToLocalStorage();
-                        updateExpenseList();
-                        showToast('支出已刪除');
-                    }
+                    deleteExpense(this.getAttribute('data-id'));
                 });
             });
             
@@ -985,20 +1308,16 @@
             });
         }
 
-        // 更新查詢選項
         function updateQueryOptions() {
             if (!appData.currentLedgerId) return;
             
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             const ledgerExpenses = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
             
-            // 更新支付者選項
             const payerSelect = document.getElementById('queryPayer');
             const payers = [...new Set(ledgerExpenses.map(e => e.payer))];
             payerSelect.innerHTML = '<option value="">全部</option>' + 
                 payers.map(p => `<option value="${p}">${p}</option>`).join('');
             
-            // 更新分攤人員選項
             const splitterSelect = document.getElementById('querySplitter');
             const allSplitters = new Set();
             ledgerExpenses.forEach(e => {
@@ -1008,7 +1327,6 @@
                 Array.from(allSplitters).map(s => `<option value="${s}">${s}</option>`).join('');
         }
 
-        // 處理查詢
         function handleQuery() {
             if (!appData.currentLedgerId) {
                 showToast('請先選擇一個帳冊');
@@ -1019,7 +1337,6 @@
             const splitter = document.getElementById('querySplitter').value;
             const settled = document.getElementById('querySettled').value;
             
-            // 過濾支出
             let filteredExpenses = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
             
             if (payer) {
@@ -1035,16 +1352,13 @@
                 filteredExpenses = filteredExpenses.filter(e => e.isSettled === isSettled);
             }
             
-            // 計算統計
             const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
             const totalCount = filteredExpenses.length;
             
-            // 計算分攤人員應付金額（如果指定了分攤人員）
             let splitterAmount = 0;
             let splitterDetails = [];
             
             if (splitter) {
-                // 計算該分攤人員在每筆支出中的平均分攤金額
                 splitterDetails = filteredExpenses.map(e => {
                     return {
                         date: e.date,
@@ -1057,12 +1371,10 @@
                 splitterAmount = splitterDetails.reduce((sum, d) => sum + d.average, 0);
             }
             
-            // 更新UI
             document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
             document.getElementById('totalCount').textContent = totalCount;
             document.getElementById('splitterAmount').textContent = splitterAmount.toFixed(2);
             
-            // 顯示分攤明細
             const detailsContainer = document.getElementById('splitterDetails');
             if (splitter && splitterDetails.length > 0) {
                 detailsContainer.innerHTML = splitterDetails.map(d => `
@@ -1080,7 +1392,6 @@
             document.getElementById('queryResults').classList.remove('hidden');
         }
 
-        // 更新圖表
         function updateCharts() {
             if (!appData.currentLedgerId) {
                 return;
@@ -1092,13 +1403,11 @@
                 return;
             }
             
-            // 支付者支出統計
             const payerData = {};
             ledgerExpenses.forEach(e => {
                 payerData[e.payer] = (payerData[e.payer] || 0) + e.amount;
             });
             
-            // 分攤人員統計（已結帳 vs 未結帳）
             const splitterData = {};
             ledgerExpenses.forEach(e => {
                 e.splitters.forEach(s => {
@@ -1113,7 +1422,6 @@
                 });
             });
             
-            // 支付者圖表
             const payerCtx = document.getElementById('payerChart').getContext('2d');
             if (window.payerChartInstance) {
                 window.payerChartInstance.destroy();
@@ -1149,7 +1457,6 @@
                 }
             });
             
-            // 分攤人員圖表
             const splitterCtx = document.getElementById('splitterChart').getContext('2d');
             if (window.splitterChartInstance) {
                 window.splitterChartInstance.destroy();
@@ -1188,177 +1495,6 @@
             });
         }
 
-        // 處理登入
-        function handleLogin(e) {
-            e.preventDefault();
-            
-            const account = document.getElementById('miAccount').value;
-            const password = document.getElementById('miPassword').value;
-            
-            // 模擬登入驗證
-            if (account && password) {
-                appData.user = {
-                    account: account,
-                    loginTime: new Date().toISOString()
-                };
-                
-                saveToLocalStorage();
-                updateCloudStatus();
-                document.getElementById('loginModal').style.display = 'none';
-                showToast('登入成功！（僅為模擬，請使用下方「匯出/匯入」功能）');
-            }
-        }
-
-        // 匯出資料
-        function exportData() {
-            if (appData.ledgers.length === 0) {
-                showToast('沒有資料可匯出');
-                return;
-            }
-            
-            // 準備匯出的資料
-            const exportData = {
-                version: '1.0',
-                exportDate: new Date().toISOString(),
-                data: {
-                    ledgers: appData.ledgers,
-                    expenses: appData.expenses
-                }
-            };
-            
-            // 轉換為 JSON 字串
-            const dataStr = JSON.stringify(exportData, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            
-            // 建立下載連結
-            const url = URL.createObjectURL(dataBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `travel-accounting-${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showToast('資料已匯出，請儲存該檔案');
-        }
-
-        // 處理檔案選擇
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                try {
-                    const content = JSON.parse(event.target.result);
-                    importFileContent = content;
-                    showToast('檔案已選擇，請選擇匯入方式');
-                } catch (error) {
-                    showToast('檔案格式錯誤，請選擇正確的 JSON 檔案');
-                    importFileContent = null;
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        // 處理匯入
-        function processImport(content, mode) {
-            try {
-                // 驗證資料格式
-                if (!content.version || !content.data) {
-                    showToast('檔案格式不正確');
-                    return;
-                }
-                
-                const { ledgers, expenses } = content.data;
-                
-                if (mode === 'replace') {
-                    // 取代模式：完全清空現有資料
-                    appData.ledgers = ledgers;
-                    appData.expenses = expenses;
-                    appData.currentLedgerId = ledgers.length > 0 ? ledgers[0].id : null;
-                    showToast('資料已取代');
-                } else {
-                    // 合併模式：保留現有資料，新增不重複的項目
-                    const existingLedgerIds = new Set(appData.ledgers.map(l => l.id));
-                    const existingExpenseIds = new Set(appData.expenses.map(e => e.id));
-                    
-                    let newLedgers = 0;
-                    let newExpenses = 0;
-                    
-                    ledgers.forEach(ledger => {
-                        if (!existingLedgerIds.has(ledger.id)) {
-                            appData.ledgers.push(ledger);
-                            newLedgers++;
-                        }
-                    });
-                    
-                    expenses.forEach(expense => {
-                        if (!existingExpenseIds.has(expense.id)) {
-                            appData.expenses.push(expense);
-                            newExpenses++;
-                        }
-                    });
-                    
-                    showToast(`合併完成：新增 ${newLedgers} 本帳冊，${newExpenses} 筆支出`);
-                }
-                
-                saveToLocalStorage();
-                updateUI();
-                importFileContent = null;
-                document.getElementById('importFile').value = '';
-                
-            } catch (error) {
-                console.error('匯入失敗:', error);
-                showToast('匯入失敗，請檢查檔案格式');
-            }
-        }
-
-        // 更新雲端狀態顯示
-        function updateCloudStatus() {
-            const statusDiv = document.getElementById('cloudStatus');
-            const syncContainer = document.getElementById('syncContainer');
-            const loginBtn = document.getElementById('loginBtn');
-            
-            if (appData.user) {
-                statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 已登入<br><span class="text-xs">${appData.user.account}</span>`;
-                statusDiv.classList.remove('bg-blue-700');
-                statusDiv.classList.add('bg-green-600');
-                
-                // 顯示同步狀態
-                const syncTime = appData.lastSync ? `<br><span class="text-xs sync-badge">已同步：${appData.lastSync}</span>` : '';
-                syncContainer.innerHTML = `<div class="text-xs bg-white text-blue-600 px-2 py-1 rounded">${syncTime}</div>`;
-                syncContainer.classList.remove('hidden');
-                
-                loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> 登出';
-            } else {
-                statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 未登入`;
-                statusDiv.classList.add('bg-blue-700');
-                statusDiv.classList.remove('bg-green-600');
-                syncContainer.classList.add('hidden');
-                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> 登入';
-            }
-        }
-
-        // 更新UI
-        function updateUI() {
-            // 更新帳冊選擇器
-            const ledgerSelect = document.getElementById('ledgerSelect');
-            ledgerSelect.innerHTML = '<option value="">請選擇帳冊</option>' + 
-                appData.ledgers.map(l => `<option value="${l.id}" ${appData.currentLedgerId === l.id ? 'selected' : ''}>${l.name}</option>`).join('');
-            
-            // 更新帳冊資訊
-            updateLedgerInfo();
-            
-            // 更新雲端狀態
-            updateCloudStatus();
-            
-            // 更新支出列表
-            updateExpenseList();
-        }
-
-        // 本地存儲
         function saveToLocalStorage() {
             localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
         }
@@ -1374,7 +1510,6 @@
             }
         }
 
-        // 顯示提示訊息
         function showToast(message) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -1387,63 +1522,18 @@
             }, 3000);
         }
 
-        // 預設新增一些範例數據（用於演示）
-        function addSampleData() {
-            if (appData.ledgers.length === 0) {
-                // 新增範例帳冊
-                const sampleLedger = {
-                    id: 'sample1',
-                    name: '日本東京七日遊',
-                    categories: ['餐飲', '交通', '住宿', '門票', '購物'],
-                    locations: ['東京', '淺草', '新宿', '迪士尼', '機場'],
-                    members: ['小明', '小華', '小美']
-                };
-                appData.ledgers.push(sampleLedger);
-                appData.currentLedgerId = 'sample1';
-                
-                // 新增範例支出
-                const sampleExpenses = [
-                    {
-                        id: 'exp1',
-                        ledgerId: 'sample1',
-                        date: '2024-01-15',
-                        time: '12:30',
-                        category: '餐飲',
-                        location: '東京',
-                        description: '午餐拉麵',
-                        amount: 1200,
-                        payer: '小明',
-                        splitters: ['小明', '小華', '小美'],
-                        averageAmount: 400,
-                        isSettled: true,
-                        receipt: null
-                    },
-                    {
-                        id: 'exp2',
-                        ledgerId: 'sample1',
-                        date: '2024-01-15',
-                        time: '18:45',
-                        category: '交通',
-                        location: '新宿',
-                        description: '地鐵一日券',
-                        amount: 800,
-                        payer: '小華',
-                        splitters: ['小明', '小華', '小美'],
-                        averageAmount: 266.67,
-                        isSettled: false,
-                        receipt: null
-                    }
-                ];
-                appData.expenses.push(...sampleExpenses);
-                
-                saveToLocalStorage();
-                updateUI();
-                showToast('已載入範例數據');
+        function showSyncOverlay(show, message = '處理中...') {
+            const overlay = document.getElementById('syncOverlay');
+            if (show) {
+                overlay.classList.remove('hidden');
+                overlay.querySelector('div').innerHTML = `
+                    <i class="fas fa-sync-alt fa-spin text-2xl text-blue-600 mb-2"></i>
+                    <div class="font-bold">${message}</div>
+                `;
+            } else {
+                overlay.classList.add('hidden');
             }
         }
-
-        // 自動添加範例數據（可選）
-        // addSampleData();
     </script>
 </body>
 </html>
