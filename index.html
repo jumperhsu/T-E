@@ -29,6 +29,25 @@
         .warning-box { background: #fef3c7; border-left: 4px solid #f59e0b; }
         .loading-spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+		
+		.tag-item {
+			background-color: #ebf5ff;
+			color: #2563eb;
+			padding: 2px 8px;
+			border-radius: 4px;
+			display: flex;
+			align-items: center;
+			font-size: 0.875rem;
+		}
+		.tag-close {
+			margin-left: 6px;
+			cursor: pointer;
+			color: #93c5fd;
+		}
+		.tag-close:hover {
+			color: #1d4ed8;
+		}
+		
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -291,18 +310,26 @@
                     <label class="block text-sm font-medium mb-1">帳冊名稱</label>
                     <input type="text" id="ledgerName" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：日本東京七日遊">
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">科目 (逗號分隔)</label>
-                    <input type="text" id="ledgerCategoriesInput" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：餐飲,交通,住宿,門票,購物">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">地點 (逗號分隔)</label>
-                    <input type="text" id="ledgerLocationsInput" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：東京,大阪,京都">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">分攤人員 (逗號分隔)</label>
-                    <input type="text" id="ledgerMembersInput" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：小明,小華,小美">
-                </div>
+				
+				<div class="mb-4">
+					<label class="block text-sm font-medium mb-1">科目 (輸入後按 Enter 新增)</label>
+					<div class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded focus-within:ring-2 focus-within:ring-blue-500" id="categoryTagsContainer">
+						<input type="text" id="categoryInput" class="flex-1 outline-none text-sm min-w-[100px]" placeholder="例如：餐飲">
+					</div>
+				</div>
+				<div class="mb-4">
+					<label class="block text-sm font-medium mb-1">地點 (輸入後按 Enter 新增)</label>
+					<div class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded focus-within:ring-2 focus-within:ring-blue-500" id="locationTagsContainer">
+						<input type="text" id="locationInput" class="flex-1 outline-none text-sm min-w-[100px]" placeholder="例如：東京">
+					</div>
+				</div>
+				<div class="mb-4">
+					<label class="block text-sm font-medium mb-1">分攤人員 (輸入後按 Enter 新增)</label>
+					<div class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded focus-within:ring-2 focus-within:ring-blue-500" id="memberTagsContainer">
+						<input type="text" id="memberInput" class="flex-1 outline-none text-sm min-w-[100px]" placeholder="例如：小明">
+					</div>
+				</div>
+				
                 <div class="flex justify-end space-x-2">
                     <button type="button" class="closeModal bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition">取消</button>
                     <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">儲存</button>
@@ -610,8 +637,54 @@
             }
         });
 
+
+		// 標籤管理器資料
+		let tempTags = { categories: [], locations: [], members: [] };
+
+		function renderTags(type, containerId) {
+			const container = document.getElementById(containerId);
+			const input = container.querySelector('input');
+			// 清除舊標籤
+			container.querySelectorAll('.tag-item').forEach(el => el.remove());
+			
+			// 渲染新標籤
+			tempTags[type].forEach((tag, index) => {
+				const span = document.createElement('span');
+				span.className = 'tag-item';
+				span.innerHTML = `${tag}<i class="fas fa-times tag-close" onclick="removeTag('${type}', ${index}, '${containerId}')"></i>`;
+				container.insertBefore(span, input);
+			});
+		}
+
+		function removeTag(type, index, containerId) {
+			tempTags[type].splice(index, 1);
+			renderTags(type, containerId);
+		}
+
+		function setupTagInput(inputId, containerId, type) {
+			const input = document.getElementById(inputId);
+			input.addEventListener('keydown', function(e) {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					const val = this.value.trim();
+					if (val && !tempTags[type].includes(val)) {
+						tempTags[type].push(val);
+						renderTags(type, containerId);
+						this.value = '';
+					}
+				}
+			});
+		}
+
+
         // 設置事件監聽器
         function setupEventListeners() {
+		
+			// 在 setupEventListeners 函數內加入
+			setupTagInput('categoryInput', 'categoryTagsContainer', 'categories');
+			setupTagInput('locationInput', 'locationTagsContainer', 'locations');
+			setupTagInput('memberInput', 'memberTagsContainer', 'members');
+
             // 標籤頁切換
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -922,21 +995,21 @@
             
             try {
                 const name = document.getElementById('ledgerName').value.trim();
-                const categoriesInput = document.getElementById('ledgerCategoriesInput').value;
-                const locationsInput = document.getElementById('ledgerLocationsInput').value;
-                const membersInput = document.getElementById('ledgerMembersInput').value;
                 
-                if (!name || !categoriesInput || !locationsInput || !membersInput) {
-                    showToast('請填寫所有欄位');
+                // 從標籤管理器抓取資料，不再使用 split(',')
+                const categories = tempTags.categories;
+                const locations = tempTags.locations;
+                const members = tempTags.members;
+                
+                // 驗證名稱是否有填寫
+                if (!name) {
+                    showToast('請填寫帳冊名稱');
                     return;
                 }
-                
-                const categories = categoriesInput.split(',').map(s => s.trim()).filter(s => s);
-                const locations = locationsInput.split(',').map(s => s.trim()).filter(s => s);
-                const members = membersInput.split(',').map(s => s.trim()).filter(s => s);
-                
+
+                // 驗證標籤是否至少各有一個
                 if (categories.length === 0 || locations.length === 0 || members.length === 0) {
-                    showToast('請確保密料以逗號分隔且有內容');
+                    showToast('科目、地點與人員請至少各新增一項 (輸入後按 Enter)');
                     return;
                 }
                 
@@ -946,27 +1019,32 @@
                     const ledger = appData.ledgers.find(l => l.id === editId);
                     if (ledger) {
                         ledger.name = name;
-                        ledger.categories = categories;
-                        ledger.locations = locations;
-                        ledger.members = members;
+                        // 直接存入陣列
+                        ledger.categories = [...categories];
+                        ledger.locations = [...locations];
+                        ledger.members = [...members];
                     }
                     showToast('帳冊已更新');
                 } else {
                     const newLedger = {
                         id: Date.now().toString(),
                         name,
-                        categories,
-                        locations,
-                        members
+                        categories: [...categories],
+                        locations: [...locations],
+                        members: [...members]
                     };
                     appData.ledgers.push(newLedger);
                     appData.currentLedgerId = newLedger.id;
                     showToast('帳冊已新增');
                 }
                 
+                // 關閉 Modal 並存檔
                 document.getElementById('ledgerModal').style.display = 'none';
                 saveToLocalStorage();
                 updateUI();
+                
+                // 重置標籤管理器
+                tempTags = { categories: [], locations: [], members: [] };
                 
             } catch (error) {
                 console.error('儲存失敗:', error);
@@ -1094,19 +1172,29 @@
             form.reset();
             form.removeAttribute('data-edit-id');
             
-            if (ledgerId) {
+           if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
                 if (ledger) {
                     title.textContent = '編輯帳冊';
                     document.getElementById('ledgerName').value = ledger.name;
-                    document.getElementById('ledgerCategoriesInput').value = ledger.categories.join(',');
-                    document.getElementById('ledgerLocationsInput').value = ledger.locations.join(',');
-                    document.getElementById('ledgerMembersInput').value = ledger.members.join(',');
+                    
+                    // 將既有資料同步到標籤管理器
+                    tempTags.categories = [...ledger.categories];
+                    tempTags.locations = [...ledger.locations];
+                    tempTags.members = [...ledger.members];
+                    
                     form.setAttribute('data-edit-id', ledgerId);
                 }
             } else {
                 title.textContent = '新增帳冊';
+                // 新增時清空標籤管理器
+                tempTags = { categories: [], locations: [], members: [] };
             }
+
+            // 觸發 UI 渲染，將資料轉化為可視化標籤
+            renderTags('categories', 'categoryTagsContainer');
+            renderTags('locations', 'locationTagsContainer');
+            renderTags('members', 'memberTagsContainer');
             
             modal.style.display = 'block';
         }
