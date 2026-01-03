@@ -11,7 +11,12 @@
         .receipt-preview { max-width: 100px; max-height: 100px; cursor: pointer; border-radius: 8px; transition: transform 0.2s; }
         .receipt-preview:hover { transform: scale(1.05); }
         .card-hover:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .tab-active { background-color: #3b82f6; color: white; }
+        
+		.tab-active { 
+			background-color: #2563eb !important; 
+			color: #ffffff !important; 
+		}
+		
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: white; margin: 5% auto; padding: 20px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; }
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
@@ -51,89 +56,87 @@
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
-    <!-- 頂部導航 -->
-    <nav class="bg-blue-600 text-white shadow-lg">
+    <nav class="bg-blue-600 text-white shadow-lg relative z-50">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+			<div class="flex items-center space-x-2">
+				<i class="fas fa-wallet text-2xl"></i>
+				<div class="flex items-baseline space-x-2">
+					<h1 class="text-xl font-bold">旅遊記帳管家</h1>
+					<span id="versionTag" class="text-[14px] text-white-space opacity-80 font-mono tracking-tighter"></span>
+				</div>
+			</div>
             <div class="flex items-center space-x-2">
-                <i class="fas fa-wallet text-2xl"></i>
-                <h1 class="text-xl font-bold">旅遊記帳管家</h1>
-            </div>
-            <div class="flex items-center space-x-2 relative">
-                <div id="cloudStatus" class="text-sm bg-blue-700 px-3 py-1 rounded-full cloud-status-bar" title="點擊查看同步狀態">
-                    <i class="fas fa-cloud"></i> 雲端未設定
+                <div id="syncStatus" class="hidden text-xs bg-red-500 text-blue-600 px-2 py-1 rounded-full"></div> 
+				<!-- <div id="syncStatus" class="hidden text-xs bg-white text-blue-600 px-2 py-1 rounded-full"></div> -->
+				<!-- <div id="syncStatus" class="hidden text-xs px-2 py-1 rounded-full"></div> -->
+				
+                <div id="cloudStatus" class="w-10 h-10 flex items-center justify-center rounded-full cursor-pointer bg-red-500 text-white transition-all shadow-md hover:scale-105 active:scale-95" title="點擊展開/收合雲端功能">
+                    <i class="fas fa-cloud"></i>
                 </div>
-                <div id="syncStatus" class="hidden text-xs bg-white text-blue-600 px-2 py-1 rounded-full"></div>
-                <button id="cloudConfigBtn" class="bg-purple-600 text-white px-3 py-1 rounded-md text-sm font-medium">
-                    <i class="fas fa-cog"></i> 雲端設定
-                </button>
             </div>
         </div>
     </nav>
 
-    <!-- 主內容區 -->
+    <div id="cloudMenu" class="hidden bg-white border-b shadow-lg animate-fade-in sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-3 flex flex-wrap gap-2 justify-center md:justify-end">
+            <button id="cloudConfigBtn" class="bg-purple-600 text-white px-3 py-1 rounded text-sm font-medium hover:bg-purple-700 transition">
+                <i class="fas fa-cog"></i> 雲端設定
+            </button>
+            <button id="cloudSyncBtn" class="bg-green-600 text-white px-3 py-1 rounded text-sm hidden hover:bg-green-700 transition">
+                <i class="fas fa-cloud-upload-alt"></i> 雲端備份
+            </button>
+            <button id="cloudDownloadBtn" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hidden hover:bg-blue-700 transition">
+                <i class="fas fa-cloud-download-alt"></i> 雲端還原
+            </button>
+            <button id="exportBtn" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition">
+                <i class="fas fa-file-export"></i> 匯出
+            </button>
+            <label for="importFile" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition cursor-pointer">
+                <i class="fas fa-file-import"></i> 匯入
+            </label>
+            <input type="file" id="importFile" accept=".json" class="hidden">
+        </div>
+    </div>
+
     <main class="container mx-auto px-4 py-6">
-        <!-- 雲端設定提示 -->
         <div id="cloudSetupInfo" class="warning-box p-4 rounded-lg mb-4 hidden animate-fade-in">
             <h3 class="font-bold text-yellow-800 mb-2">
                 <i class="fas fa-exclamation-triangle"></i> 雲端備份未設定
             </h3>
-            <p class="text-sm text-gray-700 mb-2">
-                點擊右上角「雲端設定」按鈕，輸入 GitHub Token 和 Gist ID 即可啟用自動備份功能。
-            </p>
             <p class="text-sm text-gray-700">
-                提示：您也可以使用下方的「匯出/匯入」功能手動備份。
+                點擊上方雲端圖示展開選單，進入「雲端設定」即可啟用自動備份。
             </p>
         </div>
 
-        <!-- 快速操作區 -->
-        <div class="bg-white rounded-xl shadow-md p-3 mb-4 animate-fade-in">
-            <div class="flex flex-wrap gap-2 justify-between items-center">
-                <div class="text-sm text-gray-600">
-                    <i class="fas fa-info-circle text-blue-600"></i> 
-                    <span id="syncStatusText">資料儲存在瀏覽器中</span>
+        <div class="bg-white rounded-xl shadow-md p-4 mb-6 animate-fade-in border-l-4 border-blue-500">
+            <div id="ledgerToggleHeader" class="flex justify-between items-center cursor-pointer group">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-book text-blue-600"></i>
+                    <h2 id="displayLedgerName" class="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition">請選擇帳冊</h2>
                 </div>
-                <div class="flex gap-2">
-                    <button id="cloudSyncBtn" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition hidden">
-                        <i class="fas fa-cloud-upload-alt"></i> 雲端備份
-                    </button>
-                    <button id="cloudDownloadBtn" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition hidden">
-                        <i class="fas fa-cloud-download-alt"></i> 雲端還原
-                    </button>
-                    <button id="exportBtn" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition">
-                        <i class="fas fa-file-export"></i> 匯出
-                    </button>
-                    <label for="importFile" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition cursor-pointer">
-                        <i class="fas fa-file-import"></i> 匯入
-                    </label>
-                    <input type="file" id="importFile" accept=".json" class="hidden">
-                </div>
+                <i id="ledgerChevron" class="fas fa-chevron-down text-gray-400"></i>
             </div>
-        </div>
-
-        <!-- 帳冊選擇區 -->
-        <div class="bg-white rounded-xl shadow-md p-4 mb-6 animate-fade-in">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-                <h2 class="text-lg font-bold text-gray-700 mb-2 md:mb-0">
-                    <i class="fas fa-book"></i> 帳冊管理
-                </h2>
-                <div class="flex space-x-2 w-full md:w-auto">
-                    <select id="ledgerSelect" class="flex-1 md:flex-none bg-gray-100 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">請選擇帳冊</option>
-                    </select>
-                    <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-                        <i class="fas fa-plus"></i> 新增
-                    </button>
-                    <button id="editLedgerBtn" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition">
-                        <i class="fas fa-edit"></i> 設定
-                    </button>
+            
+            <div id="ledgerControls" class="mt-4 pt-4 border-t">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+                    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        <select id="ledgerSelect" class="flex-1 md:flex-none bg-gray-100 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">請選擇帳冊</option>
+                        </select>
+                        <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+                            <i class="fas fa-plus"></i> 新增
+                        </button>
+                        <button id="editLedgerBtn" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm">
+                            <i class="fas fa-edit"></i> 設定
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <!-- 帳冊設定預覽 -->
-            <div id="ledgerInfo" class="hidden bg-blue-50 p-3 rounded-lg text-sm">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div><strong>科目：</strong><span id="ledgerCategories"></span></div>
-                    <div><strong>地點：</strong><span id="ledgerLocations"></span></div>
-                    <div><strong>成員：</strong><span id="ledgerMembers"></span></div>
+                <div id="ledgerInfo" class="hidden bg-blue-50 p-3 rounded-lg text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-blue-800">
+                        <div><strong>科目：</strong><span id="ledgerCategories"></span></div>
+                        <div><strong>地點：</strong><span id="ledgerLocations"></span></div>
+                        <div><strong>成員：</strong><span id="ledgerMembers"></span></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -624,6 +627,7 @@
         let currentEditingExpenseId = null;
 
         // 初始化
+		
         document.addEventListener('DOMContentLoaded', function() {
             loadFromLocalStorage();
             setupEventListeners();
@@ -636,6 +640,67 @@
                 document.getElementById('cloudSetupInfo').classList.remove('hidden');
             }
         });
+		//--
+		// 頁面加載完成後初始化
+        window.addEventListener('load', function() {
+            // --- 設定版號功能 ---
+            const setVersion = () => {
+                //const now = new Date();
+                //const year = now.getFullYear();
+                //const month = String(now.getMonth() + 1).padStart(2, '0');
+                //const day = String(now.getDate()).padStart(2, '0');
+                //const hours = String(now.getHours()).padStart(2, '0');
+                //const minutes = String(now.getMinutes()).padStart(2, '0');                
+                // 格式：20260103-0654
+                //const versionString = `${year}${month}${day}-${hours}${minutes}`;
+                const versionString = `20260103.001`;
+
+                const versionElement = document.getElementById('versionTag');
+                if (versionElement) versionElement.textContent = versionString;
+            };
+
+            setVersion(); // 執行顯示
+            // ------------------
+
+			// 2. 載入資料
+            loadFromLocalStorage();
+            
+            // 3. 執行剛剛新增的渲染函數 (確保選單裡有東西)
+            forceRenderLedgerSelect();
+            
+            // 4. 掛載所有按鈕與選擇器的監聽事件
+            setupEventListeners();
+            
+            // 5. 【核心修正】自動處理前次選定的帳冊
+            if (appData.currentLedgerId) {
+                const selector = document.getElementById('ledgerSelect');
+                
+                // 確保 selector 的值設定正確
+                selector.value = appData.currentLedgerId;
+                
+                // --- 核心動作：主動派發變更事件 ---
+                // 這會觸發 setupEventListeners 裡的更名與隱藏邏輯
+                selector.dispatchEvent(new Event('change'));
+                
+                // 強制補強：確保 UI 一定會更新
+                const controls = document.getElementById('ledgerControls');
+                const displayTitle = document.getElementById('displayLedgerName');
+                const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+                
+                if (controls) controls.classList.add('hidden'); // 強制隱藏管理區
+                if (displayTitle && ledger) displayTitle.textContent = ledger.name; // 強制換名
+            } else {
+                // 如果是新開啟或沒選帳冊，保持管理區展開
+                const controls = document.getElementById('ledgerControls');
+                if (controls) controls.classList.remove('hidden');
+            }
+            
+            // 6. 更新雲端與頁面狀態
+            updateCloudStatus();
+            if (typeof updateExpenseList === 'function') updateExpenseList();
+
+        });
+		//--
 
 
 		// 標籤管理器資料
@@ -678,14 +743,71 @@
 
 
         // 設置事件監聽器
-        function setupEventListeners() {
-		
-			// 在 setupEventListeners 函數內加入
-			setupTagInput('categoryInput', 'categoryTagsContainer', 'categories');
-			setupTagInput('locationInput', 'locationTagsContainer', 'locations');
-			setupTagInput('memberInput', 'memberTagsContainer', 'members');
+function setupEventListeners() {
+            // 1. 雲端狀態圖示點擊：切換功能選單展開/收合 (修正綁定)
+            const cloudStatus = document.getElementById('cloudStatus');
+            const cloudMenu = document.getElementById('cloudMenu');
+            if (cloudStatus) {
+                cloudStatus.onclick = function(e) {
+                    e.stopPropagation();
+                    cloudMenu.classList.toggle('hidden');
+                };
+            }
 
-            // 標籤頁切換
+            // 2. 帳冊標題點擊：切換管理區展開/收合 (修正綁定)
+            const ledgerHeader = document.getElementById('ledgerToggleHeader');
+            if (ledgerHeader) {
+                ledgerHeader.onclick = function() {
+                    const controls = document.getElementById('ledgerControls');
+                    const chevron = document.getElementById('ledgerChevron');
+                    const isHidden = controls.classList.toggle('hidden');
+                    
+                    // 切換箭頭方向
+                    if (isHidden) {
+                        chevron.classList.replace('fa-chevron-up', 'fa-chevron-down');
+                    } else {
+                        chevron.classList.replace('fa-chevron-down', 'fa-chevron-up');
+                    }
+                };
+            }
+
+            // 3. 帳冊選擇變更事件 (含自動換名、自動收合)
+            const ledgerSelect = document.getElementById('ledgerSelect');
+            if (ledgerSelect) {
+                ledgerSelect.addEventListener('change', function() {
+                    appData.currentLedgerId = this.value;
+                    const ledger = appData.ledgers.find(l => l.id === this.value);
+                    
+                    // 更新標題名稱
+                    const displayTitle = document.getElementById('displayLedgerName');
+                    if (displayTitle) {
+                        displayTitle.textContent = ledger ? ledger.name : '請選擇帳冊';
+                    }
+                    
+                    // 自動收合
+                    if (this.value) {
+                        const controls = document.getElementById('ledgerControls');
+                        const chevron = document.getElementById('ledgerChevron');
+                        if (controls) controls.classList.add('hidden');
+                        if (chevron) {
+                            chevron.classList.remove('fa-chevron-up');
+                            chevron.classList.add('fa-chevron-down');
+                        }
+                    }
+                    
+                    updateLedgerInfo();
+                    updateExpenseList();
+                    updateQueryOptions();
+                    saveToLocalStorage(); 
+                });
+            }
+
+            // 4. 標籤輸入設定
+            setupTagInput('categoryInput', 'categoryTagsContainer', 'categories');
+            setupTagInput('locationInput', 'locationTagsContainer', 'locations');
+            setupTagInput('memberInput', 'memberTagsContainer', 'members');
+
+            // 5. 頁籤切換 (點擊切換樣式)
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const tab = this.getAttribute('data-tab');
@@ -693,61 +815,76 @@
                 });
             });
 
-            // 帳冊操作
+            // 6. 按鈕操作
             document.getElementById('addLedgerBtn').addEventListener('click', () => openLedgerModal());
             document.getElementById('editLedgerBtn').addEventListener('click', () => editCurrentLedger());
-            document.getElementById('ledgerSelect').addEventListener('change', function() {
-                appData.currentLedgerId = this.value;
-                updateLedgerInfo();
-                updateExpenseList();
-                updateQueryOptions();
-            });
-
-            // 支出操作
             document.getElementById('addExpenseBtn').addEventListener('click', () => openExpenseModal());
 
-            // 表單提交
+            // 7. 表單提交
             document.getElementById('ledgerForm').addEventListener('submit', handleLedgerSubmit);
             document.getElementById('expenseForm').addEventListener('submit', handleExpenseSubmit);
             document.getElementById('queryBtn').addEventListener('click', handleQuery);
             document.getElementById('cloudConfigForm').addEventListener('submit', handleCloudConfig);
 
-            // 雲端操作
+            // 8. 雲端操作
             document.getElementById('cloudConfigBtn').addEventListener('click', openCloudConfigModal);
             document.getElementById('cloudSyncBtn').addEventListener('click', manualBackup);
             document.getElementById('cloudDownloadBtn').addEventListener('click', manualRestore);
 
-            // 匯出/匯入
+            // 9. 匯出/匯入
             document.getElementById('exportBtn').addEventListener('click', exportData);
             document.getElementById('importFile').addEventListener('change', importData);
 
-            // 收據上傳預覽
+            // 10. UI 互動
             document.getElementById('expenseReceipt').addEventListener('change', previewReceipt);
+            const showTokenCheck = document.getElementById('showToken');
+            if (showTokenCheck) {
+                showTokenCheck.addEventListener('change', function() {
+                    document.getElementById('githubToken').type = this.checked ? 'text' : 'password';
+                });
+            }
 
-            // Token 顯示切換
-            document.getElementById('showToken').addEventListener('change', function() {
-                const tokenInput = document.getElementById('githubToken');
-                tokenInput.type = this.checked ? 'text' : 'password';
-            });
-
-            // 模態框關閉
+            // 11. 模態框關閉
             document.querySelectorAll('.closeModal').forEach(btn => {
                 btn.addEventListener('click', function() {
                     this.closest('.modal').style.display = 'none';
                 });
             });
 
-            // 點擊模態框外部關閉
-            window.addEventListener('click', function(e) {
+            window.onclick = function(e) {
                 if (e.target.classList.contains('modal')) {
                     e.target.style.display = 'none';
                 }
-            });
-
-            // 雲端狀態點擊事件
-            document.getElementById('cloudStatus').addEventListener('click', showCloudStatusDetail);
+                // 點擊外部自動收合雲端選單
+                const cloudMenu = document.getElementById('cloudMenu');
+                if (cloudMenu && !e.target.closest('#cloudStatus') && !e.target.closest('#cloudMenu')) {
+                    cloudMenu.classList.add('hidden');
+                }
+            };
         }
-
+		
+		// 強制渲染帳冊下拉選單的函數
+        function forceRenderLedgerSelect() {
+            const select = document.getElementById('ledgerSelect');
+            if (!select) return;
+            
+            // 渲染前先清空，保留第一個預設選項
+            select.innerHTML = '<option value="">-- 請選擇帳冊 --</option>';
+            
+            // 根據資料生成選項
+            appData.ledgers.forEach(ledger => {
+                const option = document.createElement('option');
+                option.value = ledger.id;
+                option.textContent = ledger.name;
+                select.appendChild(option);
+            });
+            
+            // 設定為上次選定的 ID
+            if (appData.currentLedgerId) {
+                select.value = appData.currentLedgerId;
+            }
+        }
+		
         // ==================== 雲端設定與操作 ====================
 
         function openCloudConfigModal() {
@@ -788,27 +925,27 @@
             document.getElementById('cloudSetupInfo').classList.add('hidden');
         }
 
-        function updateCloudStatus() {
-            const statusDiv = document.getElementById('cloudStatus');
-            const syncBtn = document.getElementById('cloudSyncBtn');
-            const downloadBtn = document.getElementById('cloudDownloadBtn');
-            
-            if (cloudSystem.isConfigured()) {
-                statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 雲端已連結`;
-                statusDiv.classList.remove('bg-blue-700');
-                statusDiv.classList.add('bg-green-600');
-                syncBtn.classList.remove('hidden');
-                downloadBtn.classList.remove('hidden');
-                document.getElementById('cloudSetupInfo').classList.add('hidden');
-            } else {
-                statusDiv.innerHTML = `<i class="fas fa-cloud"></i> 雲端未設定`;
-                statusDiv.classList.add('bg-blue-700');
-                statusDiv.classList.remove('bg-green-600');
-                syncBtn.classList.add('hidden');
-                downloadBtn.classList.add('hidden');
-                document.getElementById('cloudSetupInfo').classList.remove('hidden');
-            }
-        }
+		function updateCloudStatus() {
+			const statusDiv = document.getElementById('cloudStatus');
+			const syncBtn = document.getElementById('cloudSyncBtn');
+			const downloadBtn = document.getElementById('cloudDownloadBtn');
+			
+			if (cloudSystem.isConfigured()) {
+				// 已連結：綠色
+				statusDiv.classList.remove('bg-red-500', 'bg-blue-700');
+				statusDiv.classList.add('bg-green-600');
+				syncBtn.classList.remove('hidden');
+				downloadBtn.classList.remove('hidden');
+				document.getElementById('cloudSetupInfo').classList.add('hidden');
+			} else {
+				// 未連結：紅色
+				statusDiv.classList.remove('bg-green-600', 'bg-blue-700');
+				statusDiv.classList.add('bg-red-500');
+				syncBtn.classList.add('hidden');
+				downloadBtn.classList.add('hidden');
+				document.getElementById('cloudSetupInfo').classList.remove('hidden');
+			}
+		}
 
         function showCloudStatusDetail() {
             if (!cloudSystem.isConfigured()) {
@@ -906,10 +1043,12 @@
             }
             
             if (syncState.lastSyncTime) {
-                const timeStr = syncState.lastSyncTime.toLocaleTimeString();
-                syncStatus.innerHTML = `<i class="fas fa-check"></i> ${timeStr}`;
+                //const timeStr = syncState.lastSyncTime.toLocaleTimeString();				
+                //syncStatus.innerHTML = `<i class="fas fa-check"></i> ${timeStr}`;
+				syncStatus.innerHTML = `<i class="fas fa-check"></i>`;
                 syncStatus.classList.remove('hidden');
-                syncStatus.classList.add('bg-green-600', 'text-white');
+                //syncStatus.classList.add('bg-green-600', 'text-white');
+				syncStatus.classList.add('bg-white', 'text-green');
             } else {
                 syncStatus.classList.add('hidden');
             }
