@@ -145,13 +145,13 @@
         <div class="bg-white rounded-xl shadow-md overflow-hidden animate-fade-in">
             <div class="flex border-b">
                 <button class="tab-btn tab-active flex-1 py-3 px-4 text-center font-medium hover:bg-gray-50" data-tab="expenses">
-                    <i class="fas fa-receipt"></i> 支出記錄
+                    <i class="fas fa-receipt"></i> 記錄
                 </button>
                 <button class="tab-btn flex-1 py-3 px-4 text-center font-medium hover:bg-gray-50" data-tab="query">
-                    <i class="fas fa-search"></i> 查詢統計
+                    <i class="fas fa-search"></i> 統計
                 </button>
                 <button class="tab-btn flex-1 py-3 px-4 text-center font-medium hover:bg-gray-50" data-tab="charts">
-                    <i class="fas fa-chart-bar"></i> 分析圖表
+                    <i class="fas fa-chart-bar"></i> 圖表
                 </button>
             </div>
 
@@ -175,38 +175,42 @@
             </div>
 
             <!-- 查詢統計標籤頁 -->
-            <div id="queryTab" class="p-4 hidden">
-                <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                    <h3 class="font-bold mb-3">查詢條件</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">支付者</label>
-                            <select id="queryPayer" class="w-full bg-white border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">全部</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">分攤人員</label>
-                            <select id="querySplitter" class="w-full bg-white border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">全部</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">結帳狀態</label>
-                            <select id="querySettled" class="w-full bg-white border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">全部</option>
-                                <option value="true">已結帳</option>
-                                <option value="false">未結帳</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="mt-3 flex justify-end">
-                        <button id="queryBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-                            <i class="fas fa-search"></i> 查詢
-                        </button>
-                    </div>
-                </div>
+			<div id="queryTab" class="p-4 hidden">
+				<div class="bg-gray-50 p-4 rounded-lg mb-4">
+					<h3 class="font-bold mb-3">查詢條件</h3>
+					
+					<div class="grid grid-cols-2 gap-3 mb-3">
+						<div>
+							<label class="block text-sm font-medium mb-1">支付者</label>
+							<select id="queryPayer" class="w-full bg-white border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+								<option value="">全部</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-sm font-medium mb-1">分攤人員</label>
+							<select id="querySplitter" class="w-full bg-white border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+								<option value="">全部</option>
+							</select>
+						</div>
+					</div>
 
+					<div class="grid grid-cols-2 gap-3 items-end">
+						<div>
+							<label class="block text-sm font-medium mb-1">結帳狀態</label>
+							<select id="querySettled" class="w-full bg-white border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+								<option value="">全部</option>
+								<option value="true">已結帳</option>
+								<option value="false">未結帳</option>
+							</select>
+						</div>
+						<div class="flex">
+							<button id="queryBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition flex items-center justify-center">
+								<i class="fas fa-search mr-2"></i> 查詢
+							</button>
+						</div>
+					</div>
+				</div>
+				</div>
                 <!-- 查詢結果 -->
                 <div id="queryResults" class="hidden">
                     <div class="bg-green-50 p-4 rounded-lg mb-4">
@@ -383,23 +387,24 @@
                     <input type="text" id="expenseDescription" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：午餐、門票、車資">
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-1">支出金額</label>
-                        <input type="number" id="expenseAmount" required min="0" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">支付者</label>
-                        <select id="expensePayer" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">請選擇</option>
-                        </select>
-                    </div>
-                </div>
+				<div class="grid grid-cols-2 gap-3 mb-4">
+					<div>
+						<label class="block text-sm font-medium mb-1">支出金額</label>
+						<input type="number" id="expenseAmount" required min="0" step="0.01" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00">
+					</div>
+					<div>
+						<label class="block text-sm font-medium mb-1">支付者</label>
+						<select id="expensePayer" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+							<option value="">請選擇</option>
+						</select>
+					</div>
+				</div>
 
                 <div class="mb-4">
                     <label class="block text-sm font-medium mb-1">分攤人員 (可多選)</label>
-                    <div id="expenseSplitters" class="border border-gray-300 rounded p-2 max-h-32 overflow-y-auto">
-                        </div>
+					<div id="expenseSplitters" class="grid grid-cols-2 gap-x-2 border border-gray-300 rounded p-2 max-h-32 overflow-y-auto">
+						</div>					
+						
                     <div class="mt-1 text-sm text-gray-500">
                         平均分攤金額：<span id="averageAmount" class="font-bold text-blue-600">0</span>
                     </div>
