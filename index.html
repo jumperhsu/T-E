@@ -350,8 +350,9 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <form id="expenseForm">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+
+<form id="expenseForm">
+                <div class="grid grid-cols-2 gap-3 mb-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">日期</label>
                         <input type="date" id="expenseDate" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -362,7 +363,7 @@
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div class="grid grid-cols-2 gap-3 mb-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">科目</label>
                         <select id="expenseCategory" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -398,8 +399,7 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium mb-1">分攤人員 (可多選)</label>
                     <div id="expenseSplitters" class="border border-gray-300 rounded p-2 max-h-32 overflow-y-auto">
-                        <!-- 動態生成複選框 -->
-                    </div>
+                        </div>
                     <div class="mt-1 text-sm text-gray-500">
                         平均分攤金額：<span id="averageAmount" class="font-bold text-blue-600">0</span>
                     </div>
@@ -427,6 +427,7 @@
                     <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">儲存</button>
                 </div>
             </form>
+
         </div>
     </div>
 
