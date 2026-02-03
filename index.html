@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊收支記帳管家 - Pro版 (自訂登入)</title>
+    <title>旅遊收支記帳管家 - Firebase版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
@@ -71,8 +74,8 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <div id="syncStatus" class="hidden text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium border border-green-200 flex items-center gap-1">
-                    <i class="fas fa-check-circle"></i> 已同步
+                <div id="syncStatus" class="hidden text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium border border-orange-200 flex items-center gap-1">
+                    <i class="fas fa-circle-notch fa-spin"></i> 連線中...
                 </div> 
                 
                 <div id="userBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200 relative" title="使用者設定">
@@ -80,8 +83,8 @@
                     <div id="userStatusDot" class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-400 rounded-full border-2 border-white"></div>
                 </div>
 
-                <div id="cloudStatus" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200" title="雲端功能">
-                    <i class="fas fa-cloud"></i>
+                <div id="cloudStatus" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-400 border border-slate-200" title="Firebase 雲端狀態">
+                    <i class="fas fa-database"></i>
                 </div>
 
                 <div id="aboutBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200" title="關於">
@@ -93,42 +96,21 @@
 
     <div id="cloudMenu" class="hidden bg-white border-b shadow-lg animate-fade-in absolute w-full z-40">
         <div class="container mx-auto px-4 py-4 flex flex-wrap gap-3 justify-center md:justify-end items-center">
-            <span class="text-sm text-slate-500 mr-2"><i class="fab fa-github"></i> GitHub Gist</span>
-            <button id="cloudConfigBtn" class="bg-slate-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-900 transition flex items-center gap-2">
-                <i class="fas fa-cog"></i> 設定
-            </button>
-            <div class="h-6 w-px bg-gray-300 mx-2"></div>
-            <button id="cloudSyncBtn" class="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm hidden hover:bg-green-700 transition flex items-center gap-2 shadow-sm">
-                <i class="fas fa-cloud-upload-alt"></i> 備份上傳
-            </button>
-            <button id="cloudDownloadBtn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hidden hover:bg-blue-700 transition flex items-center gap-2 shadow-sm">
-                <i class="fas fa-cloud-download-alt"></i> 還原下載
-            </button>
+            <span class="text-sm text-slate-500 mr-2 flex items-center gap-2">
+                <i class="fas fa-fire text-amber-500"></i> Firebase 自動同步中
+            </span>
             <div class="h-6 w-px bg-gray-300 mx-2"></div>
             <button id="exportBtn" class="text-slate-600 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-100 transition flex items-center gap-2">
-                <i class="fas fa-file-export"></i> 匯出
+                <i class="fas fa-file-export"></i> 匯出備份檔
             </button>
             <label for="importFile" class="text-slate-600 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-100 transition cursor-pointer flex items-center gap-2">
-                <i class="fas fa-file-import"></i> 匯入
+                <i class="fas fa-file-import"></i> 匯入備份檔
             </label>
             <input type="file" id="importFile" accept=".json" class="hidden">
         </div>
     </div>
 
     <main class="container mx-auto px-4 py-6 max-w-5xl">
-        <div id="cloudSetupInfo" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg mb-6 hidden shadow-sm">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-exclamation-triangle text-amber-400"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm text-amber-700">
-                        雲端備份尚未設定。點擊右上角雲端圖示 <i class="fas fa-cloud"></i> 進行設定以啟用跨裝置同步。
-                    </p>
-                </div>
-            </div>
-        </div>
-
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
             <div id="ledgerToggleHeader" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition select-none border-b border-transparent">
                 <div class="flex items-center gap-3">
@@ -299,21 +281,22 @@
             </div>
             <div class="space-y-4">
                 <div class="flex items-center gap-4 mb-4">
-                    <div class="bg-blue-600 text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg">
-                        <i class="fas fa-wallet"></i>
+                    <div class="bg-amber-500 text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg">
+                        <i class="fas fa-fire"></i>
                     </div>
                     <div>
                         <h4 class="font-bold text-lg text-slate-800">旅遊收支記帳管家</h4>
-                        <p class="text-slate-500 text-sm">Pro 專業版 (自訂登入)</p>
+                        <p class="text-slate-500 text-sm">Pro 專業版 (Firebase Sync)</p>
                     </div>
                 </div>
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2 text-sm">
                     <div class="flex justify-between"><span class="font-medium text-slate-500">版次</span> <span id="aboutVersion" class="font-mono text-slate-700"></span></div>
                     <div class="flex justify-between"><span class="font-medium text-slate-500">構想提供</span> <span class="text-slate-700">JumperHsu</span></div>
                     <div class="flex justify-between"><span class="font-medium text-slate-500">設計開發</span> <span class="text-slate-700">DeepSeek/Gemini 3 Pro</span></div>
+                    <div class="flex justify-between"><span class="font-medium text-slate-500">資料庫</span> <span class="text-slate-700">Google Firebase</span></div>
                 </div>
                 <div class="text-xs text-slate-400 text-center pt-2">
-                    <p>本程式支援 GitHub Gist 雲端備份</p>
+                    <p>資料將自動同步至 travelexpense-fcc89 專案</p>
                 </div>
             </div>
         </div>
@@ -352,35 +335,6 @@
                 <div class="pt-4 border-t border-slate-100 mt-4 flex flex-col gap-3">
                     <button type="submit" class="w-full bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium shadow-md shadow-blue-200">確認並登入</button>
                     <button type="button" id="switchUserBtn" class="hidden w-full border border-slate-300 text-slate-600 bg-white px-6 py-2.5 rounded-lg hover:bg-slate-50 transition font-medium">切換使用者 (登出)</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="cloudConfigModal" class="modal">
-        <div class="modal-content animate-fade-in">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-slate-800">GitHub Gist 連線設定</h3>
-                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
-            </div>
-            
-            <form id="cloudConfigForm" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">GitHub Personal Access Token</label>
-                    <div class="relative">
-                        <input type="password" id="githubToken" required class="w-full border border-slate-300 rounded-lg pl-3 pr-10 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="ghp_...">
-                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                            <input type="checkbox" id="showToken" class="cursor-pointer">
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-1">需要 Gist 讀寫權限</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Gist ID</label>
-                    <input type="text" id="gistId" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="例如: 8f3...a2b">
-                </div>
-                <div class="flex justify-end pt-2">
-                    <button type="submit" class="bg-slate-800 text-white px-6 py-2.5 rounded-lg hover:bg-slate-900 transition font-medium shadow-lg shadow-slate-300/50">儲存並連線</button>
                 </div>
             </form>
         </div>
@@ -580,14 +534,28 @@
     </div>
 
     <script>
-        const CURRENT_VERSION = 'v20250203.06';
+        const CURRENT_VERSION = 'v20250203.07';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         
-        const DEFAULT_GH_TOKEN = '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';
-        const DEFAULT_GIST_ID = '868adf845226d85190c0cf5fe6f58a4a';
+        // --- Firebase Config ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
+            authDomain: "travelexpense-fcc89.firebaseapp.com",
+            databaseURL: "https://travelexpense-fcc89-default-rtdb.firebaseio.com",
+            projectId: "travelexpense-fcc89",
+            storageBucket: "travelexpense-fcc89.firebasestorage.app",
+            messagingSenderId: "77168421477",
+            appId: "1:77168421477:web:c8f123a416c81197b1348c"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const dbRef = db.ref('travel_data'); // Syncing entire app data to a root node
 
         let appData = { ledgers: [], currentLedgerId: null, expenses: [] };
         let currentUser = null;
+        let isFirebaseConnected = false;
         
         let tempLedger = {
             mainCats: [], subCats: {}, cities: [], districts: {}, members: []
@@ -597,67 +565,115 @@
         let selectedCityId = null;
         let currentEditingExpenseId = null;
 
-        const cloudSystem = {
-            token: localStorage.getItem('githubToken') || DEFAULT_GH_TOKEN,
-            gistId: localStorage.getItem('gistId') || DEFAULT_GIST_ID,
-            
-            saveConfig(t, g) {
-                this.token = t; 
-                this.gistId = g;
-                localStorage.setItem('githubToken', t);
-                localStorage.setItem('gistId', g);
-            },
-            isConfigured() { return this.token && this.gistId; }
-        };
-
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('versionTag').textContent = CURRENT_VERSION;
             document.getElementById('aboutVersion').textContent = CURRENT_VERSION;
             
-            if (!localStorage.getItem('githubToken')) {
-                localStorage.setItem('githubToken', DEFAULT_GH_TOKEN);
-            }
-            if (!localStorage.getItem('gistId')) {
-                localStorage.setItem('gistId', DEFAULT_GIST_ID);
-            }
+            // 1. Initial Local Load (for offline first feeling)
+            loadLocalData();
             
-            document.getElementById('githubToken').value = cloudSystem.token;
-            document.getElementById('gistId').value = cloudSystem.gistId;
-
-            loadData();
+            // 2. User System Init
             initUserSystem();
-            setupEvents();
+            
+            // 3. Setup Firebase Listeners (Auto Sync Down)
+            setupFirebaseSync();
 
-            if (cloudSystem.isConfigured()) {
-                document.getElementById('cloudStatus').classList.add('text-blue-600', 'bg-blue-50');
-                document.getElementById('cloudSyncBtn').classList.remove('hidden');
-                document.getElementById('cloudDownloadBtn').classList.remove('hidden');
-                document.getElementById('syncStatus').classList.remove('hidden');
-            } else {
-                document.getElementById('cloudSetupInfo').classList.remove('hidden');
-            }
+            // 4. UI Events
+            setupEvents();
+            updateUI();
         });
 
-        function loadData() {
+        // --- Data Persistence Logic ---
+
+        function loadLocalData() {
             const saved = localStorage.getItem('travelAccountingApp');
             if (saved) {
                 try { appData = JSON.parse(saved); } catch (e) { console.error(e); }
             }
+            // Cleanup check
             if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) {
                 appData.currentLedgerId = null;
             }
         }
 
         function saveData() {
+            // 1. Save Local
             localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
+            
+            // 2. Sync to Firebase (Upstream)
+            if(isFirebaseConnected) {
+                const statusEl = document.getElementById('syncStatus');
+                statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 上傳中...';
+                statusEl.classList.remove('hidden', 'bg-green-100', 'text-green-700');
+                statusEl.classList.add('bg-blue-100', 'text-blue-700');
+
+                dbRef.set(appData)
+                    .then(() => {
+                        // Success handled by listener usually, but we can set UI state here
+                        setTimeout(() => {
+                            statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 已同步';
+                            statusEl.classList.remove('bg-blue-100', 'text-blue-700');
+                            statusEl.classList.add('bg-green-100', 'text-green-700');
+                        }, 500);
+                    })
+                    .catch((error) => {
+                        console.error("Firebase Sync Error", error);
+                        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 同步失敗';
+                        statusEl.classList.remove('bg-blue-100', 'text-blue-700');
+                        statusEl.classList.add('bg-red-100', 'text-red-700');
+                    });
+            }
         }
+
+        function setupFirebaseSync() {
+            const statusEl = document.getElementById('syncStatus');
+            const cloudIcon = document.getElementById('cloudStatus');
+            
+            statusEl.classList.remove('hidden');
+            
+            db.ref('.info/connected').on('value', (snap) => {
+                if (snap.val() === true) {
+                    isFirebaseConnected = true;
+                    cloudIcon.classList.remove('text-slate-400');
+                    cloudIcon.classList.add('text-green-500', 'bg-green-50');
+                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 已同步';
+                    statusEl.classList.add('bg-green-100', 'text-green-700');
+                } else {
+                    isFirebaseConnected = false;
+                    cloudIcon.classList.add('text-slate-400');
+                    cloudIcon.classList.remove('text-green-500', 'bg-green-50');
+                    statusEl.innerHTML = '<i class="fas fa-wifi"></i> 離線模式';
+                    statusEl.classList.remove('bg-green-100', 'text-green-700');
+                    statusEl.classList.add('bg-slate-100', 'text-slate-600');
+                }
+            });
+
+            // The main listener for data changes
+            dbRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    // Update local app data from cloud
+                    appData = data;
+                    localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
+                    updateUI(); // Refresh UI with new data
+                } else {
+                    // Firebase is empty, maybe init it? or just keep local.
+                    // If local has data and remote is null, we might want to push local up?
+                    // For now, assume if remote is empty, we just use local.
+                    if (appData.ledgers.length > 0) {
+                        saveData(); // Push local to remote if remote is empty
+                    }
+                }
+            });
+        }
+
+        // --- User System ---
 
         function initUserSystem() {
             const savedUser = localStorage.getItem('travelAccountingUser');
             if (savedUser) {
                 currentUser = JSON.parse(savedUser);
                 updateUserUI();
-                updateUI();
             } else {
                 showUserModal(true); // Force login
             }
@@ -689,7 +705,6 @@
                 }
             }
             
-            // 檢查是否顯示管理員 Badge (僅在使用者是管理員時顯示)
             const badge = document.getElementById('adminBadgeContainer');
             if(currentUser && currentUser.email === APP_ADMIN_EMAIL) {
                 badge.classList.remove('hidden');
@@ -709,7 +724,6 @@
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
             
             document.getElementById('userProfileModal').style.display = 'none';
-            // Restore background click close if it was disabled
             document.getElementById('userProfileModal').onclick = (ev) => {
                  if(ev.target.classList.contains('modal')) ev.target.style.display = 'none';
             };
@@ -743,7 +757,7 @@
             if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
                 if (ledger) {
-                    // 鎖定檢查：僅管理者可編輯帳冊設定
+                    // 鎖定檢查
                     if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) {
                         showToast('此帳冊已鎖定，無法修改設定');
                         return;
@@ -758,7 +772,6 @@
                 }
             } else {
                 document.getElementById('ledgerModalTitle').textContent = '建立新帳冊';
-                // 自動將自己加入成員
                 if (currentUser) {
                     tempLedger.members.push({ name: currentUser.name, email: currentUser.email });
                 }
@@ -862,6 +875,7 @@
             });
         }
 
+        // --- Config Helpers ---
         function addMainCat() {
             const input = document.getElementById('newMainCatInput');
             const val = input.value.trim();
@@ -958,12 +972,10 @@
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
             
-            // 權限過濾：只能看到自己是成員的帳冊 (或是 Admin)
+            // Filter Ledgers
             const visibleLedgers = appData.ledgers.filter(l => {
                 if(!currentUser) return false;
                 if(currentUser.email === APP_ADMIN_EMAIL) return true;
-                
-                // 檢查是否在成員列表中 (支援舊版字串與新版物件)
                 return l.members.some(m => {
                     const memberEmail = (typeof m === 'string') ? '' : m.email;
                     return memberEmail === currentUser.email;
@@ -983,12 +995,11 @@
                 document.getElementById('ledgerChevron').classList.remove('rotate-180');
                 document.getElementById('ledgerMetaSummary').classList.remove('hidden');
                 
-                // 檢查鎖定狀態並隱藏新增按鈕
+                // Check Lock Status
                 const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
                 const isLocked = currentLedger && currentLedger.locked;
                 const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
                 
-                // 鎖定時，非管理員不能按「記一筆」
                 if (isLocked && !isAdmin) {
                     document.getElementById('addExpenseBtn').classList.add('hidden');
                 } else {
@@ -1001,7 +1012,7 @@
                 document.getElementById('ledgerMetaSummary').classList.add('hidden');
                 document.getElementById('ledgerInfo').classList.add('hidden');
                 document.getElementById('lockBadge').classList.add('hidden');
-                document.getElementById('addExpenseBtn').classList.add('hidden'); // No ledger selected
+                document.getElementById('addExpenseBtn').classList.add('hidden');
                 document.getElementById('expenseList').innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-book text-2xl text-slate-300"></i></div><p>請先選擇帳冊，開始記錄您的旅程</p></div>';
             }
             updateAdminControls();
@@ -1032,6 +1043,7 @@
 
         // --- Setup Events ---
         function setupEvents() {
+            // Header Toggle
             document.getElementById('ledgerToggleHeader').onclick = () => {
                 const el = document.getElementById('ledgerCollapsible');
                 const chevron = document.getElementById('ledgerChevron');
@@ -1046,6 +1058,7 @@
                 }
             };
 
+            // Enter Key Support
             ['newMainCatInput', 'newSubCatInput', 'newCityInput', 'newDistrictInput', 'memberInput'].forEach(id => {
                 document.getElementById(id).addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
@@ -1059,40 +1072,31 @@
                 });
             });
 
+            // Modals
             document.querySelectorAll('.closeModal').forEach(b => b.onclick = (e) => e.target.closest('.modal').style.display = 'none');
             window.onclick = (e) => { 
                 if(e.target.classList.contains('modal') && e.target.id !== 'userProfileModal') e.target.style.display = 'none';
                 if(!e.target.closest('#cloudStatus') && !e.target.closest('#cloudMenu')) document.getElementById('cloudMenu').classList.add('hidden');
             };
 
-            // Login/User Form
+            // User Profile
             document.getElementById('userBtn').onclick = () => showUserModal(false);
             document.getElementById('userForm').onsubmit = handleUserLogin;
             document.getElementById('switchUserBtn').onclick = () => {
                 currentUser = null;
                 localStorage.removeItem('travelAccountingUser');
                 document.getElementById('userProfileModal').style.display = 'none';
-                initUserSystem(); // This will trigger forced login modal
+                initUserSystem(); 
             };
 
-            document.getElementById('cloudConfigBtn').onclick = () => document.getElementById('cloudConfigModal').style.display = 'block';
             document.getElementById('aboutBtn').onclick = () => document.getElementById('aboutModal').style.display = 'block';
             document.getElementById('cloudStatus').onclick = (e) => { e.stopPropagation(); document.getElementById('cloudMenu').classList.toggle('hidden'); };
 
-            // Cloud Form
-            document.getElementById('cloudConfigForm').onsubmit = (e) => {
-                e.preventDefault();
-                cloudSystem.saveConfig(document.getElementById('githubToken').value, document.getElementById('gistId').value);
-                document.getElementById('cloudConfigModal').style.display = 'none';
-                showToast('雲端設定已儲存');
-                setTimeout(() => location.reload(), 500);
-            };
-            document.getElementById('showToken').onchange = (e) => document.getElementById('githubToken').type = e.target.checked ? 'text' : 'password';
-
+            // Ledger
             document.getElementById('ledgerSelect').onchange = (e) => {
                 appData.currentLedgerId = e.target.value;
                 updateUI();
-                saveData();
+                saveData(); // Persist selection
             };
             document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
             document.getElementById('editLedgerBtn').onclick = () => {
@@ -1101,12 +1105,14 @@
             };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
             
+            // Ledger Config Btns
             document.getElementById('btnAddMainCat').onclick = addMainCat;
             document.getElementById('btnAddSubCat').onclick = addSubCat;
             document.getElementById('btnAddCity').onclick = addCity;
             document.getElementById('btnAddDistrict').onclick = addDistrict;
             document.getElementById('addMemberBtn').onclick = addMember;
 
+            // Admin
             document.getElementById('deleteLedgerBtn').onclick = () => {
                 if(confirm('確定要永久刪除此帳冊嗎？此動作無法復原。')) {
                     appData.ledgers = appData.ledgers.filter(l => l.id !== appData.currentLedgerId);
@@ -1127,6 +1133,7 @@
                 }
             };
 
+            // Expenses
             document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
             document.getElementById('expenseReceipt').onchange = (e) => {
@@ -1152,6 +1159,7 @@
                 calcAverage();
             };
 
+            // Tabs
             document.querySelectorAll('.tab-btn').forEach(b => {
                 b.onclick = () => {
                     document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
@@ -1165,39 +1173,7 @@
                 };
             });
 
-            document.getElementById('cloudSyncBtn').onclick = async () => {
-                if(!confirm('確定要上傳備份？這將覆蓋雲端的舊資料。')) return;
-                showLoading(true, '正在上傳備份...');
-                try {
-                    const content = JSON.stringify(appData);
-                    await fetch(`https://api.github.com/gists/${cloudSystem.gistId}`, {
-                        method: 'PATCH',
-                        headers: { 'Authorization': `token ${cloudSystem.token}` },
-                        body: JSON.stringify({ files: { 'travel-accounting-data.json': { content } } })
-                    });
-                    showToast('上傳備份成功');
-                    document.getElementById('syncStatus').classList.remove('hidden');
-                } catch(e) { alert('上傳失敗，請檢查 Token 與 Gist ID'); }
-                showLoading(false);
-            };
-
-            document.getElementById('cloudDownloadBtn').onclick = async () => {
-                if(!confirm('確定下載還原？這將覆蓋本機目前的資料。')) return;
-                showLoading(true, '正在下載資料...');
-                try {
-                    const res = await fetch(`https://api.github.com/gists/${cloudSystem.gistId}`, {
-                        headers: { 'Authorization': `token ${cloudSystem.token}` }
-                    });
-                    const data = await res.json();
-                    const content = JSON.parse(data.files['travel-accounting-data.json'].content);
-                    appData = content;
-                    saveData();
-                    updateUI();
-                    showToast('資料還原成功');
-                } catch(e) { alert('下載失敗，請檢查 Token 與 Gist ID'); }
-                showLoading(false);
-            };
-
+            // Export / Import (File based backup)
             document.getElementById('exportBtn').onclick = () => {
                 const blob = new Blob([JSON.stringify(appData)], {type: 'application/json'});
                 const url = URL.createObjectURL(blob);
@@ -1213,10 +1189,13 @@
                 const r = new FileReader();
                 r.onload = (ev) => {
                     try {
-                        appData = JSON.parse(ev.target.result);
-                        saveData();
-                        updateUI();
-                        showToast('匯入成功');
+                        const importedData = JSON.parse(ev.target.result);
+                        if(confirm('匯入將會覆蓋目前的資料，確定嗎？')) {
+                            appData = importedData;
+                            saveData(); // Will sync to cloud
+                            updateUI();
+                            showToast('匯入成功');
+                        }
                     } catch(err) { alert('檔案格式錯誤'); }
                 };
                 r.readAsText(f);
@@ -1261,12 +1240,12 @@
             showToast('帳冊設定已儲存');
         }
 
-        // --- Logic: Expense Form & Calculations --- (Same logic, better UI)
+        // --- Expense Logic ---
+
         function openExpenseModal(expenseId = null) {
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
             
-            // 權限檢查：只有成員可以編輯支出
             const isMember = ledger.members.some(m => (typeof m === 'object' && m.email === currentUser.email));
             const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
 
@@ -1279,7 +1258,6 @@
             currentEditingExpenseId = expenseId;
             document.getElementById('receiptPreview').classList.add('hidden');
 
-            // 鎖定邏輯處理
             const fieldset = document.getElementById('expenseFieldset');
             const lockedMsg = document.getElementById('lockedMessage');
             const actions = document.getElementById('expenseModalActions');
@@ -1293,9 +1271,10 @@
                 fieldset.disabled = false;
                 lockedMsg.classList.add('hidden');
                 actions.classList.remove('hidden');
+                if(!expenseId) document.getElementById('expenseModalTitle').textContent = '新增支出';
             }
 
-            // Category Select
+            // --- Fill Selects ---
             const catSelect = document.getElementById('expenseCategory');
             catSelect.innerHTML = '<option value="">請選擇科目</option>';
             ledger.categories.main.forEach(m => {
@@ -1312,7 +1291,6 @@
                 });
             });
 
-            // Location Select
             const locSelect = document.getElementById('expenseLocation');
             locSelect.innerHTML = '<option value="">請選擇地點</option>';
             ledger.locations.cities.forEach(c => {
@@ -1329,7 +1307,6 @@
                 });
             });
 
-            // Payers & Splitters
             const payerSelect = document.getElementById('expensePayer');
             const splittersDiv = document.getElementById('expenseSplitters');
             payerSelect.innerHTML = '';
@@ -1372,7 +1349,6 @@
                     }
                 }
             } else {
-                document.getElementById('expenseModalTitle').textContent = '新增支出';
                 const now = new Date();
                 document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
                 document.getElementById('expenseTime').value = now.toTimeString().slice(0, 5);
@@ -1389,7 +1365,6 @@
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
             
-            // 再次檢查鎖定權限 (防止直接呼叫)
             if (ledger.locked && !isAdmin) {
                 return showToast('帳冊已鎖定，無法變更');
             }
@@ -1401,7 +1376,7 @@
             const splitters = Array.from(document.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
             if(splitters.length === 0) return showToast('至少需有一位分攤人員');
 
-            // Reconstruct Objects
+            // Category Logic
             let categoryObj = {};
             if(catVal.startsWith('main_')) {
                 const id = catVal.split('_')[1];
@@ -1414,6 +1389,7 @@
                 };
             }
 
+            // Location Logic
             let locationObj = {};
             if(locVal.startsWith('city_')) {
                 const id = locVal.split('_')[1];
@@ -1549,7 +1525,7 @@
             document.getElementById('syncOverlay').classList.toggle('hidden', !show);
         }
 
-        // Charts & Query Logic (Reused)
+        // --- Charts & Query (Standard) ---
         function updateQueryOptions() {
              const ledgerExps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
              const payers = [...new Set(ledgerExps.map(e => e.payer))];
