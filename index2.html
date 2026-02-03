@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅遊收支記帳管家 - Pro版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        
+        /* 自定義滾動條 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .receipt-preview { max-width: 100px; max-height: 100px; cursor: pointer; border-radius: 8px; transition: transform 0.2s; object-fit: cover; border: 1px solid #e2e8f0; }
+        .receipt-preview:hover { transform: scale(1.05); }
+        
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        
+        .tab-btn { position: relative; color: #64748b; transition: all 0.3s; }
+        .tab-active { color: #2563eb; background-color: #eff6ff; }
+        .tab-active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background-color: #2563eb; border-radius: 3px 3px 0 0; }
+        
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+        .modal-content { background-color: white; margin: 5% auto; padding: 24px; border-radius: 16px; width: 90%; max-width: 650px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .animate-fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        
+        /* 標籤與設定介面優化 */
+        .config-cols { display: flex; gap: 16px; height: 320px; }
+        .config-col { flex: 1; display: flex; flex-direction: column; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; }
+        .config-col-header { background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 0.9rem; color: #475569; display: flex; justify-content: space-between; align-items: center; }
+        .config-col-body { flex: 1; overflow-y: auto; padding: 8px; background-color: #fff; }
+        .config-col-footer { padding: 12px; border-top: 1px solid #e2e8f0; background-color: #f8fafc; display: flex; gap: 8px; }
+
+        .tag-editable { display: flex; align-items: center; justify-content: space-between; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
+        .tag-editable:hover { border-color: #93c5fd; background-color: #f0f9ff; }
+        .tag-editable.selected { background-color: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; font-weight: 500; }
+        
+        .tag-btn-delete { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; transition: background 0.2s; }
+        .tag-btn-delete:hover { background-color: #fee2e2; }
+
+        .hierarchical-select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: white; font-size: 14px; color: #334155; transition: border-color 0.2s; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; }
+        .hierarchical-select:focus { outline: none; border-color: #2563eb; ring: 2px; ring-color: #bfdbfe; }
+
+        .transition-height { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; }
+        .rotate-180 { transform: rotate(180deg); }
+        .chevron-icon { transition: transform 0.3s ease; }
+    </style>
+</head>
+<body class="bg-gray-50 text-slate-800">
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 text-white p-2 rounded-lg shadow-md">
+                    <i class="fas fa-plane-departure text-xl"></i>
+                </div>
+                <div class="flex flex-col">
+                    <h1 class="text-xl font-bold text-slate-800 tracking-tight">旅遊記帳管家</h1>
+                    <span id="versionTag" class="text-xs text-slate-500 font-mono"></span>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="syncStatus" class="hidden text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium border border-green-200 flex items-center gap-1">
+                    <i class="fas fa-check-circle"></i> 已同步
+                </div> 
+                
+                <div id="userBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200 relative" title="使用者設定">
+                    <img id="navUserAvatar" class="w-full h-full rounded-full hidden object-cover" src="" alt="User">
+                    <i id="navUserIcon" class="fas fa-user"></i>
+                    <div id="userStatusDot" class="absolute -bottom-1 -right-1 w-3 h-3 bg-slate-400 rounded-full border-2 border-white"></div>
+                </div>
+
+                <div id="cloudStatus" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200" title="雲端功能">
+                    <i class="fas fa-cloud"></i>
+                </div>
+
+                <div id="aboutBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200" title="關於">
+                    <i class="fas fa-info"></i>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="cloudMenu" class="hidden bg-white border-b shadow-lg animate-fade-in absolute w-full z-40">
+        <div class="container mx-auto px-4 py-4 flex flex-wrap gap-3 justify-center md:justify-end items-center">
+            <span class="text-sm text-slate-500 mr-2"><i class="fab fa-github"></i> GitHub Gist</span>
+            <button id="cloudConfigBtn" class="bg-slate-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-900 transition flex items-center gap-2">
+                <i class="fas fa-cog"></i> 設定
+            </button>
+            <div class="h-6 w-px bg-gray-300 mx-2"></div>
+            <button id="cloudSyncBtn" class="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm hidden hover:bg-green-700 transition flex items-center gap-2 shadow-sm">
+                <i class="fas fa-cloud-upload-alt"></i> 備份上傳
+            </button>
+            <button id="cloudDownloadBtn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hidden hover:bg-blue-700 transition flex items-center gap-2 shadow-sm">
+                <i class="fas fa-cloud-download-alt"></i> 還原下載
+            </button>
+            <div class="h-6 w-px bg-gray-300 mx-2"></div>
+            <button id="exportBtn" class="text-slate-600 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-100 transition flex items-center gap-2">
+                <i class="fas fa-file-export"></i> 匯出
+            </button>
+            <label for="importFile" class="text-slate-600 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-100 transition cursor-pointer flex items-center gap-2">
+                <i class="fas fa-file-import"></i> 匯入
+            </label>
+            <input type="file" id="importFile" accept=".json" class="hidden">
+        </div>
+    </div>
+
+    <main class="container mx-auto px-4 py-6 max-w-5xl">
+        <div id="cloudSetupInfo" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg mb-6 hidden shadow-sm">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-amber-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-amber-700">
+                        雲端備份尚未設定。點擊右上角雲端圖示 <i class="fas fa-cloud"></i> 進行設定以啟用跨裝置同步。
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+            <div id="ledgerToggleHeader" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition select-none border-b border-transparent">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-100 text-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
+                        <i class="fas fa-book-open"></i>
+                    </div>
+                    <div>
+                        <h2 id="displayLedgerName" class="text-lg font-bold text-slate-800">請選擇或建立帳冊</h2>
+                        <div id="ledgerMetaSummary" class="text-xs text-slate-500 hidden">點擊展開詳細資訊</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="lockBadge" class="hidden px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-600 border border-red-200">
+                        <i class="fas fa-lock mr-1"></i> 已鎖定
+                    </span>
+                    <i id="ledgerChevron" class="fas fa-chevron-down text-slate-400 transform transition-transform duration-300"></i>
+                </div>
+            </div>
+            
+            <div id="ledgerCollapsible" class="transition-height duration-300 ease-in-out overflow-hidden" style="max-height: 500px; opacity: 1;">
+                <div class="p-5 pt-0 border-t border-slate-100">
+                    <div class="mt-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <div class="relative flex-1 md:flex-none min-w-[200px]">
+                                <select id="ledgerSelect" class="w-full appearance-none bg-slate-50 border border-slate-300 rounded-lg pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 font-medium cursor-pointer">
+                                    <option value="">請選擇帳冊</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                                    <i class="fas fa-caret-down"></i>
+                                </div>
+                            </div>
+                            <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm flex items-center gap-2">
+                                <i class="fas fa-plus"></i> 新增
+                            </button>
+                            <button id="editLedgerBtn" class="bg-white text-slate-600 border border-slate-300 px-4 py-2.5 rounded-lg hover:bg-slate-50 transition text-sm font-medium flex items-center gap-2">
+                                <i class="fas fa-sliders-h"></i> 設定
+                            </button>
+                        </div>
+                        <div id="adminControls" class="hidden flex gap-2">
+                            <button id="toggleLockLedgerBtn" class="text-amber-600 hover:bg-amber-50 px-3 py-2 rounded-lg transition" title="鎖定/解鎖">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            <button id="deleteLedgerBtn" class="text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition" title="刪除">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="ledgerInfo" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">科目</div>
+                                <span id="ledgerCategories" class="text-slate-700 font-medium"></span>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">地點</div>
+                                <span id="ledgerLocations" class="text-slate-700 font-medium"></span>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">成員</div>
+                                <span id="ledgerMembers" class="text-slate-700 font-medium"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in min-h-[500px]">
+            <div class="flex border-b border-slate-100">
+                <button class="tab-btn tab-active flex-1 py-4 text-center font-medium text-sm flex items-center justify-center gap-2" data-tab="expenses">
+                    <i class="fas fa-receipt"></i> 支出記錄
+                </button>
+                <button class="tab-btn flex-1 py-4 text-center font-medium text-sm flex items-center justify-center gap-2" data-tab="query">
+                    <i class="fas fa-chart-pie"></i> 統計報表
+                </button>
+                <button class="tab-btn flex-1 py-4 text-center font-medium text-sm flex items-center justify-center gap-2" data-tab="charts">
+                    <i class="fas fa-chart-bar"></i> 圖表分析
+                </button>
+            </div>
+
+            <div id="expensesTab" class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-lg text-slate-800">支出明細</h3>
+                    <button id="addExpenseBtn" class="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 transition shadow-md shadow-green-200 flex items-center gap-2 font-medium">
+                        <i class="fas fa-plus"></i> 記一筆
+                    </button>
+                </div>
+                
+                <div id="expenseList" class="space-y-4 max-h-[600px] overflow-y-auto pr-2 pb-4">
+                    <div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400">
+                        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                            <i class="fas fa-book text-2xl text-slate-300"></i>
+                        </div>
+                        <p>請先選擇帳冊，開始記錄您的旅程</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="queryTab" class="p-6 hidden">
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 mb-6">
+                    <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-filter text-blue-500"></i> 篩選條件</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">支付者</label>
+                            <div class="relative">
+                                <select id="queryPayer" class="w-full appearance-none bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
+                                <i class="fas fa-caret-down absolute right-3 top-2.5 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">分攤人員</label>
+                            <div class="relative">
+                                <select id="querySplitter" class="w-full appearance-none bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
+                                <i class="fas fa-caret-down absolute right-3 top-2.5 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                        <div class="flex items-end">
+                            <button id="queryBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                                開始統計
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="queryResults" class="hidden animate-fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+                            <div class="text-slate-500 text-sm mb-1">總支出金額</div>
+                            <div id="totalAmount" class="text-2xl font-bold text-slate-800">0</div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+                            <div class="text-slate-500 text-sm mb-1">符合筆數</div>
+                            <div id="totalCount" class="text-2xl font-bold text-blue-600">0</div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+                            <div class="text-slate-500 text-sm mb-1">應付/分攤金額</div>
+                            <div id="splitterAmount" class="text-2xl font-bold text-purple-600">0</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 font-bold text-slate-700 text-sm">分攤明細</div>
+                        <div id="splitterDetails" class="divide-y divide-slate-100 max-h-80 overflow-y-auto"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="chartsTab" class="p-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="font-bold text-slate-700 mb-4 text-center">支付者比例</h3>
+                        <div class="chart-container"><canvas id="payerChart"></canvas></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="font-bold text-slate-700 mb-4 text-center">人員分攤統計</h3>
+                        <div class="chart-container"><canvas id="splitterChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="aboutModal" class="modal">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">關於本程式</h3>
+                <button class="closeModal text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="bg-blue-600 text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-lg text-slate-800">旅遊收支記帳管家</h4>
+                        <p class="text-slate-500 text-sm">Pro 專業版</p>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="font-medium text-slate-500">版次</span> <span id="aboutVersion" class="font-mono text-slate-700"></span></div>
+                    <div class="flex justify-between"><span class="font-medium text-slate-500">構想提供</span> <span class="text-slate-700">JumperHsu</span></div>
+                    <div class="flex justify-between"><span class="font-medium text-slate-500">設計開發</span> <span class="text-slate-700">DeepSeek/Gemini 3 Pro</span></div>
+                </div>
+                <div class="text-xs text-slate-400 text-center pt-2">
+                    <p>本程式支援 Google 帳號登入與 GitHub Gist 雲端備份</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="userProfileModal" class="modal">
+        <div class="modal-content animate-fade-in text-center">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">使用者帳戶</h3>
+                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <div id="loggedInView" class="hidden">
+                <div class="flex flex-col items-center mb-6">
+                    <img id="profileAvatar" class="w-20 h-20 rounded-full border-4 border-blue-50 shadow-md mb-3 object-cover" src="" alt="Avatar">
+                    <div class="font-bold text-xl text-slate-800" id="profileName"></div>
+                    <div class="text-sm text-slate-500" id="profileEmail"></div>
+                    <div id="profileAdminBadge" class="hidden mt-2 bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold">
+                        <i class="fas fa-shield-alt mr-1"></i> 管理員
+                    </div>
+                </div>
+                <button id="logoutBtn" class="w-full border border-red-200 text-red-600 bg-red-50 py-2.5 rounded-lg hover:bg-red-100 transition font-medium">
+                    <i class="fas fa-sign-out-alt mr-2"></i> 登出帳戶
+                </button>
+            </div>
+
+            <div id="loggedOutView">
+                <div class="mb-6">
+                    <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                        <i class="fas fa-user-lock"></i>
+                    </div>
+                    <p class="text-slate-600 mb-2 font-medium">登入以存取雲端權限管理功能</p>
+                    <p class="text-xs text-slate-400">登入後可根據帳冊設定的 Email 辨識編輯權限</p>
+                </div>
+                
+                <div id="g_id_onload"
+                     data-client_id="845405811724-u80jm0kq9st05df69hkjb6m2crmja66i.apps.googleusercontent.com" 
+                     data-context="signin"
+                     data-ux_mode="popup"
+                     data-callback="handleCredentialResponse"
+                     data-auto_prompt="false">
+                </div>
+                <div class="g_id_signin flex justify-center"
+                     data-type="standard"
+                     data-shape="rectangular"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="left">
+                </div>
+
+                <div class="mt-6 text-left bg-amber-50 p-4 rounded-lg text-xs text-amber-800 border border-amber-100">
+                    <p class="font-bold mb-1"><i class="fas fa-exclamation-circle"></i> 設定說明：</p>
+                    <p>若無法顯示按鈕，請確認程式碼中 `data-client_id` 已填入您的 Google Cloud Client ID，並已將您的網域 (如 localhost) 加入授權來源。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cloudConfigModal" class="modal">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-800">GitHub Gist 連線設定</h3>
+                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form id="cloudConfigForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">GitHub Personal Access Token</label>
+                    <div class="relative">
+                        <input type="password" id="githubToken" required class="w-full border border-slate-300 rounded-lg pl-3 pr-10 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="ghp_...">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <input type="checkbox" id="showToken" class="cursor-pointer">
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">需要 Gist 讀寫權限</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Gist ID</label>
+                    <input type="text" id="gistId" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="例如: 8f3...a2b">
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="bg-slate-800 text-white px-6 py-2.5 rounded-lg hover:bg-slate-900 transition font-medium shadow-lg shadow-slate-300/50">儲存並連線</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="ledgerModal" class="modal">
+        <div class="modal-content animate-fade-in" style="max-width: 800px;">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="ledgerModalTitle" class="text-xl font-bold text-slate-800">新增帳冊</h3>
+                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <form id="ledgerForm">
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">帳冊名稱</label>
+                    <input type="text" id="ledgerName" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：2025 日本東京賞櫻">
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i class="fas fa-tags text-blue-500"></i> 科目設定</h4>
+                    <div class="config-cols">
+                        <div class="config-col">
+                            <div class="config-col-header">主要科目 <span class="text-xs font-normal bg-slate-200 px-2 py-0.5 rounded">Enter 新增</span></div>
+                            <div class="config-col-body" id="mainCatList"></div>
+                            <div class="config-col-footer">
+                                <input type="text" id="newMainCatInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="輸入名稱">
+                                <button type="button" id="btnAddMainCat" class="bg-blue-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                        <div class="config-col">
+                            <div class="config-col-header">次要科目 <span class="text-xs font-normal text-slate-400">需先選左側主科目</span></div>
+                            <div class="config-col-body" id="subCatList">
+                                <div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側主要科目</div>
+                            </div>
+                            <div class="config-col-footer">
+                                <input type="text" id="newSubCatInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-green-500 outline-none" placeholder="輸入名稱" disabled>
+                                <button type="button" id="btnAddSubCat" class="bg-green-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-green-700 disabled:opacity-50" disabled><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i class="fas fa-map-marker-alt text-red-500"></i> 地點設定</h4>
+                    <div class="config-cols">
+                        <div class="config-col">
+                            <div class="config-col-header">城市 <span class="text-xs font-normal bg-slate-200 px-2 py-0.5 rounded">Enter 新增</span></div>
+                            <div class="config-col-body" id="cityList"></div>
+                            <div class="config-col-footer">
+                                <input type="text" id="newCityInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="輸入名稱">
+                                <button type="button" id="btnAddCity" class="bg-blue-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                        <div class="config-col">
+                            <div class="config-col-header">區域 <span class="text-xs font-normal text-slate-400">需先選左側城市</span></div>
+                            <div class="config-col-body" id="districtList">
+                                <div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側城市</div>
+                            </div>
+                            <div class="config-col-footer">
+                                <input type="text" id="newDistrictInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-green-500 outline-none" placeholder="輸入名稱" disabled>
+                                <button type="button" id="btnAddDistrict" class="bg-green-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-green-700 disabled:opacity-50" disabled><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-slate-700 mb-2">分攤人員 <span class="text-xs font-normal text-slate-500 ml-2">(輸入 Google Email 可連結權限)</span></label>
+                    <div class="flex flex-wrap gap-2 p-4 border border-slate-300 rounded-lg mb-3 min-h-[60px] bg-slate-50" id="memberTagsList"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="memberInput" class="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="輸入姓名或 姓名<email> 後按 Enter">
+                        <button type="button" id="addMemberBtn" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-medium">新增</button>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                    <button type="button" class="closeModal bg-white border border-slate-300 text-slate-700 px-6 py-2.5 rounded-lg hover:bg-slate-50 transition">取消</button>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-200">儲存設定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="expenseModal" class="modal">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="expenseModalTitle" class="text-xl font-bold text-slate-800">新增支出</h3>
+                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+
+            <form id="expenseForm">
+                <div class="grid grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">日期</label>
+                        <input type="date" id="expenseDate" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">時間</label>
+                        <input type="time" id="expenseTime" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">科目</label>
+                        <select id="expenseCategory" required class="hierarchical-select">
+                            <option value="">請選擇科目</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">地點</label>
+                        <select id="expenseLocation" required class="hierarchical-select">
+                            <option value="">請選擇地點</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-5">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">摘要說明</label>
+                    <input type="text" id="expenseDescription" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：午餐、車票、門票...">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">金額</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-slate-400">$</span>
+                            <input type="number" id="expenseAmount" required min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-8 pr-4 py-2.5 font-mono text-lg font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">支付者</label>
+                        <select id="expensePayer" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white"></select>
+                    </div>
+                </div>
+
+                <div class="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="block text-xs font-bold text-slate-500 uppercase">分攤人員</label>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="selectAllSplitters" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer mr-2">
+                            <label for="selectAllSplitters" class="text-sm text-slate-600 cursor-pointer select-none">全選</label>
+                        </div>
+                    </div>
+                    <div id="expenseSplitters" class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-32 overflow-y-auto mb-3"></div>
+                    <div class="text-right text-sm text-slate-600 border-t border-slate-200 pt-2">
+                        每人平均：<span id="averageAmount" class="font-bold text-blue-600 text-lg ml-1">0</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="flex items-center h-full p-3 border border-slate-200 rounded-lg">
+                        <input type="checkbox" id="expenseSettled" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer mr-3">
+                        <label for="expenseSettled" class="font-medium text-slate-700 cursor-pointer select-none">此筆款項已結清</label>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">收據圖片</label>
+                        <input type="file" id="expenseReceipt" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <div id="receiptPreview" class="mt-3 hidden text-center bg-slate-100 rounded-lg p-2">
+                            <img id="receiptImagePreview" class="receipt-preview mx-auto">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                    <button type="button" class="closeModal bg-white border border-slate-300 text-slate-700 px-6 py-2.5 rounded-lg hover:bg-slate-50 transition">取消</button>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-200">儲存記錄</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="receiptViewModal" class="modal">
+        <div class="modal-content animate-fade-in text-center p-0 overflow-hidden bg-black" style="max-width: 800px; background: transparent;">
+            <div class="relative">
+                <button class="closeModal absolute top-4 right-4 bg-black/50 text-white w-10 h-10 rounded-full hover:bg-black/70 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+                <img id="receiptViewImage" class="max-w-full max-h-[80vh] rounded-lg shadow-2xl mx-auto">
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-xl hidden z-[2000] flex items-center gap-3 animate-fade-in transform translate-y-0">
+        <i class="fas fa-info-circle text-blue-400"></i>
+        <span id="toastMsg"></span>
+    </div>
+
+    <div id="syncOverlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-[2000] flex items-center justify-center">
+        <div class="bg-white px-8 py-6 rounded-2xl shadow-2xl text-center">
+            <div class="inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <div class="font-bold text-slate-800 text-lg" id="syncMsg">處理中...</div>
+        </div>
+    </div>
+
+    <script>
+        const CURRENT_VERSION = 'v20250203.05';
+        const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
+        
+        // 預設的 GitHub 連線資訊 (使用者提供)
+        const DEFAULT_GH_TOKEN = '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';
+        const DEFAULT_GIST_ID = '868adf845226d85190c0cf5fe6f58a4a';
+
+        let appData = { ledgers: [], currentLedgerId: null, expenses: [] };
+        let currentUser = null;
+        
+        // 暫存編輯中的帳冊資料
+        let tempLedger = {
+            mainCats: [], subCats: {}, cities: [], districts: {}, members: []
+        };
+        
+        let selectedMainCatId = null;
+        let selectedCityId = null;
+        let currentEditingExpenseId = null;
+
+        const cloudSystem = {
+            // 如果 LocalStorage 沒資料，就使用預設值
+            token: localStorage.getItem('githubToken') || DEFAULT_GH_TOKEN,
+            gistId: localStorage.getItem('gistId') || DEFAULT_GIST_ID,
+            
+            saveConfig(t, g) {
+                this.token = t; 
+                this.gistId = g;
+                localStorage.setItem('githubToken', t);
+                localStorage.setItem('gistId', g);
+            },
+            isConfigured() { return this.token && this.gistId; }
+        };
+
+        // --- Google Identity Services Handlers ---
+        function handleCredentialResponse(response) {
+            try {
+                const responsePayload = parseJwt(response.credential);
+                currentUser = {
+                    email: responsePayload.email,
+                    name: responsePayload.name,
+                    picture: responsePayload.picture
+                };
+                localStorage.setItem('travelAccountingGoogleUser', JSON.stringify(currentUser));
+                updateUserUI();
+                document.getElementById('userProfileModal').style.display = 'none';
+                updateUI();
+                showToast(`歡迎回來, ${currentUser.name}`);
+            } catch (e) {
+                console.error("Login Error", e);
+                showToast('登入失敗，請重試');
+            }
+        }
+
+        function parseJwt(token) {
+            var base64Url = token.split('.')[1];
+            var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('versionTag').textContent = CURRENT_VERSION;
+            document.getElementById('aboutVersion').textContent = CURRENT_VERSION;
+            
+            // 自動初始化 GitHub 設定
+            if (!localStorage.getItem('githubToken')) {
+                localStorage.setItem('githubToken', DEFAULT_GH_TOKEN);
+            }
+            if (!localStorage.getItem('gistId')) {
+                localStorage.setItem('gistId', DEFAULT_GIST_ID);
+            }
+            
+            // 預先填入設定視窗
+            document.getElementById('githubToken').value = cloudSystem.token;
+            document.getElementById('gistId').value = cloudSystem.gistId;
+
+            loadData();
+            initUserSystem();
+            updateUI();
+            setupEvents();
+
+            if (cloudSystem.isConfigured()) {
+                document.getElementById('cloudStatus').classList.add('text-blue-600', 'bg-blue-50');
+                document.getElementById('cloudSyncBtn').classList.remove('hidden');
+                document.getElementById('cloudDownloadBtn').classList.remove('hidden');
+                document.getElementById('syncStatus').classList.remove('hidden');
+            } else {
+                document.getElementById('cloudSetupInfo').classList.remove('hidden');
+            }
+        });
+
+        function loadData() {
+            const saved = localStorage.getItem('travelAccountingApp');
+            if (saved) {
+                try { appData = JSON.parse(saved); } catch (e) { console.error(e); }
+            }
+            if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) {
+                appData.currentLedgerId = null;
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
+        }
+
+        function initUserSystem() {
+            const savedUser = localStorage.getItem('travelAccountingGoogleUser');
+            if (savedUser) currentUser = JSON.parse(savedUser);
+            updateUserUI();
+        }
+
+        function updateUserUI() {
+            const loggedInView = document.getElementById('loggedInView');
+            const loggedOutView = document.getElementById('loggedOutView');
+            const navAvatar = document.getElementById('navUserAvatar');
+            const navIcon = document.getElementById('navUserIcon');
+            const statusDot = document.getElementById('userStatusDot');
+
+            if (currentUser) {
+                loggedInView.classList.remove('hidden');
+                loggedOutView.classList.add('hidden');
+                
+                document.getElementById('profileName').textContent = currentUser.name;
+                document.getElementById('profileEmail').textContent = currentUser.email;
+                document.getElementById('profileAvatar').src = currentUser.picture;
+                
+                navAvatar.src = currentUser.picture;
+                navAvatar.classList.remove('hidden');
+                navIcon.classList.add('hidden');
+                statusDot.classList.remove('bg-slate-400');
+                statusDot.classList.add('bg-green-500');
+
+                if (currentUser.email === APP_ADMIN_EMAIL) {
+                    document.getElementById('profileAdminBadge').classList.remove('hidden');
+                } else {
+                    document.getElementById('profileAdminBadge').classList.add('hidden');
+                }
+            } else {
+                loggedInView.classList.add('hidden');
+                loggedOutView.classList.remove('hidden');
+                
+                navAvatar.classList.add('hidden');
+                navIcon.classList.remove('hidden');
+                statusDot.classList.add('bg-slate-400');
+                statusDot.classList.remove('bg-green-500');
+            }
+            updateAdminControls();
+        }
+
+        // --- Ledger UI & Logic ---
+
+        function openLedgerModal(ledgerId = null) {
+            const form = document.getElementById('ledgerForm');
+            form.reset();
+            
+            selectedMainCatId = null;
+            selectedCityId = null;
+            tempLedger = { mainCats: [], subCats: {}, cities: [], districts: {}, members: [] };
+
+            if (ledgerId) {
+                const ledger = appData.ledgers.find(l => l.id === ledgerId);
+                if (ledger) {
+                    if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) {
+                        showToast('此帳冊已鎖定');
+                        return;
+                    }
+                    document.getElementById('ledgerModalTitle').textContent = '編輯帳冊設定';
+                    document.getElementById('ledgerName').value = ledger.name;
+                    // Deep copy
+                    tempLedger.mainCats = JSON.parse(JSON.stringify(ledger.categories.main));
+                    tempLedger.subCats = JSON.parse(JSON.stringify(ledger.categories.sub));
+                    tempLedger.cities = JSON.parse(JSON.stringify(ledger.locations.cities));
+                    tempLedger.districts = JSON.parse(JSON.stringify(ledger.locations.districts));
+                    tempLedger.members = JSON.parse(JSON.stringify(ledger.members));
+                }
+            } else {
+                document.getElementById('ledgerModalTitle').textContent = '建立新帳冊';
+            }
+
+            renderLedgerConfigUI();
+            document.getElementById('ledgerModal').style.display = 'block';
+            document.getElementById('ledgerForm').dataset.mode = ledgerId ? 'edit' : 'add';
+            document.getElementById('ledgerForm').dataset.id = ledgerId || '';
+        }
+
+        function renderLedgerConfigUI() {
+            renderList('mainCatList', tempLedger.mainCats, selectedMainCatId, (id) => {
+                selectedMainCatId = id;
+                renderLedgerConfigUI();
+                document.getElementById('newSubCatInput').focus();
+            }, deleteMainCat);
+
+            renderList('cityList', tempLedger.cities, selectedCityId, (id) => {
+                selectedCityId = id;
+                renderLedgerConfigUI();
+                document.getElementById('newDistrictInput').focus();
+            }, deleteCity);
+
+            const subCatListDiv = document.getElementById('subCatList');
+            const subInput = document.getElementById('newSubCatInput');
+            const subBtn = document.getElementById('btnAddSubCat');
+            
+            if (selectedMainCatId) {
+                const subs = tempLedger.subCats[selectedMainCatId] || [];
+                renderList('subCatList', subs, null, null, (subId) => deleteSubCat(selectedMainCatId, subId));
+                subInput.disabled = false;
+                subBtn.disabled = false;
+                subCatListDiv.classList.remove('flex', 'items-center', 'justify-center');
+            } else {
+                subCatListDiv.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側主要科目</div>';
+                subInput.disabled = true;
+                subBtn.disabled = true;
+            }
+
+            const districtListDiv = document.getElementById('districtList');
+            const distInput = document.getElementById('newDistrictInput');
+            const distBtn = document.getElementById('btnAddDistrict');
+
+            if (selectedCityId) {
+                const dists = tempLedger.districts[selectedCityId] || [];
+                renderList('districtList', dists, null, null, (distId) => deleteDistrict(selectedCityId, distId));
+                distInput.disabled = false;
+                distBtn.disabled = false;
+                districtListDiv.classList.remove('flex', 'items-center', 'justify-center');
+            } else {
+                districtListDiv.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側城市</div>';
+                distInput.disabled = true;
+                distBtn.disabled = true;
+            }
+
+            renderMembers();
+        }
+
+        function renderList(containerId, items, selectedId, onSelect, onDelete) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            items.forEach(item => {
+                const el = document.createElement('div');
+                el.className = `tag-editable ${selectedId === item.id ? 'selected' : ''}`;
+                el.innerHTML = `
+                    <span class="flex-1 truncate font-medium text-slate-700">${item.name}</span>
+                    <div class="tag-actions flex gap-2">
+                        <div class="tag-btn-delete"><i class="fas fa-times"></i></div>
+                    </div>
+                `;
+                if (onSelect) {
+                    el.addEventListener('click', (e) => {
+                        if (!e.target.closest('.tag-btn-delete')) onSelect(item.id);
+                    });
+                }
+                el.querySelector('.tag-btn-delete').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if(confirm('確定刪除此項目?')) onDelete(item.id);
+                });
+                container.appendChild(el);
+            });
+        }
+
+        function renderMembers() {
+            const container = document.getElementById('memberTagsList');
+            container.innerHTML = '';
+            tempLedger.members.forEach((m, idx) => {
+                const el = document.createElement('div');
+                el.className = 'bg-white text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm shadow-sm';
+                const nameDisplay = typeof m === 'string' ? m : `<span class="font-bold">${m.name}</span>${m.email ? ` <span class='text-xs text-slate-400'>(${m.email})</span>` : ''}`;
+                el.innerHTML = `
+                    ${nameDisplay}
+                    <i class="fas fa-times ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition"></i>
+                `;
+                el.querySelector('.fa-times').onclick = () => {
+                    tempLedger.members.splice(idx, 1);
+                    renderMembers();
+                };
+                container.appendChild(el);
+            });
+        }
+
+        // Data helpers for Ledger Config
+        function addMainCat() {
+            const input = document.getElementById('newMainCatInput');
+            const val = input.value.trim();
+            if(!val) return;
+            const id = Date.now().toString();
+            tempLedger.mainCats.push({id, name: val});
+            tempLedger.subCats[id] = [];
+            input.value = '';
+            renderLedgerConfigUI();
+            selectedMainCatId = id; // Auto select newly added
+            renderLedgerConfigUI();
+            document.getElementById('newSubCatInput').focus();
+        }
+        function deleteMainCat(id) {
+            tempLedger.mainCats = tempLedger.mainCats.filter(c => c.id !== id);
+            delete tempLedger.subCats[id];
+            if(selectedMainCatId === id) selectedMainCatId = null;
+            renderLedgerConfigUI();
+        }
+        function addSubCat() {
+            if(!selectedMainCatId) return;
+            const input = document.getElementById('newSubCatInput');
+            const val = input.value.trim();
+            if(!val) return;
+            tempLedger.subCats[selectedMainCatId].push({id: Date.now().toString(), name: val});
+            input.value = '';
+            renderLedgerConfigUI();
+            input.focus();
+        }
+        function deleteSubCat(pid, id) {
+            tempLedger.subCats[pid] = tempLedger.subCats[pid].filter(c => c.id !== id);
+            renderLedgerConfigUI();
+        }
+        function addCity() {
+            const input = document.getElementById('newCityInput');
+            const val = input.value.trim();
+            if(!val) return;
+            const id = Date.now().toString();
+            tempLedger.cities.push({id, name: val});
+            tempLedger.districts[id] = [];
+            input.value = '';
+            renderLedgerConfigUI();
+            selectedCityId = id;
+            renderLedgerConfigUI();
+            document.getElementById('newDistrictInput').focus();
+        }
+        function deleteCity(id) {
+            tempLedger.cities = tempLedger.cities.filter(c => c.id !== id);
+            delete tempLedger.districts[id];
+            if(selectedCityId === id) selectedCityId = null;
+            renderLedgerConfigUI();
+        }
+        function addDistrict() {
+            if(!selectedCityId) return;
+            const input = document.getElementById('newDistrictInput');
+            const val = input.value.trim();
+            if(!val) return;
+            tempLedger.districts[selectedCityId].push({id: Date.now().toString(), name: val});
+            input.value = '';
+            renderLedgerConfigUI();
+            input.focus();
+        }
+        function deleteDistrict(pid, id) {
+            tempLedger.districts[pid] = tempLedger.districts[pid].filter(c => c.id !== id);
+            renderLedgerConfigUI();
+        }
+        function addMember() {
+            const input = document.getElementById('memberInput');
+            const val = input.value.trim();
+            if(!val) return;
+            
+            let name = val;
+            let email = '';
+            const emailMatch = val.match(/(.*)<(.+)>/);
+            if(emailMatch) {
+                name = emailMatch[1].trim();
+                email = emailMatch[2].trim();
+            }
+            
+            if(tempLedger.members.some(m => (typeof m === 'string' ? m : m.name) === name)) {
+                showToast('成員名稱重複');
+                return;
+            }
+            
+            tempLedger.members.push({name, email});
+            input.value = '';
+            renderMembers();
+            input.focus();
+        }
+
+        // --- UI Updates ---
+
+        function updateUI() {
+            const select = document.getElementById('ledgerSelect');
+            select.innerHTML = '<option value="">請選擇帳冊</option>';
+            
+            const visibleLedgers = appData.ledgers.filter(l => {
+                if(!l.locked) return true;
+                if(!currentUser) return false;
+                if(currentUser.email === APP_ADMIN_EMAIL) return true;
+                return l.members.some(m => (typeof m === 'object' && m.email === currentUser.email));
+            });
+
+            visibleLedgers.forEach(l => {
+                select.add(new Option(`${l.name}${l.locked ? ' (已鎖定)' : ''}`, l.id));
+            });
+            
+            if(appData.currentLedgerId && visibleLedgers.some(l => l.id === appData.currentLedgerId)) {
+                select.value = appData.currentLedgerId;
+                updateLedgerInfoPanel();
+                renderExpenseList();
+                document.getElementById('ledgerCollapsible').style.maxHeight = '0px';
+                document.getElementById('ledgerCollapsible').style.opacity = '0';
+                document.getElementById('ledgerChevron').classList.remove('rotate-180');
+                document.getElementById('ledgerMetaSummary').classList.remove('hidden');
+            } else {
+                appData.currentLedgerId = null;
+                document.getElementById('displayLedgerName').textContent = "請選擇或建立帳冊";
+                document.getElementById('ledgerMetaSummary').classList.add('hidden');
+                document.getElementById('ledgerInfo').classList.add('hidden');
+                document.getElementById('lockBadge').classList.add('hidden');
+                document.getElementById('expenseList').innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-book text-2xl text-slate-300"></i></div><p>請先選擇帳冊，開始記錄您的旅程</p></div>';
+            }
+            updateAdminControls();
+        }
+
+        function updateLedgerInfoPanel() {
+            const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
+            if(!l) return;
+            
+            document.getElementById('displayLedgerName').textContent = l.name;
+            document.getElementById('ledgerMetaSummary').textContent = `${l.locations.cities.length} 個城市 · ${l.members.length} 位成員`;
+            
+            document.getElementById('ledgerInfo').classList.remove('hidden');
+            document.getElementById('ledgerCategories').textContent = l.categories.main.map(c => c.name).join('、');
+            document.getElementById('ledgerLocations').textContent = l.locations.cities.map(c => c.name).join('、');
+            document.getElementById('ledgerMembers').textContent = l.members.map(m => typeof m === 'string' ? m : m.name).join('、');
+
+            if(l.locked) document.getElementById('lockBadge').classList.remove('hidden');
+            else document.getElementById('lockBadge').classList.add('hidden');
+        }
+
+        function updateAdminControls() {
+            const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
+            const adminPanel = document.getElementById('adminControls');
+            if(isAdmin) adminPanel.classList.remove('hidden');
+            else adminPanel.classList.add('hidden');
+        }
+
+        // --- Setup Events ---
+        function setupEvents() {
+            // Header Toggle
+            document.getElementById('ledgerToggleHeader').onclick = () => {
+                const el = document.getElementById('ledgerCollapsible');
+                const chevron = document.getElementById('ledgerChevron');
+                if (el.style.maxHeight === '0px' || !el.style.maxHeight) {
+                    el.style.maxHeight = '500px';
+                    el.style.opacity = '1';
+                    chevron.classList.add('rotate-180');
+                } else {
+                    el.style.maxHeight = '0px';
+                    el.style.opacity = '0';
+                    chevron.classList.remove('rotate-180');
+                }
+            };
+
+            // Enter Key Support for Config
+            ['newMainCatInput', 'newSubCatInput', 'newCityInput', 'newDistrictInput', 'memberInput'].forEach(id => {
+                document.getElementById(id).addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if(id === 'newMainCatInput') addMainCat();
+                        if(id === 'newSubCatInput') addSubCat();
+                        if(id === 'newCityInput') addCity();
+                        if(id === 'newDistrictInput') addDistrict();
+                        if(id === 'memberInput') addMember();
+                    }
+                });
+            });
+
+            // Modals
+            document.querySelectorAll('.closeModal').forEach(b => b.onclick = (e) => e.target.closest('.modal').style.display = 'none');
+            window.onclick = (e) => { 
+                if(e.target.classList.contains('modal')) e.target.style.display = 'none';
+                if(!e.target.closest('#cloudStatus') && !e.target.closest('#cloudMenu')) document.getElementById('cloudMenu').classList.add('hidden');
+            };
+
+            // Nav Buttons
+            document.getElementById('userBtn').onclick = () => document.getElementById('userProfileModal').style.display = 'block';
+            document.getElementById('cloudConfigBtn').onclick = () => document.getElementById('cloudConfigModal').style.display = 'block';
+            document.getElementById('aboutBtn').onclick = () => document.getElementById('aboutModal').style.display = 'block';
+            document.getElementById('cloudStatus').onclick = (e) => { e.stopPropagation(); document.getElementById('cloudMenu').classList.toggle('hidden'); };
+
+            // User
+            document.getElementById('logoutBtn').onclick = () => {
+                currentUser = null;
+                localStorage.removeItem('travelAccountingGoogleUser');
+                updateUserUI();
+                updateUI();
+                showToast('已安全登出');
+                document.getElementById('userProfileModal').style.display = 'none';
+            };
+
+            // Cloud Form
+            document.getElementById('cloudConfigForm').onsubmit = (e) => {
+                e.preventDefault();
+                cloudSystem.saveConfig(document.getElementById('githubToken').value, document.getElementById('gistId').value);
+                document.getElementById('cloudConfigModal').style.display = 'none';
+                showToast('雲端設定已儲存');
+                setTimeout(() => location.reload(), 500);
+            };
+            document.getElementById('showToken').onchange = (e) => document.getElementById('githubToken').type = e.target.checked ? 'text' : 'password';
+
+            // Ledger Actions
+            document.getElementById('ledgerSelect').onchange = (e) => {
+                appData.currentLedgerId = e.target.value;
+                updateUI();
+                saveData();
+            };
+            document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
+            document.getElementById('editLedgerBtn').onclick = () => {
+                if(!appData.currentLedgerId) return showToast('請先選擇帳冊');
+                openLedgerModal(appData.currentLedgerId);
+            };
+            document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
+            
+            // Config Buttons
+            document.getElementById('btnAddMainCat').onclick = addMainCat;
+            document.getElementById('btnAddSubCat').onclick = addSubCat;
+            document.getElementById('btnAddCity').onclick = addCity;
+            document.getElementById('btnAddDistrict').onclick = addDistrict;
+            document.getElementById('addMemberBtn').onclick = addMember;
+
+            // Admin Actions
+            document.getElementById('deleteLedgerBtn').onclick = () => {
+                if(confirm('確定要永久刪除此帳冊嗎？此動作無法復原。')) {
+                    appData.ledgers = appData.ledgers.filter(l => l.id !== appData.currentLedgerId);
+                    appData.expenses = appData.expenses.filter(e => e.ledgerId !== appData.currentLedgerId);
+                    appData.currentLedgerId = null;
+                    saveData();
+                    updateUI();
+                    showToast('帳冊已刪除');
+                }
+            };
+            document.getElementById('toggleLockLedgerBtn').onclick = () => {
+                const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
+                if(l) {
+                    l.locked = !l.locked;
+                    saveData();
+                    updateUI();
+                    showToast(l.locked ? '帳冊已鎖定' : '帳冊已解鎖');
+                }
+            };
+
+            // Expenses
+            document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
+            document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
+            document.getElementById('expenseReceipt').onchange = (e) => {
+                const f = e.target.files[0];
+                if(f) {
+                    const r = new FileReader();
+                    r.onload = (ev) => {
+                        document.getElementById('receiptImagePreview').src = ev.target.result;
+                        document.getElementById('receiptPreview').classList.remove('hidden');
+                    };
+                    r.readAsDataURL(f);
+                }
+            };
+            document.getElementById('expenseAmount').oninput = calcAverage;
+            document.getElementById('expenseSplitters').onclick = (e) => {
+                if(e.target.tagName === 'INPUT') {
+                    calcAverage();
+                    checkSelectAll();
+                }
+            };
+            document.getElementById('selectAllSplitters').onchange = (e) => {
+                document.querySelectorAll('.splitter-chk').forEach(c => c.checked = e.target.checked);
+                calcAverage();
+            };
+
+            // Tabs
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.onclick = () => {
+                    document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
+                    b.classList.add('tab-active');
+                    document.getElementById('expensesTab').classList.add('hidden');
+                    document.getElementById('queryTab').classList.add('hidden');
+                    document.getElementById('chartsTab').classList.add('hidden');
+                    document.getElementById(b.dataset.tab + 'Tab').classList.remove('hidden');
+                    if(b.dataset.tab === 'query') updateQueryOptions();
+                    if(b.dataset.tab === 'charts') renderCharts();
+                };
+            });
+
+            // Cloud Operations
+            document.getElementById('cloudSyncBtn').onclick = async () => {
+                if(!confirm('確定要上傳備份？這將覆蓋雲端的舊資料。')) return;
+                showLoading(true, '正在上傳備份...');
+                try {
+                    const content = JSON.stringify(appData);
+                    await fetch(`https://api.github.com/gists/${cloudSystem.gistId}`, {
+                        method: 'PATCH',
+                        headers: { 'Authorization': `token ${cloudSystem.token}` },
+                        body: JSON.stringify({ files: { 'travel-accounting-data.json': { content } } })
+                    });
+                    showToast('上傳備份成功');
+                    document.getElementById('syncStatus').classList.remove('hidden');
+                } catch(e) { alert('上傳失敗，請檢查 Token 與 Gist ID'); }
+                showLoading(false);
+            };
+
+            document.getElementById('cloudDownloadBtn').onclick = async () => {
+                if(!confirm('確定下載還原？這將覆蓋本機目前的資料。')) return;
+                showLoading(true, '正在下載資料...');
+                try {
+                    const res = await fetch(`https://api.github.com/gists/${cloudSystem.gistId}`, {
+                        headers: { 'Authorization': `token ${cloudSystem.token}` }
+                    });
+                    const data = await res.json();
+                    const content = JSON.parse(data.files['travel-accounting-data.json'].content);
+                    appData = content;
+                    saveData();
+                    updateUI();
+                    showToast('資料還原成功');
+                } catch(e) { alert('下載失敗，請檢查 Token 與 Gist ID'); }
+                showLoading(false);
+            };
+
+            document.getElementById('exportBtn').onclick = () => {
+                const blob = new Blob([JSON.stringify(appData)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `travel_backup_${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+            };
+
+            document.getElementById('importFile').onchange = (e) => {
+                const f = e.target.files[0];
+                if(!f) return;
+                const r = new FileReader();
+                r.onload = (ev) => {
+                    try {
+                        appData = JSON.parse(ev.target.result);
+                        saveData();
+                        updateUI();
+                        showToast('匯入成功');
+                    } catch(err) { alert('檔案格式錯誤'); }
+                };
+                r.readAsText(f);
+                e.target.value = '';
+            };
+        }
+
+        function handleLedgerSubmit(e) {
+            e.preventDefault();
+            const mode = e.target.dataset.mode;
+            const name = document.getElementById('ledgerName').value.trim();
+            
+            if(tempLedger.mainCats.length === 0 || tempLedger.cities.length === 0 || tempLedger.members.length === 0) {
+                return showToast('科目、地點與成員請至少建立一項');
+            }
+
+            const newLedgerData = {
+                name,
+                categories: { main: tempLedger.mainCats, sub: tempLedger.subCats },
+                locations: { cities: tempLedger.cities, districts: tempLedger.districts },
+                members: tempLedger.members,
+                locked: false
+            };
+
+            if(mode === 'edit') {
+                const id = e.target.dataset.id;
+                const idx = appData.ledgers.findIndex(l => l.id === id);
+                if(idx >= 0) {
+                    newLedgerData.id = id;
+                    newLedgerData.locked = appData.ledgers[idx].locked;
+                    appData.ledgers[idx] = newLedgerData;
+                }
+            } else {
+                newLedgerData.id = Date.now().toString();
+                appData.ledgers.push(newLedgerData);
+                appData.currentLedgerId = newLedgerData.id;
+            }
+
+            saveData();
+            updateUI();
+            document.getElementById('ledgerModal').style.display = 'none';
+            showToast('帳冊設定已儲存');
+        }
+
+        // --- Logic: Expense Form & Calculations --- (Same logic, better UI)
+        function openExpenseModal(expenseId = null) {
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if (!ledger) return showToast('請先選擇帳冊');
+            if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) return showToast('帳冊已鎖定');
+
+            const form = document.getElementById('expenseForm');
+            form.reset();
+            currentEditingExpenseId = expenseId;
+            document.getElementById('receiptPreview').classList.add('hidden');
+
+            // Category Select
+            const catSelect = document.getElementById('expenseCategory');
+            catSelect.innerHTML = '<option value="">請選擇科目</option>';
+            ledger.categories.main.forEach(m => {
+                const mOpt = document.createElement('option');
+                mOpt.value = `main_${m.id}`;
+                mOpt.textContent = m.name;
+                mOpt.className = 'font-bold bg-slate-100';
+                catSelect.appendChild(mOpt);
+                (ledger.categories.sub[m.id] || []).forEach(s => {
+                    const sOpt = document.createElement('option');
+                    sOpt.value = `sub_${m.id}_${s.id}`;
+                    sOpt.textContent = `　↳ ${s.name}`;
+                    catSelect.appendChild(sOpt);
+                });
+            });
+
+            // Location Select
+            const locSelect = document.getElementById('expenseLocation');
+            locSelect.innerHTML = '<option value="">請選擇地點</option>';
+            ledger.locations.cities.forEach(c => {
+                const cOpt = document.createElement('option');
+                cOpt.value = `city_${c.id}`;
+                cOpt.textContent = c.name;
+                cOpt.className = 'font-bold bg-slate-100';
+                locSelect.appendChild(cOpt);
+                (ledger.locations.districts[c.id] || []).forEach(d => {
+                    const dOpt = document.createElement('option');
+                    dOpt.value = `district_${c.id}_${d.id}`;
+                    dOpt.textContent = `　↳ ${d.name}`;
+                    locSelect.appendChild(dOpt);
+                });
+            });
+
+            // Payers & Splitters
+            const payerSelect = document.getElementById('expensePayer');
+            const splittersDiv = document.getElementById('expenseSplitters');
+            payerSelect.innerHTML = '';
+            splittersDiv.innerHTML = '';
+            
+            const memberNames = ledger.members.map(m => typeof m === 'string' ? m : m.name);
+            memberNames.forEach(name => {
+                payerSelect.add(new Option(name, name));
+                const label = document.createElement('label');
+                label.className = 'flex items-center space-x-2 p-2 rounded hover:bg-slate-100 cursor-pointer border border-slate-100';
+                label.innerHTML = `<input type="checkbox" value="${name}" class="splitter-chk w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"> <span class="text-sm">${name}</span>`;
+                splittersDiv.appendChild(label);
+            });
+
+            if (expenseId) {
+                const exp = appData.expenses.find(e => e.id === expenseId);
+                if (exp) {
+                    document.getElementById('expenseModalTitle').textContent = '編輯支出';
+                    document.getElementById('expenseDate').value = exp.date;
+                    document.getElementById('expenseTime').value = exp.time;
+                    document.getElementById('expenseDescription').value = exp.description;
+                    document.getElementById('expenseAmount').value = exp.amount;
+                    document.getElementById('expensePayer').value = exp.payer;
+                    document.getElementById('expenseSettled').checked = exp.isSettled;
+                    
+                    if(exp.category.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
+                    else catSelect.value = `main_${exp.category.main.id}`;
+                    
+                    if(exp.location.district) locSelect.value = `district_${exp.location.city.id}_${exp.location.district.id}`;
+                    else locSelect.value = `city_${exp.location.city.id}`;
+
+                    exp.splitters.forEach(s => {
+                        const chk = splittersDiv.querySelector(`input[value="${s}"]`);
+                        if(chk) chk.checked = true;
+                    });
+                    
+                    if(exp.receipt) {
+                        document.getElementById('receiptImagePreview').src = exp.receipt;
+                        document.getElementById('receiptPreview').classList.remove('hidden');
+                    }
+                }
+            } else {
+                document.getElementById('expenseModalTitle').textContent = '新增支出';
+                const now = new Date();
+                document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
+                document.getElementById('expenseTime').value = now.toTimeString().slice(0, 5);
+                splittersDiv.querySelectorAll('input').forEach(i => i.checked = true);
+                document.getElementById('selectAllSplitters').checked = true;
+            }
+
+            calcAverage();
+            document.getElementById('expenseModal').style.display = 'block';
+        }
+
+        function handleExpenseSubmit(e) {
+            e.preventDefault();
+            const catVal = document.getElementById('expenseCategory').value;
+            const locVal = document.getElementById('expenseLocation').value;
+            if(!catVal || !locVal) return showToast('請完整選擇科目與地點');
+            
+            const splitters = Array.from(document.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
+            if(splitters.length === 0) return showToast('至少需有一位分攤人員');
+
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            
+            // Reconstruct Objects
+            let categoryObj = {};
+            if(catVal.startsWith('main_')) {
+                const id = catVal.split('_')[1];
+                categoryObj = { main: { id, name: ledger.categories.main.find(c=>c.id==id).name }, sub: null };
+            } else {
+                const [_, mid, sid] = catVal.split('_');
+                categoryObj = { 
+                    main: { id: mid, name: ledger.categories.main.find(c=>c.id==mid).name }, 
+                    sub: { id: sid, name: ledger.categories.sub[mid].find(s=>s.id==sid).name } 
+                };
+            }
+
+            let locationObj = {};
+            if(locVal.startsWith('city_')) {
+                const id = locVal.split('_')[1];
+                locationObj = { city: { id, name: ledger.locations.cities.find(c=>c.id==id).name }, district: null };
+            } else {
+                const [_, cid, did] = locVal.split('_');
+                locationObj = { 
+                    city: { id: cid, name: ledger.locations.cities.find(c=>c.id==cid).name }, 
+                    district: { id: did, name: ledger.locations.districts[cid].find(d=>d.id==did).name } 
+                };
+            }
+
+            const amt = parseFloat(document.getElementById('expenseAmount').value);
+            const expense = {
+                id: currentEditingExpenseId || Date.now().toString(),
+                ledgerId: appData.currentLedgerId,
+                date: document.getElementById('expenseDate').value,
+                time: document.getElementById('expenseTime').value,
+                description: document.getElementById('expenseDescription').value,
+                amount: amt,
+                payer: document.getElementById('expensePayer').value,
+                splitters: splitters,
+                averageAmount: splitters.length > 0 ? amt / splitters.length : 0,
+                isSettled: document.getElementById('expenseSettled').checked,
+                category: categoryObj,
+                location: locationObj,
+                receipt: document.getElementById('receiptImagePreview').src || null
+            };
+
+            if(currentEditingExpenseId) {
+                const idx = appData.expenses.findIndex(e => e.id === currentEditingExpenseId);
+                if(idx >= 0) appData.expenses[idx] = expense;
+            } else {
+                appData.expenses.push(expense);
+            }
+
+            saveData();
+            renderExpenseList();
+            document.getElementById('expenseModal').style.display = 'none';
+            showToast('記錄已儲存');
+        }
+
+        function renderExpenseList() {
+            const list = document.getElementById('expenseList');
+            const exps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            
+            if(exps.length === 0) {
+                list.innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-receipt text-2xl text-slate-300"></i></div><p>尚無支出記錄</p></div>';
+                return;
+            }
+
+            exps.sort((a,b) => new Date(`${b.date} ${b.time}`) - new Date(`${a.date} ${a.time}`));
+
+            list.innerHTML = exps.map(e => {
+                const catStr = e.category.sub ? `${e.category.main.name} · ${e.category.sub.name}` : e.category.main.name;
+                const locStr = e.location.district ? `${e.location.city.name} ${e.location.district.name}` : e.location.city.name;
+                
+                return `
+                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm card-hover relative group">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded font-medium">${catStr}</span>
+                                <span class="text-xs text-slate-400">${e.date}</span>
+                            </div>
+                            <div class="font-bold text-slate-800 text-lg">${e.description}</div>
+                            <div class="text-xs text-slate-500 mt-1"><i class="fas fa-map-marker-alt text-red-400 mr-1"></i> ${locStr}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-xl ${e.isSettled ? 'text-slate-400 line-through' : 'text-slate-800'}">$${e.amount}</div>
+                            <div class="text-xs font-medium ${e.isSettled ? 'text-green-600' : 'text-amber-500'}">${e.isSettled ? '已結帳' : '未結帳'}</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-50 flex justify-between items-center">
+                        <div class="text-xs text-slate-600">
+                            <span class="font-bold">${e.payer}</span> 付款 <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${e.splitters.length} 人分攤
+                        </div>
+                        <div class="flex gap-3">
+                            ${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-image"></i></button>` : ''}
+                            <button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-pen"></i></button>
+                            <button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500 transition"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function deleteExpense(id) {
+            if(confirm('確定刪除此筆記錄?')) {
+                appData.expenses = appData.expenses.filter(e => e.id !== id);
+                saveData();
+                renderExpenseList();
+                showToast('記錄已刪除');
+            }
+        }
+
+        function calcAverage() {
+            const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
+            const cnt = document.querySelectorAll('.splitter-chk:checked').length;
+            document.getElementById('averageAmount').textContent = cnt > 0 ? (amt / cnt).toFixed(2) : 0;
+        }
+
+        function checkSelectAll() {
+            const all = document.querySelectorAll('.splitter-chk');
+            const checked = document.querySelectorAll('.splitter-chk:checked');
+            document.getElementById('selectAllSplitters').checked = all.length > 0 && all.length === checked.length;
+        }
+
+        function viewReceipt(id) {
+            const exp = appData.expenses.find(e => e.id === id);
+            if(exp && exp.receipt) {
+                document.getElementById('receiptViewImage').src = exp.receipt;
+                document.getElementById('receiptViewModal').style.display = 'block';
+            }
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            t.classList.remove('hidden', 'translate-y-10', 'opacity-0');
+            setTimeout(() => t.classList.add('hidden'), 3000);
+        }
+
+        function showLoading(show, msg = '處理中...') {
+            document.getElementById('syncMsg').textContent = msg;
+            document.getElementById('syncOverlay').classList.toggle('hidden', !show);
+        }
+
+        // Charts & Query Logic (Reused)
+        function updateQueryOptions() {
+             const ledgerExps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+             const payers = [...new Set(ledgerExps.map(e => e.payer))];
+             const splitters = [...new Set(ledgerExps.flatMap(e => e.splitters))];
+             
+             const pSel = document.getElementById('queryPayer');
+             pSel.innerHTML = '<option value="">所有支付者</option>';
+             payers.forEach(p => pSel.add(new Option(p, p)));
+
+             const sSel = document.getElementById('querySplitter');
+             sSel.innerHTML = '<option value="">所有分攤者</option>';
+             splitters.forEach(s => sSel.add(new Option(s, s)));
+             
+             document.getElementById('queryBtn').onclick = () => {
+                 const pFilter = pSel.value;
+                 const sFilter = sSel.value;
+                 let res = ledgerExps;
+                 if(pFilter) res = res.filter(e => e.payer === pFilter);
+                 if(sFilter) res = res.filter(e => e.splitters.includes(sFilter));
+                 
+                 document.getElementById('totalAmount').textContent = res.reduce((a,b)=>a+b.amount, 0).toFixed(2);
+                 document.getElementById('totalCount').textContent = res.length;
+                 
+                 const detailDiv = document.getElementById('splitterDetails');
+                 if(sFilter) {
+                    const myShare = res.reduce((sum, e) => sum + e.averageAmount, 0);
+                    document.getElementById('splitterAmount').textContent = myShare.toFixed(2);
+                    detailDiv.innerHTML = res.map(e => `
+                        <div class="flex justify-between text-sm py-3 px-5 hover:bg-slate-50 transition">
+                            <span class="text-slate-700">${e.date} ${e.description}</span>
+                            <span class="font-bold text-slate-800">$${e.averageAmount.toFixed(0)}</span>
+                        </div>
+                    `).join('');
+                 } else {
+                     document.getElementById('splitterAmount').textContent = '-';
+                     detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細</div>';
+                 }
+                 document.getElementById('queryResults').classList.remove('hidden');
+             };
+        }
+        
+        let charts = {};
+        function renderCharts() {
+            const ledgerExps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            if(ledgerExps.length === 0) return;
+
+            const pData = {};
+            ledgerExps.forEach(e => pData[e.payer] = (pData[e.payer] || 0) + e.amount);
+            
+            if(charts.payer) charts.payer.destroy();
+            charts.payer = new Chart(document.getElementById('payerChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(pData),
+                    datasets: [{ data: Object.values(pData), backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'], borderWidth: 0 }]
+                },
+                options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+
+            const sData = {};
+            ledgerExps.forEach(e => {
+                e.splitters.forEach(s => {
+                    if(!sData[s]) sData[s] = 0;
+                    sData[s] += e.averageAmount;
+                });
+            });
+             if(charts.splitter) charts.splitter.destroy();
+             charts.splitter = new Chart(document.getElementById('splitterChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(sData),
+                    datasets: [{ label: '應付金額', data: Object.values(sData), backgroundColor: '#6366f1', borderRadius: 4 }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    </script>
+</body>
+</html>
