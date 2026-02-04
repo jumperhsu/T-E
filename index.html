@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊收支記帳管家 - Firebase版</title>
+    <title>旅遊收支記帳管家 - Firebase Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -46,12 +46,16 @@
         .config-col-body { flex: 1; overflow-y: auto; padding: 8px; background-color: #fff; }
         .config-col-footer { padding: 12px; border-top: 1px solid #e2e8f0; background-color: #f8fafc; display: flex; gap: 8px; }
 
-        .tag-editable { display: flex; align-items: center; justify-content: space-between; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
+        .tag-editable { display: flex; align-items: center; justify-content: space-between; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
         .tag-editable:hover { border-color: #93c5fd; background-color: #f0f9ff; }
         .tag-editable.selected { background-color: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; font-weight: 500; }
         
-        .tag-btn-delete { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; transition: background 0.2s; }
-        .tag-btn-delete:hover { background-color: #fee2e2; }
+        .tag-actions { display: flex; gap: 4px; opacity: 0.4; transition: opacity 0.2s; }
+        .tag-editable:hover .tag-actions { opacity: 1; }
+        .tag-btn-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #64748b; transition: background 0.2s; }
+        .tag-btn-icon:hover { background-color: #e2e8f0; color: #2563eb; }
+        .tag-btn-delete { color: #ef4444; }
+        .tag-btn-delete:hover { background-color: #fee2e2; color: #dc2626; }
 
         .hierarchical-select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: white; font-size: 14px; color: #334155; transition: border-color 0.2s; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; }
         .hierarchical-select:focus { outline: none; border-color: #2563eb; ring: 2px; ring-color: #bfdbfe; }
@@ -59,6 +63,17 @@
         .transition-height { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; }
         .rotate-180 { transform: rotate(180deg); }
         .chevron-icon { transition: transform 0.3s ease; }
+
+        /* Ledger Stats Bar */
+        .ledger-stats-bar { display: flex; gap: 1px; background: #e2e8f0; border-radius: 8px; overflow: hidden; margin-top: 12px; border: 1px solid #e2e8f0; }
+        .stat-item { flex: 1; background: white; padding: 10px; text-align: center; }
+        .stat-item .label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+        .stat-item .value { font-size: 1.1rem; font-weight: 700; color: #1e293b; font-family: 'Roboto Mono', monospace; }
+        .stat-item.treat .value { color: #ec4899; }
+        .stat-item.settled .value { color: #10b981; }
+        .stat-item.outstanding .value { color: #f59e0b; }
+        
+        .treat-badge { background-color: #fce7f3; color: #db2777; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; border: 1px solid #fbcfe8; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
@@ -160,7 +175,7 @@
                     </div>
 
                     <div id="ledgerInfo" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-3">
                             <div>
                                 <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">科目</div>
                                 <span id="ledgerCategories" class="text-slate-700 font-medium"></span>
@@ -172,6 +187,25 @@
                             <div>
                                 <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">成員</div>
                                 <span id="ledgerMembers" class="text-slate-700 font-medium"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="ledger-stats-bar">
+                            <div class="stat-item treat">
+                                <div class="label"><i class="fas fa-gift mr-1"></i> 免結 (請客)</div>
+                                <div id="statWaived" class="value">0</div>
+                            </div>
+                            <div class="stat-item settled">
+                                <div class="label"><i class="fas fa-check-circle mr-1"></i> 已結</div>
+                                <div id="statSettled" class="value">0</div>
+                            </div>
+                            <div class="stat-item outstanding">
+                                <div class="label"><i class="fas fa-clock mr-1"></i> 未結</div>
+                                <div id="statOutstanding" class="value">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">總額</div>
+                                <div id="statTotal" class="value">0</div>
                             </div>
                         </div>
                     </div>
@@ -215,7 +249,7 @@
                     <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-filter text-blue-500"></i> 篩選條件</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">支付者</label>
+                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">金主 (支付者)</label>
                             <div class="relative">
                                 <select id="queryPayer" class="w-full appearance-none bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
                                 <i class="fas fa-caret-down absolute right-3 top-2.5 text-slate-400 pointer-events-none"></i>
@@ -237,22 +271,26 @@
                 </div>
                 
                 <div id="queryResults" class="hidden animate-fade-in">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                         <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                            <div class="text-slate-500 text-sm mb-1">總支出金額</div>
+                            <div class="text-slate-500 text-sm mb-1">符合總支出</div>
                             <div id="totalAmount" class="text-2xl font-bold text-slate-800">0</div>
                         </div>
                         <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                            <div class="text-slate-500 text-sm mb-1">符合筆數</div>
-                            <div id="totalCount" class="text-2xl font-bold text-blue-600">0</div>
+                             <div class="text-slate-500 text-sm mb-1">金主請客額</div>
+                             <div id="treatAmount" class="text-2xl font-bold text-pink-500">0</div>
                         </div>
                         <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
                             <div class="text-slate-500 text-sm mb-1">應付/分攤金額</div>
                             <div id="splitterAmount" class="text-2xl font-bold text-purple-600">0</div>
                         </div>
+                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+                            <div class="text-slate-500 text-sm mb-1">符合筆數</div>
+                            <div id="totalCount" class="text-2xl font-bold text-blue-600">0</div>
+                        </div>
                     </div>
                     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                        <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 font-bold text-slate-700 text-sm">分攤明細</div>
+                        <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 font-bold text-slate-700 text-sm">分攤明細 (不含請客)</div>
                         <div id="splitterDetails" class="divide-y divide-slate-100 max-h-80 overflow-y-auto"></div>
                     </div>
                 </div>
@@ -261,11 +299,11 @@
             <div id="chartsTab" class="p-6 hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">支付者比例</h3>
+                        <h3 class="font-bold text-slate-700 mb-4 text-center">金主支付比例 (含請客)</h3>
                         <div class="chart-container"><canvas id="payerChart"></canvas></div>
                     </div>
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">人員分攤統計</h3>
+                        <h3 class="font-bold text-slate-700 mb-4 text-center">人員應付分攤 (不含請客)</h3>
                         <div class="chart-container"><canvas id="splitterChart"></canvas></div>
                     </div>
                 </div>
@@ -402,7 +440,7 @@
                 
                 <div class="mb-6">
                     <label class="block text-sm font-bold text-slate-700 mb-2">分攤人員 <span class="text-xs font-normal text-slate-500 ml-2">(輸入 Google Email 可連結權限)</span></label>
-                    <div class="flex flex-wrap gap-2 p-4 border border-slate-300 rounded-lg mb-3 min-h-[60px] bg-slate-50" id="memberTagsList"></div>
+                    <div class="flex flex-col gap-2 p-4 border border-slate-300 rounded-lg mb-3 min-h-[60px] bg-slate-50" id="memberTagsList"></div>
                     <div class="flex gap-2">
                         <input type="text" id="memberInput" class="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="輸入姓名或 姓名<email> 後按 Enter">
                         <button type="button" id="addMemberBtn" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-medium">新增</button>
@@ -470,7 +508,7 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">支付者</label>
+                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">金主</label>
                             <select id="expensePayer" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white"></select>
                         </div>
                     </div>
@@ -489,17 +527,22 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div class="flex items-center h-full p-3 border border-slate-200 rounded-lg">
-                            <input type="checkbox" id="expenseSettled" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer mr-3">
+                    <div class="mb-6 flex flex-wrap gap-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="expenseSettled" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer mr-2">
                             <label for="expenseSettled" class="font-medium text-slate-700 cursor-pointer select-none">此筆款項已結清</label>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">收據圖片</label>
-                            <input type="file" id="expenseReceipt" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                            <div id="receiptPreview" class="mt-3 hidden text-center bg-slate-100 rounded-lg p-2">
-                                <img id="receiptImagePreview" class="receipt-preview mx-auto">
-                            </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="expenseTreat" class="w-5 h-5 rounded text-pink-500 focus:ring-pink-400 border-gray-300 cursor-pointer mr-2">
+                            <label for="expenseTreat" class="font-medium text-pink-600 cursor-pointer select-none"><i class="fas fa-gift mr-1"></i> 金主請客</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">收據圖片</label>
+                        <input type="file" id="expenseReceipt" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <div id="receiptPreview" class="mt-3 hidden text-center bg-slate-100 rounded-lg p-2">
+                            <img id="receiptImagePreview" class="receipt-preview mx-auto">
                         </div>
                     </div>
 
@@ -534,7 +577,7 @@
     </div>
 
     <script>
-        const CURRENT_VERSION = 'v20250203.07';
+        const CURRENT_VERSION = 'v20260204.01';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         
         // --- Firebase Config ---
@@ -609,7 +652,6 @@
 
                 dbRef.set(appData)
                     .then(() => {
-                        // Success handled by listener usually, but we can set UI state here
                         setTimeout(() => {
                             statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 已同步';
                             statusEl.classList.remove('bg-blue-100', 'text-blue-700');
@@ -648,20 +690,15 @@
                 }
             });
 
-            // The main listener for data changes
             dbRef.on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
-                    // Update local app data from cloud
                     appData = data;
                     localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
-                    updateUI(); // Refresh UI with new data
+                    updateUI(); 
                 } else {
-                    // Firebase is empty, maybe init it? or just keep local.
-                    // If local has data and remote is null, we might want to push local up?
-                    // For now, assume if remote is empty, we just use local.
                     if (appData.ledgers.length > 0) {
-                        saveData(); // Push local to remote if remote is empty
+                        saveData(); 
                     }
                 }
             });
@@ -675,7 +712,7 @@
                 currentUser = JSON.parse(savedUser);
                 updateUserUI();
             } else {
-                showUserModal(true); // Force login
+                showUserModal(true); 
             }
         }
 
@@ -693,7 +730,7 @@
                 switchBtn.classList.add('hidden');
                 title.textContent = "歡迎使用";
                 desc.textContent = "初次使用，請設定您的身份";
-                modal.onclick = null; // Prevent background click close
+                modal.onclick = null; 
             } else {
                 closeBtn.style.display = 'block';
                 if (currentUser) {
@@ -757,7 +794,6 @@
             if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
                 if (ledger) {
-                    // 鎖定檢查
                     if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) {
                         showToast('此帳冊已鎖定，無法修改設定');
                         return;
@@ -784,25 +820,86 @@
         }
 
         function renderLedgerConfigUI() {
-            renderList('mainCatList', tempLedger.mainCats, selectedMainCatId, (id) => {
-                selectedMainCatId = id;
-                renderLedgerConfigUI();
-                document.getElementById('newSubCatInput').focus();
-            }, deleteMainCat);
+            // 主要科目
+            renderList('mainCatList', tempLedger.mainCats, selectedMainCatId, 
+                (id) => { // Select
+                    selectedMainCatId = id;
+                    renderLedgerConfigUI();
+                    document.getElementById('newSubCatInput').focus();
+                }, 
+                deleteMainCat, // Delete
+                (id, newVal) => { // Edit
+                    const item = tempLedger.mainCats.find(x => x.id === id);
+                    if(item) item.name = newVal;
+                },
+                (idx) => { // Move Up
+                    if(idx > 0) {
+                        [tempLedger.mainCats[idx-1], tempLedger.mainCats[idx]] = [tempLedger.mainCats[idx], tempLedger.mainCats[idx-1]];
+                        renderLedgerConfigUI();
+                    }
+                },
+                (idx) => { // Move Down
+                    if(idx < tempLedger.mainCats.length - 1) {
+                        [tempLedger.mainCats[idx+1], tempLedger.mainCats[idx]] = [tempLedger.mainCats[idx], tempLedger.mainCats[idx+1]];
+                        renderLedgerConfigUI();
+                    }
+                }
+            );
 
-            renderList('cityList', tempLedger.cities, selectedCityId, (id) => {
-                selectedCityId = id;
-                renderLedgerConfigUI();
-                document.getElementById('newDistrictInput').focus();
-            }, deleteCity);
+            // 城市
+            renderList('cityList', tempLedger.cities, selectedCityId, 
+                (id) => {
+                    selectedCityId = id;
+                    renderLedgerConfigUI();
+                    document.getElementById('newDistrictInput').focus();
+                }, 
+                deleteCity,
+                (id, newVal) => {
+                    const item = tempLedger.cities.find(x => x.id === id);
+                    if(item) item.name = newVal;
+                },
+                (idx) => {
+                    if(idx > 0) {
+                        [tempLedger.cities[idx-1], tempLedger.cities[idx]] = [tempLedger.cities[idx], tempLedger.cities[idx-1]];
+                        renderLedgerConfigUI();
+                    }
+                },
+                (idx) => {
+                    if(idx < tempLedger.cities.length - 1) {
+                        [tempLedger.cities[idx+1], tempLedger.cities[idx]] = [tempLedger.cities[idx], tempLedger.cities[idx+1]];
+                        renderLedgerConfigUI();
+                    }
+                }
+            );
 
+            // 次要科目
             const subCatListDiv = document.getElementById('subCatList');
             const subInput = document.getElementById('newSubCatInput');
             const subBtn = document.getElementById('btnAddSubCat');
             
             if (selectedMainCatId) {
                 const subs = tempLedger.subCats[selectedMainCatId] || [];
-                renderList('subCatList', subs, null, null, (subId) => deleteSubCat(selectedMainCatId, subId));
+                renderList('subCatList', subs, null, null, 
+                    (subId) => deleteSubCat(selectedMainCatId, subId),
+                    (subId, newVal) => {
+                        const item = tempLedger.subCats[selectedMainCatId].find(x => x.id === subId);
+                        if(item) item.name = newVal;
+                    },
+                    (idx) => {
+                        if(idx > 0) {
+                            const arr = tempLedger.subCats[selectedMainCatId];
+                            [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+                            renderLedgerConfigUI();
+                        }
+                    },
+                    (idx) => {
+                        const arr = tempLedger.subCats[selectedMainCatId];
+                        if(idx < arr.length - 1) {
+                            [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
+                            renderLedgerConfigUI();
+                        }
+                    }
+                );
                 subInput.disabled = false;
                 subBtn.disabled = false;
                 subCatListDiv.classList.remove('flex', 'items-center', 'justify-center');
@@ -812,13 +909,34 @@
                 subBtn.disabled = true;
             }
 
+            // 區域
             const districtListDiv = document.getElementById('districtList');
             const distInput = document.getElementById('newDistrictInput');
             const distBtn = document.getElementById('btnAddDistrict');
 
             if (selectedCityId) {
                 const dists = tempLedger.districts[selectedCityId] || [];
-                renderList('districtList', dists, null, null, (distId) => deleteDistrict(selectedCityId, distId));
+                renderList('districtList', dists, null, null, 
+                    (distId) => deleteDistrict(selectedCityId, distId),
+                    (distId, newVal) => {
+                        const item = tempLedger.districts[selectedCityId].find(x => x.id === distId);
+                        if(item) item.name = newVal;
+                    },
+                    (idx) => {
+                        if(idx > 0) {
+                            const arr = tempLedger.districts[selectedCityId];
+                            [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+                            renderLedgerConfigUI();
+                        }
+                    },
+                    (idx) => {
+                        const arr = tempLedger.districts[selectedCityId];
+                        if(idx < arr.length - 1) {
+                            [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
+                            renderLedgerConfigUI();
+                        }
+                    }
+                );
                 distInput.disabled = false;
                 distBtn.disabled = false;
                 districtListDiv.classList.remove('flex', 'items-center', 'justify-center');
@@ -831,23 +949,58 @@
             renderMembers();
         }
 
-        function renderList(containerId, items, selectedId, onSelect, onDelete) {
+        // Generic Render List with Sort/Edit
+        function renderList(containerId, items, selectedId, onSelect, onDelete, onEdit, onMoveUp, onMoveDown) {
             const container = document.getElementById(containerId);
             container.innerHTML = '';
-            items.forEach(item => {
+            items.forEach((item, idx) => {
                 const el = document.createElement('div');
                 el.className = `tag-editable ${selectedId === item.id ? 'selected' : ''}`;
+                
+                // Safe handling for basic or object items
+                const displayName = item.name || item; 
+                
                 el.innerHTML = `
-                    <span class="flex-1 truncate font-medium text-slate-700">${item.name}</span>
-                    <div class="tag-actions flex gap-2">
-                        <div class="tag-btn-delete"><i class="fas fa-times"></i></div>
+                    <span class="flex-1 truncate font-medium text-slate-700">${displayName}</span>
+                    <div class="tag-actions">
+                        ${onEdit ? `<div class="tag-btn-icon tag-btn-edit"><i class="fas fa-pen"></i></div>` : ''}
+                        ${onMoveUp ? `<div class="tag-btn-icon tag-btn-up"><i class="fas fa-arrow-up"></i></div>` : ''}
+                        ${onMoveDown ? `<div class="tag-btn-icon tag-btn-down"><i class="fas fa-arrow-down"></i></div>` : ''}
+                        <div class="tag-btn-icon tag-btn-delete"><i class="fas fa-times"></i></div>
                     </div>
                 `;
+                
                 if (onSelect) {
                     el.addEventListener('click', (e) => {
-                        if (!e.target.closest('.tag-btn-delete')) onSelect(item.id);
+                        if (!e.target.closest('.tag-actions')) onSelect(item.id);
                     });
                 }
+                
+                if (onEdit) {
+                    el.querySelector('.tag-btn-edit').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const newVal = prompt('請輸入新名稱', displayName);
+                        if(newVal && newVal.trim() !== '') {
+                            onEdit(item.id, newVal.trim());
+                            renderLedgerConfigUI(); // re-render
+                        }
+                    });
+                }
+                
+                if (onMoveUp) {
+                    el.querySelector('.tag-btn-up').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        onMoveUp(idx);
+                    });
+                }
+                
+                if (onMoveDown) {
+                    el.querySelector('.tag-btn-down').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        onMoveDown(idx);
+                    });
+                }
+
                 el.querySelector('.tag-btn-delete').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if(confirm('確定刪除此項目?')) onDelete(item.id);
@@ -861,13 +1014,56 @@
             container.innerHTML = '';
             tempLedger.members.forEach((m, idx) => {
                 const el = document.createElement('div');
-                el.className = 'bg-white text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm shadow-sm';
+                el.className = 'bg-white text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center justify-between gap-2 text-sm shadow-sm mb-1';
+                
                 const nameDisplay = typeof m === 'string' ? m : `<span class="font-bold">${m.name}</span>${m.email ? ` <span class='text-xs text-slate-400'>(${m.email})</span>` : ''}`;
+                
                 el.innerHTML = `
-                    ${nameDisplay}
-                    <i class="fas fa-times ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition"></i>
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        ${nameDisplay}
+                    </div>
+                    <div class="flex gap-1">
+                        <i class="fas fa-arrow-up text-slate-300 hover:text-blue-500 cursor-pointer p-1 btn-move-up"></i>
+                        <i class="fas fa-arrow-down text-slate-300 hover:text-blue-500 cursor-pointer p-1 btn-move-down"></i>
+                        <i class="fas fa-pen text-slate-300 hover:text-blue-500 cursor-pointer p-1 btn-edit"></i>
+                        <i class="fas fa-times text-slate-300 hover:text-red-500 cursor-pointer p-1 btn-del"></i>
+                    </div>
                 `;
-                el.querySelector('.fa-times').onclick = () => {
+                
+                // Move Up
+                el.querySelector('.btn-move-up').onclick = () => {
+                    if(idx > 0) {
+                        [tempLedger.members[idx-1], tempLedger.members[idx]] = [tempLedger.members[idx], tempLedger.members[idx-1]];
+                        renderMembers();
+                    }
+                };
+                // Move Down
+                el.querySelector('.btn-move-down').onclick = () => {
+                    if(idx < tempLedger.members.length - 1) {
+                        [tempLedger.members[idx+1], tempLedger.members[idx]] = [tempLedger.members[idx], tempLedger.members[idx+1]];
+                        renderMembers();
+                    }
+                };
+                // Edit
+                el.querySelector('.btn-edit').onclick = () => {
+                    const currentName = typeof m === 'string' ? m : m.name;
+                    const currentEmail = typeof m === 'string' ? '' : m.email;
+                    const defaultVal = currentEmail ? `${currentName} <${currentEmail}>` : currentName;
+                    const val = prompt('編輯成員 (格式: 姓名 或 姓名 <email>)', defaultVal);
+                    if(val) {
+                        let newName = val.trim();
+                        let newEmail = '';
+                        const match = val.match(/(.*)<(.+)>/);
+                        if(match) {
+                            newName = match[1].trim();
+                            newEmail = match[2].trim();
+                        }
+                        tempLedger.members[idx] = { name: newName, email: newEmail };
+                        renderMembers();
+                    }
+                };
+                // Delete
+                el.querySelector('.btn-del').onclick = () => {
                     tempLedger.members.splice(idx, 1);
                     renderMembers();
                 };
@@ -972,7 +1168,6 @@
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
             
-            // Filter Ledgers
             const visibleLedgers = appData.ledgers.filter(l => {
                 if(!currentUser) return false;
                 if(currentUser.email === APP_ADMIN_EMAIL) return true;
@@ -995,7 +1190,6 @@
                 document.getElementById('ledgerChevron').classList.remove('rotate-180');
                 document.getElementById('ledgerMetaSummary').classList.remove('hidden');
                 
-                // Check Lock Status
                 const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
                 const isLocked = currentLedger && currentLedger.locked;
                 const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
@@ -1032,6 +1226,28 @@
 
             if(l.locked) document.getElementById('lockBadge').classList.remove('hidden');
             else document.getElementById('lockBadge').classList.add('hidden');
+
+            // --- Stats Calculation ---
+            const exps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            let waived = 0;
+            let settled = 0;
+            let outstanding = 0;
+            
+            exps.forEach(e => {
+                if(e.isTreat) {
+                    waived += e.amount;
+                } else if(e.isSettled) {
+                    settled += e.amount;
+                } else {
+                    outstanding += e.amount;
+                }
+            });
+            const total = waived + settled + outstanding;
+
+            document.getElementById('statWaived').textContent = waived.toLocaleString();
+            document.getElementById('statSettled').textContent = settled.toLocaleString();
+            document.getElementById('statOutstanding').textContent = outstanding.toLocaleString();
+            document.getElementById('statTotal').textContent = total.toLocaleString();
         }
 
         function updateAdminControls() {
@@ -1043,14 +1259,14 @@
 
         // --- Setup Events ---
         function setupEvents() {
-            // Header Toggle
             document.getElementById('ledgerToggleHeader').onclick = () => {
                 const el = document.getElementById('ledgerCollapsible');
                 const chevron = document.getElementById('ledgerChevron');
                 if (el.style.maxHeight === '0px' || !el.style.maxHeight) {
-                    el.style.maxHeight = '500px';
+                    el.style.maxHeight = '800px'; // increased to fit stats
                     el.style.opacity = '1';
                     chevron.classList.add('rotate-180');
+                    updateLedgerInfoPanel(); // Refresh stats when opening
                 } else {
                     el.style.maxHeight = '0px';
                     el.style.opacity = '0';
@@ -1058,7 +1274,6 @@
                 }
             };
 
-            // Enter Key Support
             ['newMainCatInput', 'newSubCatInput', 'newCityInput', 'newDistrictInput', 'memberInput'].forEach(id => {
                 document.getElementById(id).addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
@@ -1072,14 +1287,12 @@
                 });
             });
 
-            // Modals
             document.querySelectorAll('.closeModal').forEach(b => b.onclick = (e) => e.target.closest('.modal').style.display = 'none');
             window.onclick = (e) => { 
                 if(e.target.classList.contains('modal') && e.target.id !== 'userProfileModal') e.target.style.display = 'none';
                 if(!e.target.closest('#cloudStatus') && !e.target.closest('#cloudMenu')) document.getElementById('cloudMenu').classList.add('hidden');
             };
 
-            // User Profile
             document.getElementById('userBtn').onclick = () => showUserModal(false);
             document.getElementById('userForm').onsubmit = handleUserLogin;
             document.getElementById('switchUserBtn').onclick = () => {
@@ -1092,11 +1305,10 @@
             document.getElementById('aboutBtn').onclick = () => document.getElementById('aboutModal').style.display = 'block';
             document.getElementById('cloudStatus').onclick = (e) => { e.stopPropagation(); document.getElementById('cloudMenu').classList.toggle('hidden'); };
 
-            // Ledger
             document.getElementById('ledgerSelect').onchange = (e) => {
                 appData.currentLedgerId = e.target.value;
                 updateUI();
-                saveData(); // Persist selection
+                saveData(); 
             };
             document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
             document.getElementById('editLedgerBtn').onclick = () => {
@@ -1105,14 +1317,12 @@
             };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
             
-            // Ledger Config Btns
             document.getElementById('btnAddMainCat').onclick = addMainCat;
             document.getElementById('btnAddSubCat').onclick = addSubCat;
             document.getElementById('btnAddCity').onclick = addCity;
             document.getElementById('btnAddDistrict').onclick = addDistrict;
             document.getElementById('addMemberBtn').onclick = addMember;
 
-            // Admin
             document.getElementById('deleteLedgerBtn').onclick = () => {
                 if(confirm('確定要永久刪除此帳冊嗎？此動作無法復原。')) {
                     appData.ledgers = appData.ledgers.filter(l => l.id !== appData.currentLedgerId);
@@ -1133,7 +1343,6 @@
                 }
             };
 
-            // Expenses
             document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
             document.getElementById('expenseReceipt').onchange = (e) => {
@@ -1158,8 +1367,20 @@
                 document.querySelectorAll('.splitter-chk').forEach(c => c.checked = e.target.checked);
                 calcAverage();
             };
+            
+            // Treat Toggle logic - optional visual feedback
+            document.getElementById('expenseTreat').onchange = (e) => {
+                const isTreat = e.target.checked;
+                const avgEl = document.getElementById('averageAmount');
+                if(isTreat) {
+                    avgEl.style.textDecoration = 'line-through';
+                    avgEl.style.color = '#cbd5e1';
+                } else {
+                    avgEl.style.textDecoration = 'none';
+                    avgEl.style.color = '#2563eb';
+                }
+            };
 
-            // Tabs
             document.querySelectorAll('.tab-btn').forEach(b => {
                 b.onclick = () => {
                     document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
@@ -1173,7 +1394,6 @@
                 };
             });
 
-            // Export / Import (File based backup)
             document.getElementById('exportBtn').onclick = () => {
                 const blob = new Blob([JSON.stringify(appData)], {type: 'application/json'});
                 const url = URL.createObjectURL(blob);
@@ -1192,7 +1412,7 @@
                         const importedData = JSON.parse(ev.target.result);
                         if(confirm('匯入將會覆蓋目前的資料，確定嗎？')) {
                             appData = importedData;
-                            saveData(); // Will sync to cloud
+                            saveData(); 
                             updateUI();
                             showToast('匯入成功');
                         }
@@ -1257,6 +1477,7 @@
             form.reset();
             currentEditingExpenseId = expenseId;
             document.getElementById('receiptPreview').classList.add('hidden');
+            document.getElementById('receiptImagePreview').src = '';
 
             const fieldset = document.getElementById('expenseFieldset');
             const lockedMsg = document.getElementById('lockedMessage');
@@ -1331,6 +1552,7 @@
                     document.getElementById('expenseAmount').value = exp.amount;
                     document.getElementById('expensePayer').value = exp.payer;
                     document.getElementById('expenseSettled').checked = exp.isSettled;
+                    document.getElementById('expenseTreat').checked = !!exp.isTreat; // New field
                     
                     if(exp.category.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
                     else catSelect.value = `main_${exp.category.main.id}`;
@@ -1357,6 +1579,8 @@
             }
 
             calcAverage();
+            // Trigger styling for treat checkbox
+            document.getElementById('expenseTreat').dispatchEvent(new Event('change'));
             document.getElementById('expenseModal').style.display = 'block';
         }
 
@@ -1403,6 +1627,8 @@
             }
 
             const amt = parseFloat(document.getElementById('expenseAmount').value);
+            const isTreat = document.getElementById('expenseTreat').checked;
+
             const expense = {
                 id: currentEditingExpenseId || Date.now().toString(),
                 ledgerId: appData.currentLedgerId,
@@ -1414,6 +1640,7 @@
                 splitters: splitters,
                 averageAmount: splitters.length > 0 ? amt / splitters.length : 0,
                 isSettled: document.getElementById('expenseSettled').checked,
+                isTreat: isTreat,
                 category: categoryObj,
                 location: locationObj,
                 receipt: document.getElementById('receiptImagePreview').src || null
@@ -1428,6 +1655,7 @@
 
             saveData();
             renderExpenseList();
+            updateLedgerInfoPanel(); // Recalculate summary
             document.getElementById('expenseModal').style.display = 'none';
             showToast('記錄已儲存');
         }
@@ -1447,6 +1675,8 @@
                 const catStr = e.category.sub ? `${e.category.main.name} · ${e.category.sub.name}` : e.category.main.name;
                 const locStr = e.location.district ? `${e.location.city.name} ${e.location.district.name}` : e.location.city.name;
                 
+                const treatBadge = e.isTreat ? `<span class="treat-badge ml-2"><i class="fas fa-gift"></i> 金主請客</span>` : '';
+
                 return `
                 <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm card-hover relative group">
                     <div class="flex justify-between items-start mb-2">
@@ -1454,12 +1684,13 @@
                             <div class="flex items-center gap-2 mb-1">
                                 <span class="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded font-medium">${catStr}</span>
                                 <span class="text-xs text-slate-400">${e.date}</span>
+                                ${treatBadge}
                             </div>
                             <div class="font-bold text-slate-800 text-lg">${e.description}</div>
                             <div class="text-xs text-slate-500 mt-1"><i class="fas fa-map-marker-alt text-red-400 mr-1"></i> ${locStr}</div>
                         </div>
                         <div class="text-right">
-                            <div class="font-bold text-xl ${e.isSettled ? 'text-slate-400 line-through' : 'text-slate-800'}">$${e.amount}</div>
+                            <div class="font-bold text-xl ${e.isSettled ? 'text-slate-400 line-through' : (e.isTreat ? 'text-pink-500' : 'text-slate-800')}">$${e.amount}</div>
                             <div class="text-xs font-medium ${e.isSettled ? 'text-green-600' : 'text-amber-500'}">${e.isSettled ? '已結帳' : '未結帳'}</div>
                         </div>
                     </div>
@@ -1489,6 +1720,7 @@
                 appData.expenses = appData.expenses.filter(e => e.id !== id);
                 saveData();
                 renderExpenseList();
+                updateLedgerInfoPanel();
                 showToast('記錄已刪除');
             }
         }
@@ -1525,14 +1757,14 @@
             document.getElementById('syncOverlay').classList.toggle('hidden', !show);
         }
 
-        // --- Charts & Query (Standard) ---
+        // --- Charts & Query (Updated for Treat) ---
         function updateQueryOptions() {
              const ledgerExps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
              const payers = [...new Set(ledgerExps.map(e => e.payer))];
              const splitters = [...new Set(ledgerExps.flatMap(e => e.splitters))];
              
              const pSel = document.getElementById('queryPayer');
-             pSel.innerHTML = '<option value="">所有支付者</option>';
+             pSel.innerHTML = '<option value="">所有金主</option>';
              payers.forEach(p => pSel.add(new Option(p, p)));
 
              const sSel = document.getElementById('querySplitter');
@@ -1546,22 +1778,34 @@
                  if(pFilter) res = res.filter(e => e.payer === pFilter);
                  if(sFilter) res = res.filter(e => e.splitters.includes(sFilter));
                  
-                 document.getElementById('totalAmount').textContent = res.reduce((a,b)=>a+b.amount, 0).toFixed(2);
+                 const total = res.reduce((a,b)=>a+b.amount, 0);
+                 const treatTotal = res.filter(e => e.isTreat).reduce((a,b)=>a+b.amount, 0);
+                 
+                 document.getElementById('totalAmount').textContent = total.toFixed(2);
+                 document.getElementById('treatAmount').textContent = treatTotal.toFixed(2);
                  document.getElementById('totalCount').textContent = res.length;
                  
                  const detailDiv = document.getElementById('splitterDetails');
                  if(sFilter) {
-                    const myShare = res.reduce((sum, e) => sum + e.averageAmount, 0);
+                    // 只計算非請客的應付金額
+                    const myShare = res.filter(e => !e.isTreat).reduce((sum, e) => sum + e.averageAmount, 0);
                     document.getElementById('splitterAmount').textContent = myShare.toFixed(2);
-                    detailDiv.innerHTML = res.map(e => `
-                        <div class="flex justify-between text-sm py-3 px-5 hover:bg-slate-50 transition">
-                            <span class="text-slate-700">${e.date} ${e.description}</span>
-                            <span class="font-bold text-slate-800">$${e.averageAmount.toFixed(0)}</span>
-                        </div>
-                    `).join('');
+                    
+                    const myItems = res.filter(e => !e.isTreat); // Filter out treats for the list
+                    
+                    if(myItems.length > 0) {
+                        detailDiv.innerHTML = myItems.map(e => `
+                            <div class="flex justify-between text-sm py-3 px-5 hover:bg-slate-50 transition">
+                                <span class="text-slate-700">${e.date} ${e.description}</span>
+                                <span class="font-bold text-slate-800">$${e.averageAmount.toFixed(0)}</span>
+                            </div>
+                        `).join('');
+                    } else {
+                        detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">無應付項目</div>';
+                    }
                  } else {
                      document.getElementById('splitterAmount').textContent = '-';
-                     detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細</div>';
+                     detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細 (自動排除請客項目)</div>';
                  }
                  document.getElementById('queryResults').classList.remove('hidden');
              };
@@ -1572,6 +1816,7 @@
             const ledgerExps = appData.expenses.filter(e => e.ledgerId === appData.currentLedgerId);
             if(ledgerExps.length === 0) return;
 
+            // Chart 1: Payer (Including Treats) - "Who paid how much?"
             const pData = {};
             ledgerExps.forEach(e => pData[e.payer] = (pData[e.payer] || 0) + e.amount);
             
@@ -1580,13 +1825,14 @@
                 type: 'doughnut',
                 data: {
                     labels: Object.keys(pData),
-                    datasets: [{ data: Object.values(pData), backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'], borderWidth: 0 }]
+                    datasets: [{ data: Object.values(pData), backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'], borderWidth: 0 }]
                 },
                 options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
             });
 
+            // Chart 2: Splitter (Excluding Treats) - "Who owes what?"
             const sData = {};
-            ledgerExps.forEach(e => {
+            ledgerExps.filter(e => !e.isTreat).forEach(e => {
                 e.splitters.forEach(s => {
                     if(!sData[s]) sData[s] = 0;
                     sData[s] += e.averageAmount;
