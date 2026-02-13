@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>旅遊收支記帳管家 - Firebase Pro</title>
+    <!-- 注意：生產環境建議使用 PostCSS 安裝 Tailwind，此 CDN 僅供開發測試 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -293,7 +294,7 @@
                         </div>
                     </div>
 
-                    <!-- 科目與城市統計（新增） -->
+                    <!-- 科目與城市統計 -->
                     <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                             <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fas fa-tag text-blue-500"></i> 科目支出統計</h4>
@@ -361,14 +362,12 @@
                     <div class="flex justify-between"><span class="font-medium text-slate-500">資料庫</span> <span class="text-slate-700">Google Firebase</span></div>
                 </div>
 
-                <!-- QR Code 分享區塊（新增） -->
+                <!-- QR Code 分享區塊 -->
                 <div class="text-center pt-2 border-t border-slate-100 mt-4">
                     <p class="text-sm font-medium text-slate-700 mb-3 flex items-center justify-center gap-2">
                         <i class="fas fa-qrcode text-blue-500"></i> 掃描 QR Code 開啟本程式
                     </p>
-                    <div id="qrcodeContainer" class="flex justify-center my-2">
-                        <!-- QR Code 將由 JavaScript 動態產生 -->
-                    </div>
+                    <div id="qrcodeContainer" class="flex justify-center my-2"></div>
                     <div class="text-xs text-slate-400 mt-2 break-all" id="currentUrlDisplay"></div>
                 </div>
 
@@ -623,7 +622,11 @@
     </div>
 
     <script>
-        const CURRENT_VERSION = 'v20260212.01'; // 版次更新
+        // ========== 版本 v20260213.02 ==========
+        // 修正：函數定義順序問題，解決 updateAdminControls is not defined
+        // 功能：新增支出時預設金主優先比對 Email，無 Email 再比對姓名（不區分大小寫）
+        // =======================================
+        const CURRENT_VERSION = 'v20260213.02';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         
         // --- Firebase Config ---
@@ -640,8 +643,9 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const dbRef = db.ref('travel_data'); // Syncing entire app data to a root node
+        const dbRef = db.ref('travel_data');
 
+        // --- 全域變數 ---
         let appData = { ledgers: [], currentLedgerId: null, expenses: [] };
         let currentUser = null;
         let isFirebaseConnected = false;
@@ -653,43 +657,33 @@
         let selectedMainCatId = null;
         let selectedCityId = null;
         let currentEditingExpenseId = null;
+        let charts = {};
 
+        // ========== DOMContentLoaded 啟動點 ==========
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('versionTag').textContent = CURRENT_VERSION;
             document.getElementById('aboutVersion').textContent = CURRENT_VERSION;
             
-            // 1. Initial Local Load (for offline first feeling)
             loadLocalData();
-            
-            // 2. User System Init
             initUserSystem();
-            
-            // 3. Setup Firebase Listeners (Auto Sync Down)
             setupFirebaseSync();
-
-            // 4. UI Events
             setupEvents();
             updateUI();
         });
 
-        // --- Data Persistence Logic ---
-
+        // ========== 資料持久層 ==========
         function loadLocalData() {
             const saved = localStorage.getItem('travelAccountingApp');
             if (saved) {
                 try { appData = JSON.parse(saved); } catch (e) { console.error(e); }
             }
-            // Cleanup check
             if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) {
                 appData.currentLedgerId = null;
             }
         }
 
         function saveData() {
-            // 1. Save Local
             localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
-            
-            // 2. Sync to Firebase (Upstream)
             if(isFirebaseConnected) {
                 const statusEl = document.getElementById('syncStatus');
                 statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 上傳中...';
@@ -713,10 +707,10 @@
             }
         }
 
+        // ========== Firebase 同步監聽 ==========
         function setupFirebaseSync() {
             const statusEl = document.getElementById('syncStatus');
             const cloudIcon = document.getElementById('cloudStatus');
-            
             statusEl.classList.remove('hidden');
             
             db.ref('.info/connected').on('value', (snap) => {
@@ -750,8 +744,7 @@
             });
         }
 
-        // --- User System ---
-
+        // ========== 使用者系統 ==========
         function initUserSystem() {
             const savedUser = localStorage.getItem('travelAccountingUser');
             if (savedUser) {
@@ -800,17 +793,14 @@
             e.preventDefault();
             const name = document.getElementById('inputUserName').value.trim();
             const email = document.getElementById('inputUserEmail').value.trim();
-            
             if (!name || !email) return showToast('請完整輸入名稱與 Email');
 
             currentUser = { name, email };
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
-            
             document.getElementById('userProfileModal').style.display = 'none';
             document.getElementById('userProfileModal').onclick = (ev) => {
                  if(ev.target.classList.contains('modal')) ev.target.style.display = 'none';
             };
-
             updateUserUI();
             updateUI();
             showToast(`歡迎, ${name}`);
@@ -820,15 +810,22 @@
             if (currentUser) {
                 document.getElementById('userStatusDot').classList.remove('bg-red-400');
                 document.getElementById('userStatusDot').classList.add('bg-green-500');
-                updateAdminControls();
+                updateAdminControls();  // ✅ 現在已經定義在下方
             } else {
                 document.getElementById('userStatusDot').classList.add('bg-red-400');
                 document.getElementById('userStatusDot').classList.remove('bg-green-500');
             }
         }
 
-        // --- Ledger UI & Logic ---
+        // ✅ 將 updateAdminControls 提前定義，確保 updateUserUI 可以正確呼叫
+        function updateAdminControls() {
+            const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
+            const adminPanel = document.getElementById('adminControls');
+            if(isAdmin) adminPanel.classList.remove('hidden');
+            else adminPanel.classList.add('hidden');
+        }
 
+        // ========== 帳冊設定相關函數（完整保留）==========
         function openLedgerModal(ledgerId = null) {
             const form = document.getElementById('ledgerForm');
             form.reset();
@@ -866,25 +863,24 @@
         }
 
         function renderLedgerConfigUI() {
-            // 主要科目
             renderList('mainCatList', tempLedger.mainCats, selectedMainCatId, 
-                (id) => { // Select
+                (id) => {
                     selectedMainCatId = id;
                     renderLedgerConfigUI();
                     document.getElementById('newSubCatInput').focus();
                 }, 
-                deleteMainCat, // Delete
-                (id, newVal) => { // Edit
+                deleteMainCat,
+                (id, newVal) => {
                     const item = tempLedger.mainCats.find(x => x.id === id);
                     if(item) item.name = newVal;
                 },
-                (idx) => { // Move Up
+                (idx) => {
                     if(idx > 0) {
                         [tempLedger.mainCats[idx-1], tempLedger.mainCats[idx]] = [tempLedger.mainCats[idx], tempLedger.mainCats[idx-1]];
                         renderLedgerConfigUI();
                     }
                 },
-                (idx) => { // Move Down
+                (idx) => {
                     if(idx < tempLedger.mainCats.length - 1) {
                         [tempLedger.mainCats[idx+1], tempLedger.mainCats[idx]] = [tempLedger.mainCats[idx], tempLedger.mainCats[idx+1]];
                         renderLedgerConfigUI();
@@ -892,7 +888,6 @@
                 }
             );
 
-            // 城市
             renderList('cityList', tempLedger.cities, selectedCityId, 
                 (id) => {
                     selectedCityId = id;
@@ -918,7 +913,6 @@
                 }
             );
 
-            // 次要科目
             const subCatListDiv = document.getElementById('subCatList');
             const subInput = document.getElementById('newSubCatInput');
             const subBtn = document.getElementById('btnAddSubCat');
@@ -955,7 +949,6 @@
                 subBtn.disabled = true;
             }
 
-            // 區域
             const districtListDiv = document.getElementById('districtList');
             const distInput = document.getElementById('newDistrictInput');
             const distBtn = document.getElementById('btnAddDistrict');
@@ -995,7 +988,6 @@
             renderMembers();
         }
 
-        // Generic Render List with Sort/Edit
         function renderList(containerId, items, selectedId, onSelect, onDelete, onEdit, onMoveUp, onMoveDown) {
             const container = document.getElementById(containerId);
             container.innerHTML = '';
@@ -1003,7 +995,6 @@
                 const el = document.createElement('div');
                 el.className = `tag-editable ${selectedId === item.id ? 'selected' : ''}`;
                 
-                // Safe handling for basic or object items
                 const displayName = item.name || item; 
                 
                 el.innerHTML = `
@@ -1028,7 +1019,7 @@
                         const newVal = prompt('請輸入新名稱', displayName);
                         if(newVal && newVal.trim() !== '') {
                             onEdit(item.id, newVal.trim());
-                            renderLedgerConfigUI(); // re-render
+                            renderLedgerConfigUI();
                         }
                     });
                 }
@@ -1076,21 +1067,18 @@
                     </div>
                 `;
                 
-                // Move Up
                 el.querySelector('.btn-move-up').onclick = () => {
                     if(idx > 0) {
                         [tempLedger.members[idx-1], tempLedger.members[idx]] = [tempLedger.members[idx], tempLedger.members[idx-1]];
                         renderMembers();
                     }
                 };
-                // Move Down
                 el.querySelector('.btn-move-down').onclick = () => {
                     if(idx < tempLedger.members.length - 1) {
                         [tempLedger.members[idx+1], tempLedger.members[idx]] = [tempLedger.members[idx], tempLedger.members[idx+1]];
                         renderMembers();
                     }
                 };
-                // Edit
                 el.querySelector('.btn-edit').onclick = () => {
                     const currentName = typeof m === 'string' ? m : m.name;
                     const currentEmail = typeof m === 'string' ? '' : m.email;
@@ -1108,7 +1096,6 @@
                         renderMembers();
                     }
                 };
-                // Delete
                 el.querySelector('.btn-del').onclick = () => {
                     tempLedger.members.splice(idx, 1);
                     renderMembers();
@@ -1117,7 +1104,6 @@
             });
         }
 
-        // --- Config Helpers ---
         function addMainCat() {
             const input = document.getElementById('newMainCatInput');
             const val = input.value.trim();
@@ -1208,8 +1194,408 @@
             input.focus();
         }
 
-        // --- UI Updates ---
+        function updateLedgerInfoPanel() {
+            const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
+            if(!l) return;
+            
+            document.getElementById('displayLedgerName').textContent = l.name;
+            document.getElementById('ledgerMetaSummary').textContent = `${l.locations.cities.length} 個城市 · ${l.members.length} 位成員`;
+            
+            document.getElementById('ledgerInfo').classList.remove('hidden');
+            document.getElementById('ledgerCategories').textContent = l.categories.main.map(c => c.name).join('、');
+            document.getElementById('ledgerLocations').textContent = l.locations.cities.map(c => c.name).join('、');
+            document.getElementById('ledgerMembers').textContent = l.members.map(m => typeof m === 'string' ? m : m.name).join('、');
 
+            if(l.locked) document.getElementById('lockBadge').classList.remove('hidden');
+            else document.getElementById('lockBadge').classList.add('hidden');
+
+            const expenses = appData.expenses || [];
+            const exps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            let waived = 0, settled = 0, outstanding = 0;
+            exps.forEach(e => {
+                if(e.isTreat) waived += e.amount;
+                else if(e.isSettled) settled += e.amount;
+                else outstanding += e.amount;
+            });
+            const total = waived + settled + outstanding;
+            document.getElementById('statWaived').textContent = waived.toLocaleString();
+            document.getElementById('statSettled').textContent = settled.toLocaleString();
+            document.getElementById('statOutstanding').textContent = outstanding.toLocaleString();
+            document.getElementById('statTotal').textContent = total.toLocaleString();
+        }
+
+        function handleLedgerSubmit(e) {
+            e.preventDefault();
+            const mode = e.target.dataset.mode;
+            const name = document.getElementById('ledgerName').value.trim();
+            
+            if(tempLedger.mainCats.length === 0 || tempLedger.cities.length === 0 || tempLedger.members.length === 0) {
+                return showToast('科目、地點與成員請至少建立一項');
+            }
+
+            const newLedgerData = {
+                name,
+                categories: { main: tempLedger.mainCats, sub: tempLedger.subCats },
+                locations: { cities: tempLedger.cities, districts: tempLedger.districts },
+                members: tempLedger.members,
+                locked: false
+            };
+
+            if(mode === 'edit') {
+                const id = e.target.dataset.id;
+                const idx = appData.ledgers.findIndex(l => l.id === id);
+                if(idx >= 0) {
+                    newLedgerData.id = id;
+                    newLedgerData.locked = appData.ledgers[idx].locked;
+                    appData.ledgers[idx] = newLedgerData;
+                }
+            } else {
+                newLedgerData.id = Date.now().toString();
+                appData.ledgers.push(newLedgerData);
+                appData.currentLedgerId = newLedgerData.id;
+            }
+
+            saveData();
+            updateUI();
+            document.getElementById('ledgerModal').style.display = 'none';
+            showToast('帳冊設定已儲存');
+        }
+
+        // ========== 支出相關函數 ==========
+        function openExpenseModal(expenseId = null) {
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if (!ledger) return showToast('請先選擇帳冊');
+            
+            const isMember = ledger.members.some(m => (typeof m === 'object' && m.email === currentUser.email));
+            const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
+            if (!isMember && !isAdmin) {
+                return showToast('您不是此帳冊的成員，無法新增支出');
+            }
+
+            const form = document.getElementById('expenseForm');
+            form.reset();
+            currentEditingExpenseId = expenseId;
+            document.getElementById('receiptPreview').classList.add('hidden');
+            document.getElementById('receiptImagePreview').src = '';
+            document.getElementById('destinationWrapper').classList.add('hidden');
+
+            const fieldset = document.getElementById('expenseFieldset');
+            const lockedMsg = document.getElementById('lockedMessage');
+            const actions = document.getElementById('expenseModalActions');
+
+            if (ledger.locked && !isAdmin) {
+                fieldset.disabled = true;
+                lockedMsg.classList.remove('hidden');
+                actions.classList.add('hidden');
+                document.getElementById('expenseModalTitle').textContent = '檢視支出 (唯讀)';
+            } else {
+                fieldset.disabled = false;
+                lockedMsg.classList.add('hidden');
+                actions.classList.remove('hidden');
+                if(!expenseId) document.getElementById('expenseModalTitle').textContent = '新增支出';
+            }
+
+            // --- 科目下拉選單 ---
+            const catSelect = document.getElementById('expenseCategory');
+            catSelect.innerHTML = '<option value="">請選擇科目</option>';
+            ledger.categories.main.forEach(m => {
+                const mOpt = document.createElement('option');
+                mOpt.value = `main_${m.id}`;
+                mOpt.textContent = m.name;
+                mOpt.className = 'font-bold bg-slate-100';
+                catSelect.appendChild(mOpt);
+                (ledger.categories.sub[m.id] || []).forEach(s => {
+                    const sOpt = document.createElement('option');
+                    sOpt.value = `sub_${m.id}_${s.id}`;
+                    sOpt.textContent = `　↳ ${s.name}`;
+                    catSelect.appendChild(sOpt);
+                });
+            });
+
+            // --- 地點下拉選單 (出發地 & 目的地) ---
+            const locSelect = document.getElementById('expenseLocation');
+            const destSelect = document.getElementById('expenseDestination');
+            const fillLocationOptions = (selectEl) => {
+                selectEl.innerHTML = '<option value="">請選擇地點</option>';
+                ledger.locations.cities.forEach(c => {
+                    const cOpt = document.createElement('option');
+                    cOpt.value = `city_${c.id}`;
+                    cOpt.textContent = c.name;
+                    cOpt.className = 'font-bold bg-slate-100';
+                    selectEl.appendChild(cOpt);
+                    (ledger.locations.districts[c.id] || []).forEach(d => {
+                        const dOpt = document.createElement('option');
+                        dOpt.value = `district_${c.id}_${d.id}`;
+                        dOpt.textContent = `　↳ ${d.name}`;
+                        selectEl.appendChild(dOpt);
+                    });
+                });
+            };
+            fillLocationOptions(locSelect);
+            fillLocationOptions(destSelect);
+
+            // --- 金主與分攤人員 ---
+            const payerSelect = document.getElementById('expensePayer');
+            const splittersDiv = document.getElementById('expenseSplitters');
+            payerSelect.innerHTML = '';
+            splittersDiv.innerHTML = '';
+            const memberNames = ledger.members.map(m => typeof m === 'string' ? m : m.name);
+            memberNames.forEach(name => {
+                payerSelect.add(new Option(name, name));
+                const label = document.createElement('label');
+                label.className = 'flex items-center space-x-2 p-2 rounded hover:bg-slate-100 cursor-pointer border border-slate-100';
+                label.innerHTML = `<input type="checkbox" value="${name}" class="splitter-chk w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"> <span class="text-sm">${name}</span>`;
+                splittersDiv.appendChild(label);
+            });
+
+            // --- 編輯模式：載入既有資料 ---
+            if (expenseId) {
+                if (!appData.expenses) appData.expenses = [];
+                const exp = appData.expenses.find(e => e.id === expenseId);
+                if (exp) {
+                    if (!fieldset.disabled) document.getElementById('expenseModalTitle').textContent = '編輯支出';
+                    document.getElementById('expenseDate').value = exp.date;
+                    document.getElementById('expenseTime').value = exp.time;
+                    document.getElementById('expenseDescription').value = exp.description;
+                    document.getElementById('expenseAmount').value = exp.amount;
+                    document.getElementById('expensePayer').value = exp.payer;
+                    document.getElementById('expenseSettled').checked = exp.isSettled;
+                    document.getElementById('expenseTreat').checked = !!exp.isTreat;
+                    
+                    if(exp.category.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
+                    else catSelect.value = `main_${exp.category.main.id}`;
+                    
+                    if(exp.location.district) locSelect.value = `district_${exp.location.city.id}_${exp.location.district.id}`;
+                    else locSelect.value = `city_${exp.location.city.id}`;
+
+                    exp.splitters.forEach(s => {
+                        const chk = splittersDiv.querySelector(`input[value="${s}"]`);
+                        if(chk) chk.checked = true;
+                    });
+                    
+                    if(exp.receipt) {
+                        document.getElementById('receiptImagePreview').src = exp.receipt;
+                        document.getElementById('receiptPreview').classList.remove('hidden');
+                    }
+                    checkTransportLogic();
+                }
+            } 
+            // --- 新增模式：預設值 ---
+            else {
+                const now = new Date();
+                document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
+                document.getElementById('expenseTime').value = now.toTimeString().slice(0, 5);
+                splittersDiv.querySelectorAll('input').forEach(i => i.checked = true);
+                document.getElementById('selectAllSplitters').checked = true;
+
+                // ===== 預設金主：優先比對 Email，無 Email 則比對姓名 (不區分大小寫) =====
+                if (currentUser && currentUser.name) {
+                    // 1. 尋找 Email 完全匹配的成員
+                    const matchedMember = ledger.members.find(m => 
+                        (typeof m === 'object' && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
+                    );
+                    if (matchedMember) {
+                        payerSelect.value = matchedMember.name;
+                    } else {
+                        // 2. 無 Email 匹配，改用姓名忽略大小寫
+                        const nameMatched = ledger.members.find(m => {
+                            const memberName = typeof m === 'string' ? m : m.name;
+                            return memberName.toLowerCase() === currentUser.name.toLowerCase();
+                        });
+                        if (nameMatched) {
+                            const targetName = typeof nameMatched === 'string' ? nameMatched : nameMatched.name;
+                            payerSelect.value = targetName;
+                        }
+                    }
+                }
+                // ===============================================================
+            }
+
+            calcAverage();
+            document.getElementById('expenseTreat').dispatchEvent(new Event('change'));
+            document.getElementById('expenseModal').style.display = 'block';
+        }
+
+        function handleExpenseSubmit(e) {
+            e.preventDefault();
+            try {
+                const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+                const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
+                if (ledger.locked && !isAdmin) return showToast('帳冊已鎖定，無法變更');
+
+                const catVal = document.getElementById('expenseCategory').value;
+                const locVal = document.getElementById('expenseLocation').value;
+                if(!catVal || !locVal) return showToast('請完整選擇科目與地點');
+                
+                const splitters = Array.from(document.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
+                if(splitters.length === 0) return showToast('至少需有一位分攤人員');
+
+                // Category Logic
+                let categoryObj = {};
+                if(catVal.startsWith('main_')) {
+                    const id = catVal.split('_')[1];
+                    const mainCat = ledger.categories.main.find(c=>c.id==id);
+                    categoryObj = { main: { id, name: mainCat.name }, sub: null };
+                } else {
+                    const [_, mid, sid] = catVal.split('_');
+                    const mainCat = ledger.categories.main.find(c=>c.id==mid);
+                    const subList = ledger.categories.sub[mid] || [];
+                    const subCat = subList.find(s=>s.id==sid);
+                    if(mainCat && subCat) {
+                        categoryObj = { 
+                            main: { id: mid, name: mainCat.name }, 
+                            sub: { id: sid, name: subCat.name } 
+                        };
+                    } else {
+                        categoryObj = { main: { id: mid, name: mainCat ? mainCat.name : 'Unknown' }, sub: null };
+                    }
+                }
+
+                // Location Logic
+                let locationObj = {};
+                if(locVal.startsWith('city_')) {
+                    const id = locVal.split('_')[1];
+                    const city = ledger.locations.cities.find(c=>c.id==id);
+                    locationObj = { city: { id, name: city.name }, district: null };
+                } else {
+                    const [_, cid, did] = locVal.split('_');
+                    const city = ledger.locations.cities.find(c=>c.id==cid);
+                    const distList = ledger.locations.districts[cid] || [];
+                    const dist = distList.find(d=>d.id==did);
+                    if(city && dist) {
+                        locationObj = { 
+                            city: { id: cid, name: city.name }, 
+                            district: { id: did, name: dist.name } 
+                        };
+                    } else {
+                         locationObj = { city: { id: cid, name: city ? city.name : 'Unknown' }, district: null };
+                    }
+                }
+
+                const amt = parseFloat(document.getElementById('expenseAmount').value);
+                const isTreat = document.getElementById('expenseTreat').checked;
+
+                const expense = {
+                    id: currentEditingExpenseId || Date.now().toString(),
+                    ledgerId: appData.currentLedgerId,
+                    date: document.getElementById('expenseDate').value,
+                    time: document.getElementById('expenseTime').value,
+                    description: document.getElementById('expenseDescription').value,
+                    amount: amt,
+                    payer: document.getElementById('expensePayer').value,
+                    splitters: splitters,
+                    averageAmount: splitters.length > 0 ? amt / splitters.length : 0,
+                    isSettled: document.getElementById('expenseSettled').checked,
+                    isTreat: isTreat,
+                    category: categoryObj,
+                    location: locationObj,
+                    receipt: document.getElementById('receiptImagePreview').src || null
+                };
+
+                if (!appData.expenses) appData.expenses = [];
+                if(currentEditingExpenseId) {
+                    const idx = appData.expenses.findIndex(e => e.id === currentEditingExpenseId);
+                    if(idx >= 0) appData.expenses[idx] = expense;
+                } else {
+                    appData.expenses.push(expense);
+                }
+
+                saveData();
+                renderExpenseList();
+                updateLedgerInfoPanel();
+                document.getElementById('expenseModal').style.display = 'none';
+                showToast('記錄已儲存');
+            } catch (err) {
+                console.error(err);
+                showToast('儲存時發生錯誤，請查看 Console');
+            }
+        }
+
+        function renderExpenseList() {
+            const list = document.getElementById('expenseList');
+            const expenses = appData.expenses || [];
+            const exps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            
+            if(exps.length === 0) {
+                list.innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-receipt text-2xl text-slate-300"></i></div><p>尚無支出記錄</p></div>';
+                return;
+            }
+
+            exps.sort((a,b) => new Date(`${b.date} ${b.time}`) - new Date(`${a.date} ${a.time}`));
+
+            list.innerHTML = exps.map(e => {
+                const catStr = e.category.sub ? `${e.category.main.name} · ${e.category.sub.name}` : e.category.main.name;
+                const locStr = e.location.district ? `${e.location.city.name} ${e.location.district.name}` : e.location.city.name;
+                const treatBadge = e.isTreat ? `<span class="treat-badge ml-2"><i class="fas fa-gift"></i> 金主請客</span>` : '';
+
+                return `
+                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm card-hover relative group">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded font-medium">${catStr}</span>
+                                <span class="text-xs text-slate-400">${e.date}</span>
+                                ${treatBadge}
+                            </div>
+                            <div class="font-bold text-slate-800 text-lg">${e.description}</div>
+                            <div class="text-xs text-slate-500 mt-1"><i class="fas fa-map-marker-alt text-red-400 mr-1"></i> ${locStr}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-xl ${e.isSettled ? 'text-slate-400 line-through' : (e.isTreat ? 'text-pink-500' : 'text-slate-800')}">$${e.amount}</div>
+                            <div class="text-xs font-medium ${e.isSettled ? 'text-green-600' : 'text-amber-500'}">${e.isSettled ? '已結帳' : '未結帳'}</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-50 flex justify-between items-center">
+                        <div class="text-xs text-slate-600">
+                            <span class="font-bold">${e.payer}</span> 付款 <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${e.splitters.length} 人分攤
+                        </div>
+                        <div class="flex gap-3">
+                            ${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-image"></i></button>` : ''}
+                            <button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-pen"></i></button>
+                            <button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500 transition"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function deleteExpense(id) {
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
+            if (ledger.locked && !isAdmin) return showToast('帳冊已鎖定，無法刪除');
+            if(confirm('確定刪除此筆記錄?')) {
+                if(appData.expenses) {
+                    appData.expenses = appData.expenses.filter(e => e.id !== id);
+                    saveData();
+                    renderExpenseList();
+                    updateLedgerInfoPanel();
+                    showToast('記錄已刪除');
+                }
+            }
+        }
+
+        function calcAverage() {
+            const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
+            const cnt = document.querySelectorAll('.splitter-chk:checked').length;
+            document.getElementById('averageAmount').textContent = cnt > 0 ? (amt / cnt).toFixed(2) : 0;
+        }
+
+        function checkSelectAll() {
+            const all = document.querySelectorAll('.splitter-chk');
+            const checked = document.querySelectorAll('.splitter-chk:checked');
+            document.getElementById('selectAllSplitters').checked = all.length > 0 && all.length === checked.length;
+        }
+
+        function viewReceipt(id) {
+            if(!appData.expenses) return;
+            const exp = appData.expenses.find(e => e.id === id);
+            if(exp && exp.receipt) {
+                document.getElementById('receiptViewImage').src = exp.receipt;
+                document.getElementById('receiptViewModal').style.display = 'block';
+            }
+        }
+
+        // ========== UI 更新函數 ==========
         function updateUI() {
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
@@ -1258,63 +1644,228 @@
             updateAdminControls();
         }
 
-        function updateLedgerInfoPanel() {
-            const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
-            if(!l) return;
-            
-            document.getElementById('displayLedgerName').textContent = l.name;
-            document.getElementById('ledgerMetaSummary').textContent = `${l.locations.cities.length} 個城市 · ${l.members.length} 位成員`;
-            
-            document.getElementById('ledgerInfo').classList.remove('hidden');
-            document.getElementById('ledgerCategories').textContent = l.categories.main.map(c => c.name).join('、');
-            document.getElementById('ledgerLocations').textContent = l.locations.cities.map(c => c.name).join('、');
-            document.getElementById('ledgerMembers').textContent = l.members.map(m => typeof m === 'string' ? m : m.name).join('、');
+        // ========== 交通邏輯輔助函數 ==========
+        function getSelectedMainCategoryName() {
+            const catVal = document.getElementById('expenseCategory').value;
+            if (!catVal) return '';
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if (!ledger) return '';
+            let mainId;
+            if (catVal.startsWith('main_')) mainId = catVal.split('_')[1];
+            else if (catVal.startsWith('sub_')) mainId = catVal.split('_')[1];
+            else return '';
+            const mainCat = ledger.categories.main.find(c => c.id === mainId);
+            return mainCat ? mainCat.name : '';
+        }
 
-            if(l.locked) document.getElementById('lockBadge').classList.remove('hidden');
-            else document.getElementById('lockBadge').classList.add('hidden');
+        function checkTransportLogic() {
+            const mainName = getSelectedMainCategoryName();
+            const destWrapper = document.getElementById('destinationWrapper');
+            if (mainName.includes('交通')) {
+                destWrapper.classList.remove('hidden');
+            } else {
+                destWrapper.classList.add('hidden');
+                document.getElementById('expenseDestination').value = "";
+            }
+        }
 
-            // --- Stats Calculation ---
-            // Safety check for expenses array
+        function updateTransportDesc() {
+            const mainName = getSelectedMainCategoryName();
+            if (!mainName.includes('交通')) return;
+            const locSel = document.getElementById('expenseLocation');
+            const destSel = document.getElementById('expenseDestination');
+            const getText = (el) => {
+                if (el.selectedIndex < 0 || !el.value) return '';
+                let text = el.options[el.selectedIndex].text;
+                return text.replace(/^[　↳\s]+/, '').trim();
+            };
+            const origin = getText(locSel);
+            const dest = getText(destSel);
+            if (origin && dest) {
+                document.getElementById('expenseDescription').value = `${origin} 往 ${dest}`;
+            }
+        }
+
+        // ========== 統計報表 ==========
+        function updateQueryOptions() {
             const expenses = appData.expenses || [];
-            const exps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            let waived = 0;
-            let settled = 0;
-            let outstanding = 0;
-            
-            exps.forEach(e => {
-                if(e.isTreat) {
-                    waived += e.amount;
-                } else if(e.isSettled) {
-                    settled += e.amount;
+            const ledgerExps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            const payers = [...new Set(ledgerExps.map(e => e.payer))];
+            const splitters = [...new Set(ledgerExps.flatMap(e => e.splitters))];
+             
+            const pSel = document.getElementById('queryPayer');
+            pSel.innerHTML = '<option value="">所有金主</option>';
+            payers.forEach(p => pSel.add(new Option(p, p)));
+
+            const sSel = document.getElementById('querySplitter');
+            sSel.innerHTML = '<option value="">所有分攤者</option>';
+            splitters.forEach(s => sSel.add(new Option(s, s)));
+             
+            document.getElementById('queryBtn').onclick = () => {
+                const pFilter = pSel.value;
+                const sFilter = sSel.value;
+                let res = ledgerExps;
+                if(pFilter) res = res.filter(e => e.payer === pFilter);
+                if(sFilter) res = res.filter(e => e.splitters.includes(sFilter));
+                 
+                const total = res.reduce((a,b)=>a+b.amount, 0);
+                const treatTotal = res.filter(e => e.isTreat).reduce((a,b)=>a+b.amount, 0);
+                 
+                document.getElementById('totalAmount').textContent = total.toFixed(2);
+                document.getElementById('treatAmount').textContent = treatTotal.toFixed(2);
+                document.getElementById('totalCount').textContent = res.length;
+                 
+                // 科目統計
+                const catMap = {};
+                res.forEach(e => {
+                    const mainCatName = e.category.main.name;
+                    catMap[mainCatName] = (catMap[mainCatName] || 0) + e.amount;
+                });
+                const catStatsEl = document.getElementById('categoryStats');
+                if (res.length === 0) {
+                    catStatsEl.innerHTML = '<div class="text-slate-400 text-sm p-2">無符合項目</div>';
                 } else {
-                    outstanding += e.amount;
+                    catStatsEl.innerHTML = Object.entries(catMap).map(([name, amt]) => `
+                        <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+                            <span class="font-medium text-slate-700">${name}</span>
+                            <span class="font-bold text-blue-600">$${amt.toFixed(0)}</span>
+                        </div>
+                    `).join('');
                 }
+
+                // 城市統計
+                const cityMap = {};
+                res.forEach(e => {
+                    const cityName = e.location.city.name;
+                    cityMap[cityName] = (cityMap[cityName] || 0) + e.amount;
+                });
+                const cityStatsEl = document.getElementById('cityStats');
+                if (res.length === 0) {
+                    cityStatsEl.innerHTML = '<div class="text-slate-400 text-sm p-2">無符合項目</div>';
+                } else {
+                    cityStatsEl.innerHTML = Object.entries(cityMap).map(([name, amt]) => `
+                        <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+                            <span class="font-medium text-slate-700">${name}</span>
+                            <span class="font-bold text-blue-600">$${amt.toFixed(0)}</span>
+                        </div>
+                    `).join('');
+                }
+
+                const detailDiv = document.getElementById('splitterDetails');
+                if(sFilter) {
+                    const myShare = res.filter(e => !e.isTreat).reduce((sum, e) => sum + e.averageAmount, 0);
+                    document.getElementById('splitterAmount').textContent = myShare.toFixed(2);
+                    const myItems = res.filter(e => !e.isTreat);
+                    if(myItems.length > 0) {
+                        detailDiv.innerHTML = myItems.map(e => `
+                            <div class="flex justify-between text-sm py-3 px-5 hover:bg-slate-50 transition">
+                                <span class="text-slate-700">${e.date} ${e.description}</span>
+                                <span class="font-bold text-slate-800">$${e.averageAmount.toFixed(0)}</span>
+                            </div>
+                        `).join('');
+                    } else {
+                        detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">無應付項目</div>';
+                    }
+                } else {
+                    document.getElementById('splitterAmount').textContent = '-';
+                    detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細 (自動排除請客項目)</div>';
+                }
+                document.getElementById('queryResults').classList.remove('hidden');
+            };
+        }
+
+        // ========== 圖表分析 ==========
+        function renderCharts() {
+            const expenses = appData.expenses || [];
+            const ledgerExps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
+            if(ledgerExps.length === 0) return;
+
+            // 金主支付比例
+            const pData = {};
+            ledgerExps.forEach(e => pData[e.payer] = (pData[e.payer] || 0) + e.amount);
+            if(charts.payer) charts.payer.destroy();
+            charts.payer = new Chart(document.getElementById('payerChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(pData),
+                    datasets: [{ data: Object.values(pData), backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'], borderWidth: 0 }]
+                },
+                options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
             });
-            const total = waived + settled + outstanding;
 
-            document.getElementById('statWaived').textContent = waived.toLocaleString();
-            document.getElementById('statSettled').textContent = settled.toLocaleString();
-            document.getElementById('statOutstanding').textContent = outstanding.toLocaleString();
-            document.getElementById('statTotal').textContent = total.toLocaleString();
+            // 人員應付分攤
+            const sData = {};
+            ledgerExps.filter(e => !e.isTreat).forEach(e => {
+                e.splitters.forEach(s => {
+                    if(!sData[s]) sData[s] = 0;
+                    sData[s] += e.averageAmount;
+                });
+            });
+            if(charts.splitter) charts.splitter.destroy();
+            charts.splitter = new Chart(document.getElementById('splitterChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(sData),
+                    datasets: [{ label: '應付金額', data: Object.values(sData), backgroundColor: '#6366f1', borderRadius: 4 }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            });
+
+            // 科目比例圖
+            const catData = {};
+            ledgerExps.forEach(e => {
+                const mainName = e.category.main.name;
+                catData[mainName] = (catData[mainName] || 0) + e.amount;
+            });
+            if (charts.categoryChart) charts.categoryChart.destroy();
+            if (Object.keys(catData).length > 0) {
+                charts.categoryChart = new Chart(document.getElementById('categoryChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(catData),
+                        datasets: [{ 
+                            data: Object.values(catData), 
+                            backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#94a3b8'], 
+                            borderWidth: 0 
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+                });
+            }
+
+            // 城市比例圖
+            const cityData = {};
+            ledgerExps.forEach(e => {
+                const cityName = e.location.city.name;
+                cityData[cityName] = (cityData[cityName] || 0) + e.amount;
+            });
+            if (charts.cityChart) charts.cityChart.destroy();
+            if (Object.keys(cityData).length > 0) {
+                charts.cityChart = new Chart(document.getElementById('cityChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(cityData),
+                        datasets: [{ 
+                            data: Object.values(cityData), 
+                            backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#94a3b8'], 
+                            borderWidth: 0 
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+                });
+            }
         }
 
-        function updateAdminControls() {
-            const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
-            const adminPanel = document.getElementById('adminControls');
-            if(isAdmin) adminPanel.classList.remove('hidden');
-            else adminPanel.classList.add('hidden');
-        }
-
-        // --- Setup Events ---
+        // ========== 事件監聽註冊 ==========
         function setupEvents() {
             document.getElementById('ledgerToggleHeader').onclick = () => {
                 const el = document.getElementById('ledgerCollapsible');
                 const chevron = document.getElementById('ledgerChevron');
                 if (el.style.maxHeight === '0px' || !el.style.maxHeight) {
-                    el.style.maxHeight = '800px'; // increased to fit stats
+                    el.style.maxHeight = '800px';
                     el.style.opacity = '1';
                     chevron.classList.add('rotate-180');
-                    updateLedgerInfoPanel(); // Refresh stats when opening
+                    updateLedgerInfoPanel();
                 } else {
                     el.style.maxHeight = '0px';
                     el.style.opacity = '0';
@@ -1350,23 +1901,20 @@
                 initUserSystem(); 
             };
 
-            // --- 關於按鈕點擊：顯示 QR Code（動態產生目前網址）---
+            // 關於按鈕 QR Code
             document.getElementById('aboutBtn').onclick = () => {
                 const aboutModal = document.getElementById('aboutModal');
                 aboutModal.style.display = 'block';
-
-                // 產生目前頁面網址的 QR Code
                 const currentUrl = window.location.href;
                 document.getElementById('currentUrlDisplay').textContent = currentUrl;
-
                 const container = document.getElementById('qrcodeContainer');
-                container.innerHTML = ''; // 清空
+                container.innerHTML = '';
                 try {
-                    const qr = qrcode(0, 'M'); // 使用 qrcode-generator
+                    const qr = qrcode(0, 'M');
                     qr.addData(currentUrl);
                     qr.make();
                     const canvas = document.createElement('canvas');
-                    const size = qr.getModuleCount() * 5; // 每個模組 5px
+                    const size = qr.getModuleCount() * 5;
                     canvas.width = size;
                     canvas.height = size;
                     const ctx = canvas.getContext('2d');
@@ -1398,16 +1946,13 @@
             };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
             
-            // --- 交通自動摘要邏輯 (優化版：支援明細科目) ---
             document.getElementById('expenseCategory').addEventListener('change', checkTransportLogic);
             document.getElementById('expenseLocation').addEventListener('change', updateTransportDesc);
             document.getElementById('expenseDestination').addEventListener('change', updateTransportDesc);
-            // ---------------------------
 
             document.getElementById('deleteLedgerBtn').onclick = () => {
                 if(confirm('確定要永久刪除此帳冊嗎？此動作無法復原。')) {
                     appData.ledgers = appData.ledgers.filter(l => l.id !== appData.currentLedgerId);
-                    // Safe filter
                     if(appData.expenses) {
                         appData.expenses = appData.expenses.filter(e => e.ledgerId !== appData.currentLedgerId);
                     }
@@ -1428,7 +1973,6 @@
             };
 
             document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
-            // 確保表單提交事件綁定正確
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
             
             document.getElementById('expenseReceipt').onchange = (e) => {
@@ -1507,447 +2051,8 @@
                 e.target.value = '';
             };
         }
-        
-        // --- 輔助函式：取得當前選取的「主科目名稱」 ---
-        // 解決「選擇明細科目也要觸發交通邏輯」的需求
-        function getSelectedMainCategoryName() {
-            const catVal = document.getElementById('expenseCategory').value;
-            if (!catVal) return '';
-            
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            if (!ledger) return '';
 
-            let mainId;
-            // 解析 ID (可能是 main_ID 或 sub_MainID_SubID)
-            if (catVal.startsWith('main_')) {
-                mainId = catVal.split('_')[1];
-            } else if (catVal.startsWith('sub_')) {
-                mainId = catVal.split('_')[1]; 
-            } else {
-                return '';
-            }
-
-            const mainCat = ledger.categories.main.find(c => c.id === mainId);
-            return mainCat ? mainCat.name : '';
-        }
-
-        // --- 交通邏輯 ---
-        function checkTransportLogic() {
-            const mainName = getSelectedMainCategoryName();
-            const destWrapper = document.getElementById('destinationWrapper');
-            
-            // 只要主科目包含「交通」字樣 (如：交通、交通費、當地交通...)
-            if (mainName.includes('交通')) {
-                destWrapper.classList.remove('hidden');
-            } else {
-                destWrapper.classList.add('hidden');
-                document.getElementById('expenseDestination').value = ""; // 重置目的地
-            }
-        }
-        
-        // --- 自動摘要 ---
-        function updateTransportDesc() {
-            const mainName = getSelectedMainCategoryName();
-            if (!mainName.includes('交通')) return; // 非交通類不動作
-            
-            const locSel = document.getElementById('expenseLocation');
-            const destSel = document.getElementById('expenseDestination');
-            
-            // 取得純文字 (去除下拉選單中的縮排符號)
-            const getText = (el) => {
-                if (el.selectedIndex < 0 || !el.value) return '';
-                let text = el.options[el.selectedIndex].text;
-                return text.replace(/^[　↳\s]+/, '').trim();
-            };
-            
-            const origin = getText(locSel);
-            const dest = getText(destSel);
-            
-            // 只有當起點和終點都已選擇時才自動填入
-            if (origin && dest) {
-                document.getElementById('expenseDescription').value = `${origin} 往 ${dest}`;
-            }
-        }
-
-        function handleLedgerSubmit(e) {
-            e.preventDefault();
-            const mode = e.target.dataset.mode;
-            const name = document.getElementById('ledgerName').value.trim();
-            
-            if(tempLedger.mainCats.length === 0 || tempLedger.cities.length === 0 || tempLedger.members.length === 0) {
-                return showToast('科目、地點與成員請至少建立一項');
-            }
-
-            const newLedgerData = {
-                name,
-                categories: { main: tempLedger.mainCats, sub: tempLedger.subCats },
-                locations: { cities: tempLedger.cities, districts: tempLedger.districts },
-                members: tempLedger.members,
-                locked: false
-            };
-
-            if(mode === 'edit') {
-                const id = e.target.dataset.id;
-                const idx = appData.ledgers.findIndex(l => l.id === id);
-                if(idx >= 0) {
-                    newLedgerData.id = id;
-                    newLedgerData.locked = appData.ledgers[idx].locked;
-                    appData.ledgers[idx] = newLedgerData;
-                }
-            } else {
-                newLedgerData.id = Date.now().toString();
-                appData.ledgers.push(newLedgerData);
-                appData.currentLedgerId = newLedgerData.id;
-            }
-
-            saveData();
-            updateUI();
-            
-            // 確保設定完成後關閉 Modal
-            document.getElementById('ledgerModal').style.display = 'none';
-            showToast('帳冊設定已儲存');
-        }
-
-        // --- Expense Logic ---
-
-        function openExpenseModal(expenseId = null) {
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            if (!ledger) return showToast('請先選擇帳冊');
-            
-            const isMember = ledger.members.some(m => (typeof m === 'object' && m.email === currentUser.email));
-            const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-
-            if (!isMember && !isAdmin) {
-                return showToast('您不是此帳冊的成員，無法新增支出');
-            }
-
-            const form = document.getElementById('expenseForm');
-            form.reset();
-            currentEditingExpenseId = expenseId;
-            document.getElementById('receiptPreview').classList.add('hidden');
-            document.getElementById('receiptImagePreview').src = '';
-            
-            // 重置目的地欄位
-            document.getElementById('destinationWrapper').classList.add('hidden');
-
-            const fieldset = document.getElementById('expenseFieldset');
-            const lockedMsg = document.getElementById('lockedMessage');
-            const actions = document.getElementById('expenseModalActions');
-
-            if (ledger.locked && !isAdmin) {
-                fieldset.disabled = true;
-                lockedMsg.classList.remove('hidden');
-                actions.classList.add('hidden');
-                document.getElementById('expenseModalTitle').textContent = '檢視支出 (唯讀)';
-            } else {
-                fieldset.disabled = false;
-                lockedMsg.classList.add('hidden');
-                actions.classList.remove('hidden');
-                if(!expenseId) document.getElementById('expenseModalTitle').textContent = '新增支出';
-            }
-
-            // --- Fill Selects ---
-            const catSelect = document.getElementById('expenseCategory');
-            catSelect.innerHTML = '<option value="">請選擇科目</option>';
-            ledger.categories.main.forEach(m => {
-                const mOpt = document.createElement('option');
-                mOpt.value = `main_${m.id}`;
-                mOpt.textContent = m.name;
-                mOpt.className = 'font-bold bg-slate-100';
-                catSelect.appendChild(mOpt);
-                (ledger.categories.sub[m.id] || []).forEach(s => {
-                    const sOpt = document.createElement('option');
-                    sOpt.value = `sub_${m.id}_${s.id}`;
-                    sOpt.textContent = `　↳ ${s.name}`;
-                    catSelect.appendChild(sOpt);
-                });
-            });
-
-            const locSelect = document.getElementById('expenseLocation');
-            const destSelect = document.getElementById('expenseDestination');
-            
-            const fillLocationOptions = (selectEl) => {
-                selectEl.innerHTML = '<option value="">請選擇地點</option>';
-                ledger.locations.cities.forEach(c => {
-                    const cOpt = document.createElement('option');
-                    cOpt.value = `city_${c.id}`;
-                    cOpt.textContent = c.name;
-                    cOpt.className = 'font-bold bg-slate-100';
-                    selectEl.appendChild(cOpt);
-                    (ledger.locations.districts[c.id] || []).forEach(d => {
-                        const dOpt = document.createElement('option');
-                        dOpt.value = `district_${c.id}_${d.id}`;
-                        dOpt.textContent = `　↳ ${d.name}`;
-                        selectEl.appendChild(dOpt);
-                    });
-                });
-            };
-            
-            fillLocationOptions(locSelect);
-            fillLocationOptions(destSelect); // Fill Destination too
-
-            const payerSelect = document.getElementById('expensePayer');
-            const splittersDiv = document.getElementById('expenseSplitters');
-            payerSelect.innerHTML = '';
-            splittersDiv.innerHTML = '';
-            
-            const memberNames = ledger.members.map(m => typeof m === 'string' ? m : m.name);
-            memberNames.forEach(name => {
-                payerSelect.add(new Option(name, name));
-                const label = document.createElement('label');
-                label.className = 'flex items-center space-x-2 p-2 rounded hover:bg-slate-100 cursor-pointer border border-slate-100';
-                label.innerHTML = `<input type="checkbox" value="${name}" class="splitter-chk w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"> <span class="text-sm">${name}</span>`;
-                splittersDiv.appendChild(label);
-            });
-
-            if (expenseId) {
-                // Safety check for expenses array
-                if (!appData.expenses) appData.expenses = [];
-                const exp = appData.expenses.find(e => e.id === expenseId);
-                if (exp) {
-                    if (!fieldset.disabled) document.getElementById('expenseModalTitle').textContent = '編輯支出';
-                    document.getElementById('expenseDate').value = exp.date;
-                    document.getElementById('expenseTime').value = exp.time;
-                    document.getElementById('expenseDescription').value = exp.description;
-                    document.getElementById('expenseAmount').value = exp.amount;
-                    document.getElementById('expensePayer').value = exp.payer;
-                    document.getElementById('expenseSettled').checked = exp.isSettled;
-                    document.getElementById('expenseTreat').checked = !!exp.isTreat;
-                    
-                    if(exp.category.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
-                    else catSelect.value = `main_${exp.category.main.id}`;
-                    
-                    if(exp.location.district) locSelect.value = `district_${exp.location.city.id}_${exp.location.district.id}`;
-                    else locSelect.value = `city_${exp.location.city.id}`;
-
-                    exp.splitters.forEach(s => {
-                        const chk = splittersDiv.querySelector(`input[value="${s}"]`);
-                        if(chk) chk.checked = true;
-                    });
-                    
-                    if(exp.receipt) {
-                        document.getElementById('receiptImagePreview').src = exp.receipt;
-                        document.getElementById('receiptPreview').classList.remove('hidden');
-                    }
-                    
-                    // --- 恢復狀態檢查 ---
-                    checkTransportLogic();
-                    // 編輯模式不覆蓋 Description，但如果使用者重新操作下拉選單仍會觸發
-                }
-            } else {
-                const now = new Date();
-                document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
-                document.getElementById('expenseTime').value = now.toTimeString().slice(0, 5);
-                splittersDiv.querySelectorAll('input').forEach(i => i.checked = true);
-                document.getElementById('selectAllSplitters').checked = true;
-            }
-
-            calcAverage();
-            document.getElementById('expenseTreat').dispatchEvent(new Event('change'));
-            document.getElementById('expenseModal').style.display = 'block';
-        }
-
-        // --- Save Logic (Fixed) ---
-        function handleExpenseSubmit(e) {
-            e.preventDefault(); // 確保不會刷新頁面
-            
-            try {
-                const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-                const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-                
-                if (ledger.locked && !isAdmin) {
-                    return showToast('帳冊已鎖定，無法變更');
-                }
-
-                const catVal = document.getElementById('expenseCategory').value;
-                const locVal = document.getElementById('expenseLocation').value;
-                if(!catVal || !locVal) return showToast('請完整選擇科目與地點');
-                
-                const splitters = Array.from(document.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
-                if(splitters.length === 0) return showToast('至少需有一位分攤人員');
-
-                // Category Logic
-                let categoryObj = {};
-                if(catVal.startsWith('main_')) {
-                    const id = catVal.split('_')[1];
-                    const mainCat = ledger.categories.main.find(c=>c.id==id);
-                    categoryObj = { main: { id, name: mainCat.name }, sub: null };
-                } else {
-                    const [_, mid, sid] = catVal.split('_');
-                    const mainCat = ledger.categories.main.find(c=>c.id==mid);
-                    // 安全檢查：確保子科目存在
-                    const subList = ledger.categories.sub[mid] || [];
-                    const subCat = subList.find(s=>s.id==sid);
-                    
-                    if(mainCat && subCat) {
-                        categoryObj = { 
-                            main: { id: mid, name: mainCat.name }, 
-                            sub: { id: sid, name: subCat.name } 
-                        };
-                    } else {
-                        // 回退機制
-                        categoryObj = { main: { id: mid, name: mainCat ? mainCat.name : 'Unknown' }, sub: null };
-                    }
-                }
-
-                // Location Logic
-                let locationObj = {};
-                if(locVal.startsWith('city_')) {
-                    const id = locVal.split('_')[1];
-                    const city = ledger.locations.cities.find(c=>c.id==id);
-                    locationObj = { city: { id, name: city.name }, district: null };
-                } else {
-                    const [_, cid, did] = locVal.split('_');
-                    const city = ledger.locations.cities.find(c=>c.id==cid);
-                    const distList = ledger.locations.districts[cid] || [];
-                    const dist = distList.find(d=>d.id==did);
-                    
-                    if(city && dist) {
-                        locationObj = { 
-                            city: { id: cid, name: city.name }, 
-                            district: { id: did, name: dist.name } 
-                        };
-                    } else {
-                         locationObj = { city: { id: cid, name: city ? city.name : 'Unknown' }, district: null };
-                    }
-                }
-
-                const amt = parseFloat(document.getElementById('expenseAmount').value);
-                const isTreat = document.getElementById('expenseTreat').checked;
-
-                const expense = {
-                    id: currentEditingExpenseId || Date.now().toString(),
-                    ledgerId: appData.currentLedgerId,
-                    date: document.getElementById('expenseDate').value,
-                    time: document.getElementById('expenseTime').value,
-                    description: document.getElementById('expenseDescription').value,
-                    amount: amt,
-                    payer: document.getElementById('expensePayer').value,
-                    splitters: splitters,
-                    averageAmount: splitters.length > 0 ? amt / splitters.length : 0,
-                    isSettled: document.getElementById('expenseSettled').checked,
-                    isTreat: isTreat,
-                    category: categoryObj,
-                    location: locationObj,
-                    receipt: document.getElementById('receiptImagePreview').src || null
-                };
-
-                // --- 關鍵修復：確保 expenses 陣列存在 ---
-                if (!appData.expenses) {
-                    appData.expenses = [];
-                }
-
-                if(currentEditingExpenseId) {
-                    const idx = appData.expenses.findIndex(e => e.id === currentEditingExpenseId);
-                    if(idx >= 0) appData.expenses[idx] = expense;
-                } else {
-                    appData.expenses.push(expense);
-                }
-
-                saveData();
-                renderExpenseList();
-                updateLedgerInfoPanel();
-                document.getElementById('expenseModal').style.display = 'none';
-                showToast('記錄已儲存');
-                
-            } catch (err) {
-                console.error(err);
-                showToast('儲存時發生錯誤，請查看 Console');
-            }
-        }
-
-        function renderExpenseList() {
-            const list = document.getElementById('expenseList');
-            // Safety check for empty expenses array
-            const expenses = appData.expenses || [];
-            const exps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            
-            if(exps.length === 0) {
-                list.innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-receipt text-2xl text-slate-300"></i></div><p>尚無支出記錄</p></div>';
-                return;
-            }
-
-            exps.sort((a,b) => new Date(`${b.date} ${b.time}`) - new Date(`${a.date} ${a.time}`));
-
-            list.innerHTML = exps.map(e => {
-                const catStr = e.category.sub ? `${e.category.main.name} · ${e.category.sub.name}` : e.category.main.name;
-                const locStr = e.location.district ? `${e.location.city.name} ${e.location.district.name}` : e.location.city.name;
-                
-                const treatBadge = e.isTreat ? `<span class="treat-badge ml-2"><i class="fas fa-gift"></i> 金主請客</span>` : '';
-
-                return `
-                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm card-hover relative group">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded font-medium">${catStr}</span>
-                                <span class="text-xs text-slate-400">${e.date}</span>
-                                ${treatBadge}
-                            </div>
-                            <div class="font-bold text-slate-800 text-lg">${e.description}</div>
-                            <div class="text-xs text-slate-500 mt-1"><i class="fas fa-map-marker-alt text-red-400 mr-1"></i> ${locStr}</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-bold text-xl ${e.isSettled ? 'text-slate-400 line-through' : (e.isTreat ? 'text-pink-500' : 'text-slate-800')}">$${e.amount}</div>
-                            <div class="text-xs font-medium ${e.isSettled ? 'text-green-600' : 'text-amber-500'}">${e.isSettled ? '已結帳' : '未結帳'}</div>
-                        </div>
-                    </div>
-                    <div class="mt-3 pt-3 border-t border-slate-50 flex justify-between items-center">
-                        <div class="text-xs text-slate-600">
-                            <span class="font-bold">${e.payer}</span> 付款 <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${e.splitters.length} 人分攤
-                        </div>
-                        <div class="flex gap-3">
-                            ${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-image"></i></button>` : ''}
-                            <button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-pen"></i></button>
-                            <button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500 transition"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        function deleteExpense(id) {
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-            
-            if (ledger.locked && !isAdmin) {
-                return showToast('帳冊已鎖定，無法刪除');
-            }
-
-            if(confirm('確定刪除此筆記錄?')) {
-                // Safety check
-                if(appData.expenses) {
-                    appData.expenses = appData.expenses.filter(e => e.id !== id);
-                    saveData();
-                    renderExpenseList();
-                    updateLedgerInfoPanel();
-                    showToast('記錄已刪除');
-                }
-            }
-        }
-
-        function calcAverage() {
-            const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
-            const cnt = document.querySelectorAll('.splitter-chk:checked').length;
-            document.getElementById('averageAmount').textContent = cnt > 0 ? (amt / cnt).toFixed(2) : 0;
-        }
-
-        function checkSelectAll() {
-            const all = document.querySelectorAll('.splitter-chk');
-            const checked = document.querySelectorAll('.splitter-chk:checked');
-            document.getElementById('selectAllSplitters').checked = all.length > 0 && all.length === checked.length;
-        }
-
-        function viewReceipt(id) {
-            // Safety check
-            if(!appData.expenses) return;
-            const exp = appData.expenses.find(e => e.id === id);
-            if(exp && exp.receipt) {
-                document.getElementById('receiptViewImage').src = exp.receipt;
-                document.getElementById('receiptViewModal').style.display = 'block';
-            }
-        }
-
+        // ========== 工具函數 ==========
         function showToast(msg) {
             const t = document.getElementById('toast');
             document.getElementById('toastMsg').textContent = msg;
@@ -1958,183 +2063,6 @@
         function showLoading(show, msg = '處理中...') {
             document.getElementById('syncMsg').textContent = msg;
             document.getElementById('syncOverlay').classList.toggle('hidden', !show);
-        }
-
-        // --- Charts & Query (Updated for Treat) ---
-        function updateQueryOptions() {
-             // Safety check
-             const expenses = appData.expenses || [];
-             const ledgerExps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-             const payers = [...new Set(ledgerExps.map(e => e.payer))];
-             const splitters = [...new Set(ledgerExps.flatMap(e => e.splitters))];
-             
-             const pSel = document.getElementById('queryPayer');
-             pSel.innerHTML = '<option value="">所有金主</option>';
-             payers.forEach(p => pSel.add(new Option(p, p)));
-
-             const sSel = document.getElementById('querySplitter');
-             sSel.innerHTML = '<option value="">所有分攤者</option>';
-             splitters.forEach(s => sSel.add(new Option(s, s)));
-             
-             document.getElementById('queryBtn').onclick = () => {
-                 const pFilter = pSel.value;
-                 const sFilter = sSel.value;
-                 let res = ledgerExps;
-                 if(pFilter) res = res.filter(e => e.payer === pFilter);
-                 if(sFilter) res = res.filter(e => e.splitters.includes(sFilter));
-                 
-                 const total = res.reduce((a,b)=>a+b.amount, 0);
-                 const treatTotal = res.filter(e => e.isTreat).reduce((a,b)=>a+b.amount, 0);
-                 
-                 document.getElementById('totalAmount').textContent = total.toFixed(2);
-                 document.getElementById('treatAmount').textContent = treatTotal.toFixed(2);
-                 document.getElementById('totalCount').textContent = res.length;
-                 
-                 // 科目統計
-                 const catMap = {};
-                 res.forEach(e => {
-                     const mainCatName = e.category.main.name;
-                     catMap[mainCatName] = (catMap[mainCatName] || 0) + e.amount;
-                 });
-                 const catStatsEl = document.getElementById('categoryStats');
-                 if (res.length === 0) {
-                     catStatsEl.innerHTML = '<div class="text-slate-400 text-sm p-2">無符合項目</div>';
-                 } else {
-                     catStatsEl.innerHTML = Object.entries(catMap).map(([name, amt]) => `
-                         <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-                             <span class="font-medium text-slate-700">${name}</span>
-                             <span class="font-bold text-blue-600">$${amt.toFixed(0)}</span>
-                         </div>
-                     `).join('');
-                 }
-
-                 // 城市統計
-                 const cityMap = {};
-                 res.forEach(e => {
-                     const cityName = e.location.city.name;
-                     cityMap[cityName] = (cityMap[cityName] || 0) + e.amount;
-                 });
-                 const cityStatsEl = document.getElementById('cityStats');
-                 if (res.length === 0) {
-                     cityStatsEl.innerHTML = '<div class="text-slate-400 text-sm p-2">無符合項目</div>';
-                 } else {
-                     cityStatsEl.innerHTML = Object.entries(cityMap).map(([name, amt]) => `
-                         <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-                             <span class="font-medium text-slate-700">${name}</span>
-                             <span class="font-bold text-blue-600">$${amt.toFixed(0)}</span>
-                         </div>
-                     `).join('');
-                 }
-
-                 const detailDiv = document.getElementById('splitterDetails');
-                 if(sFilter) {
-                    // 只計算非請客的應付金額
-                    const myShare = res.filter(e => !e.isTreat).reduce((sum, e) => sum + e.averageAmount, 0);
-                    document.getElementById('splitterAmount').textContent = myShare.toFixed(2);
-                    
-                    const myItems = res.filter(e => !e.isTreat); // Filter out treats for the list
-                    
-                    if(myItems.length > 0) {
-                        detailDiv.innerHTML = myItems.map(e => `
-                            <div class="flex justify-between text-sm py-3 px-5 hover:bg-slate-50 transition">
-                                <span class="text-slate-700">${e.date} ${e.description}</span>
-                                <span class="font-bold text-slate-800">$${e.averageAmount.toFixed(0)}</span>
-                            </div>
-                        `).join('');
-                    } else {
-                        detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">無應付項目</div>';
-                    }
-                 } else {
-                     document.getElementById('splitterAmount').textContent = '-';
-                     detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細 (自動排除請客項目)</div>';
-                 }
-                 document.getElementById('queryResults').classList.remove('hidden');
-             };
-        }
-        
-        let charts = {};
-        function renderCharts() {
-            // Safety check
-            const expenses = appData.expenses || [];
-            const ledgerExps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            if(ledgerExps.length === 0) return;
-
-            // Chart 1: Payer (Including Treats) - "Who paid how much?"
-            const pData = {};
-            ledgerExps.forEach(e => pData[e.payer] = (pData[e.payer] || 0) + e.amount);
-            
-            if(charts.payer) charts.payer.destroy();
-            charts.payer = new Chart(document.getElementById('payerChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(pData),
-                    datasets: [{ data: Object.values(pData), backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'], borderWidth: 0 }]
-                },
-                options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-            });
-
-            // Chart 2: Splitter (Excluding Treats) - "Who owes what?"
-            const sData = {};
-            ledgerExps.filter(e => !e.isTreat).forEach(e => {
-                e.splitters.forEach(s => {
-                    if(!sData[s]) sData[s] = 0;
-                    sData[s] += e.averageAmount;
-                });
-            });
-             if(charts.splitter) charts.splitter.destroy();
-             charts.splitter = new Chart(document.getElementById('splitterChart'), {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(sData),
-                    datasets: [{ label: '應付金額', data: Object.values(sData), backgroundColor: '#6366f1', borderRadius: 4 }]
-                },
-                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-            });
-
-            // === 新增科目與城市圖表 ===
-            // 科目比例圖（所有支出，含請客）
-            const catData = {};
-            ledgerExps.forEach(e => {
-                const mainName = e.category.main.name;
-                catData[mainName] = (catData[mainName] || 0) + e.amount;
-            });
-            if (charts.categoryChart) charts.categoryChart.destroy();
-            if (Object.keys(catData).length > 0) {
-                charts.categoryChart = new Chart(document.getElementById('categoryChart'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: Object.keys(catData),
-                        datasets: [{ 
-                            data: Object.values(catData), 
-                            backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#94a3b8'], 
-                            borderWidth: 0 
-                        }]
-                    },
-                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-                });
-            }
-
-            // 城市比例圖
-            const cityData = {};
-            ledgerExps.forEach(e => {
-                const cityName = e.location.city.name;
-                cityData[cityName] = (cityData[cityName] || 0) + e.amount;
-            });
-            if (charts.cityChart) charts.cityChart.destroy();
-            if (Object.keys(cityData).length > 0) {
-                charts.cityChart = new Chart(document.getElementById('cityChart'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: Object.keys(cityData),
-                        datasets: [{ 
-                            data: Object.values(cityData), 
-                            backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#94a3b8'], 
-                            borderWidth: 0 
-                        }]
-                    },
-                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-                });
-            }
         }
     </script>
 </body>
