@@ -622,11 +622,13 @@
     </div>
 
     <script>
-        // ========== 版本 v20260213.02 ==========
+        // ========== 版本 v20260304.001 ==========
         // 修正：函數定義順序問題，解決 updateAdminControls is not defined
         // 功能：新增支出時預設金主優先比對 Email，無 Email 再比對姓名（不區分大小寫）
+        // 修正：新增區域時若 districts[selectedCityId] 不存在則初始化為陣列，避免 undefined 錯誤
+        // 修正：為帳冊設定的所有「+」按鈕補上點擊事件監聽，使其能正常新增項目
         // =======================================
-        const CURRENT_VERSION = 'v20260213.02';
+        const CURRENT_VERSION = 'v20260304.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         
         // --- Firebase Config ---
@@ -1128,12 +1130,16 @@
             const input = document.getElementById('newSubCatInput');
             const val = input.value.trim();
             if(!val) return;
+            if (!tempLedger.subCats[selectedMainCatId]) {
+                tempLedger.subCats[selectedMainCatId] = [];
+            }
             tempLedger.subCats[selectedMainCatId].push({id: Date.now().toString(), name: val});
             input.value = '';
             renderLedgerConfigUI();
             input.focus();
         }
         function deleteSubCat(pid, id) {
+            if (!tempLedger.subCats[pid]) return;
             tempLedger.subCats[pid] = tempLedger.subCats[pid].filter(c => c.id !== id);
             renderLedgerConfigUI();
         }
@@ -1161,12 +1167,17 @@
             const input = document.getElementById('newDistrictInput');
             const val = input.value.trim();
             if(!val) return;
+            // 確保該城市的 districts 陣列存在，避免 undefined 錯誤
+            if (!tempLedger.districts[selectedCityId]) {
+                tempLedger.districts[selectedCityId] = [];
+            }
             tempLedger.districts[selectedCityId].push({id: Date.now().toString(), name: val});
             input.value = '';
             renderLedgerConfigUI();
             input.focus();
         }
         function deleteDistrict(pid, id) {
+            if (!tempLedger.districts[pid]) return;
             tempLedger.districts[pid] = tempLedger.districts[pid].filter(c => c.id !== id);
             renderLedgerConfigUI();
         }
@@ -1885,6 +1896,13 @@
                     }
                 });
             });
+
+            // 為所有「+」按鈕綁定點擊事件
+            document.getElementById('btnAddMainCat').addEventListener('click', addMainCat);
+            document.getElementById('btnAddSubCat').addEventListener('click', addSubCat);
+            document.getElementById('btnAddCity').addEventListener('click', addCity);
+            document.getElementById('btnAddDistrict').addEventListener('click', addDistrict);
+            document.getElementById('addMemberBtn').addEventListener('click', addMember);
 
             document.querySelectorAll('.closeModal').forEach(b => b.onclick = (e) => e.target.closest('.modal').style.display = 'none');
             window.onclick = (e) => { 
