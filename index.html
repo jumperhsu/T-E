@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊收支記帳管家 - Firebase Pro</title>
+    <title>旅遊收支記帳管家 - 智能摘要版</title>
     <!-- 注意：生產環境建議使用 PostCSS 安裝 Tailwind，此 CDN 僅供開發測試 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -541,7 +541,7 @@
 
                     <div class="mb-5">
                         <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">摘要說明</label>
-                        <input type="text" id="expenseDescription" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：午餐、車票、門票...">
+                        <input type="text" id="expenseDescription" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="自動根據科目、地點生成...">
                     </div>
 
                     <div class="grid grid-cols-2 gap-4 mb-5">
@@ -622,13 +622,12 @@
     </div>
 
     <script>
-        // ========== 版本 v20260304.001 ==========
-        // 修正：函數定義順序問題，解決 updateAdminControls is not defined
-        // 功能：新增支出時預設金主優先比對 Email，無 Email 再比對姓名（不區分大小寫）
-        // 修正：新增區域時若 districts[selectedCityId] 不存在則初始化為陣列，避免 undefined 錯誤
-        // 修正：為帳冊設定的所有「+」按鈕補上點擊事件監聽，使其能正常新增項目
-        // =======================================
-        const CURRENT_VERSION = 'v20260304.001';
+        // ========== 版本 v20260306.001 - 智能摘要完整版 ==========
+        // 功能：交通類支出自動生成「出發地 往 目的地」摘要
+        //       其他支出自動生成「城市+區域+主科目+子科目」摘要（例：上海七寶古鎮飲食早餐）
+        //       編輯時保留原摘要，僅在用戶變更科目/地點時觸發更新
+        // ====================================================
+        const CURRENT_VERSION = 'v20260306.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         
         // --- Firebase Config ---
@@ -660,6 +659,7 @@
         let selectedCityId = null;
         let currentEditingExpenseId = null;
         let charts = {};
+        let skipAutoSummary = false;   // 編輯模式時避免自動覆蓋摘要
 
         // ========== DOMContentLoaded 啟動點 ==========
         document.addEventListener('DOMContentLoaded', () => {
@@ -812,19 +812,127 @@
             if (currentUser) {
                 document.getElementById('userStatusDot').classList.remove('bg-red-400');
                 document.getElementById('userStatusDot').classList.add('bg-green-500');
-                updateAdminControls();  // ✅ 現在已經定義在下方
+                updateAdminControls();
             } else {
                 document.getElementById('userStatusDot').classList.add('bg-red-400');
                 document.getElementById('userStatusDot').classList.remove('bg-green-500');
             }
         }
 
-        // ✅ 將 updateAdminControls 提前定義，確保 updateUserUI 可以正確呼叫
         function updateAdminControls() {
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
             const adminPanel = document.getElementById('adminControls');
             if(isAdmin) adminPanel.classList.remove('hidden');
             else adminPanel.classList.add('hidden');
+        }
+
+        // ========== 智能摘要核心函數 ==========
+        // 取得當前選擇的科目名稱
+        function getSelectedCategoryNames() {
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if(!ledger) return { main: null, sub: null };
+            const catVal = document.getElementById('expenseCategory')?.value;
+            if(!catVal) return { main: null, sub: null };
+            if(catVal.startsWith('main_')) {
+                const id = catVal.split('_')[1];
+                const main = ledger.categories.main.find(c => c.id === id);
+                return { main: main?.name || null, sub: null };
+            } else if(catVal.startsWith('sub_')) {
+                const parts = catVal.split('_');
+                const mainId = parts[1];
+                const subId = parts[2];
+                const main = ledger.categories.main.find(c => c.id === mainId);
+                const subList = ledger.categories.sub[mainId] || [];
+                const sub = subList.find(s => s.id === subId);
+                return { main: main?.name || null, sub: sub?.name || null };
+            }
+            return { main: null, sub: null };
+        }
+
+        // 取得當前選擇的地點名稱（城市、區域）
+        function getSelectedLocationNames() {
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if(!ledger) return { city: null, district: null };
+            const locVal = document.getElementById('expenseLocation')?.value;
+            if(!locVal) return { city: null, district: null };
+            if(locVal.startsWith('city_')) {
+                const id = locVal.split('_')[1];
+                const city = ledger.locations.cities.find(c => c.id === id);
+                return { city: city?.name || null, district: null };
+            } else if(locVal.startsWith('district_')) {
+                const parts = locVal.split('_');
+                const cityId = parts[1];
+                const distId = parts[2];
+                const city = ledger.locations.cities.find(c => c.id === cityId);
+                const distList = ledger.locations.districts[cityId] || [];
+                const district = distList.find(d => d.id === distId);
+                return { city: city?.name || null, district: district?.name || null };
+            }
+            return { city: null, district: null };
+        }
+
+        // 非交通類自動生成摘要（地點 + 科目）
+        function generateNonTransportSummary() {
+            const loc = getSelectedLocationNames();
+            const cat = getSelectedCategoryNames();
+            let parts = [];
+            if(loc.city) parts.push(loc.city);
+            if(loc.district) parts.push(loc.district);
+            if(cat.main) parts.push(cat.main);
+            if(cat.sub) parts.push(cat.sub);
+            return parts.join('');
+        }
+
+        // 交通類摘要（出發地→目的地）
+        function updateTransportDesc() {
+            if(skipAutoSummary) return;
+            const originSelect = document.getElementById('expenseLocation');
+            const destSelect = document.getElementById('expenseDestination');
+            const getText = (el) => {
+                if(el.selectedIndex < 0 || !el.value) return '';
+                let txt = el.options[el.selectedIndex].text;
+                return txt.replace(/^[　↳\s]+/, '').trim();
+            };
+            const origin = getText(originSelect);
+            const dest = getText(destSelect);
+            const descField = document.getElementById('expenseDescription');
+            if(origin && dest) {
+                descField.value = `${origin} 往 ${dest}`;
+            } else if(origin && !dest) {
+                descField.value = `${origin} 出發`;
+            } else {
+                descField.value = '';
+            }
+        }
+
+        // 統一刷新摘要：根據是否交通類選擇對應方式
+        function refreshSummaryByMode() {
+            if(skipAutoSummary) return;
+            const catNames = getSelectedCategoryNames();
+            const isTransport = catNames.main && catNames.main.includes('交通');
+            if(isTransport) {
+                updateTransportDesc();
+            } else {
+                const autoSummary = generateNonTransportSummary();
+                if(autoSummary) {
+                    document.getElementById('expenseDescription').value = autoSummary;
+                }
+            }
+        }
+
+        // 檢查是否為交通類，控制目的地欄位顯示/隱藏，並刷新摘要
+        function checkTransportAndRefresh() {
+            const catNames = getSelectedCategoryNames();
+            const isTransport = catNames.main && catNames.main.includes('交通');
+            const destWrapper = document.getElementById('destinationWrapper');
+            if(isTransport) {
+                destWrapper.classList.remove('hidden');
+                refreshSummaryByMode();
+            } else {
+                destWrapper.classList.add('hidden');
+                document.getElementById('expenseDestination').value = "";
+                refreshSummaryByMode();
+            }
         }
 
         // ========== 帳冊設定相關函數（完整保留）==========
@@ -1167,7 +1275,6 @@
             const input = document.getElementById('newDistrictInput');
             const val = input.value.trim();
             if(!val) return;
-            // 確保該城市的 districts 陣列存在，避免 undefined 錯誤
             if (!tempLedger.districts[selectedCityId]) {
                 tempLedger.districts[selectedCityId] = [];
             }
@@ -1359,7 +1466,7 @@
                 splittersDiv.appendChild(label);
             });
 
-            // --- 編輯模式：載入既有資料 ---
+            // --- 編輯模式：載入既有資料，此時跳過自動摘要 ---
             if (expenseId) {
                 if (!appData.expenses) appData.expenses = [];
                 const exp = appData.expenses.find(e => e.id === expenseId);
@@ -1388,27 +1495,40 @@
                         document.getElementById('receiptImagePreview').src = exp.receipt;
                         document.getElementById('receiptPreview').classList.remove('hidden');
                     }
-                    checkTransportLogic();
+                    // 編輯模式：暫時禁用自動摘要，避免覆蓋用戶原有摘要
+                    skipAutoSummary = true;
+                    // 刷新交通控制顯示（根據科目）
+                    checkTransportAndRefresh();
+                    // 手動觸發目的地欄位事件（若交通類且已有目的地，需設定目的地選項）
+                    if(exp.location.district && exp.category.main && exp.category.main.name.includes('交通')) {
+                        // 若原本有目的地，需要設定 destination 選擇框的值
+                        // 但由於目的地選項需要從 ledger 重建，這裡簡單處理：如果編輯的是交通類，嘗試設定目的地值
+                        if(exp.destination && exp.destination.city && exp.destination.district) {
+                            destSelect.value = `district_${exp.destination.city.id}_${exp.destination.district.id}`;
+                        } else if(exp.destination && exp.destination.city) {
+                            destSelect.value = `city_${exp.destination.city.id}`;
+                        }
+                    }
+                    skipAutoSummary = false;
                 }
             } 
-            // --- 新增模式：預設值 ---
+            // --- 新增模式：預設值，啟用自動摘要 ---
             else {
+                skipAutoSummary = false;
                 const now = new Date();
                 document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
                 document.getElementById('expenseTime').value = now.toTimeString().slice(0, 5);
                 splittersDiv.querySelectorAll('input').forEach(i => i.checked = true);
                 document.getElementById('selectAllSplitters').checked = true;
 
-                // ===== 預設金主：優先比對 Email，無 Email 則比對姓名 (不區分大小寫) =====
+                // 預設金主：優先比對 Email，無 Email 則比對姓名 (不區分大小寫)
                 if (currentUser && currentUser.name) {
-                    // 1. 尋找 Email 完全匹配的成員
                     const matchedMember = ledger.members.find(m => 
                         (typeof m === 'object' && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
                     );
                     if (matchedMember) {
                         payerSelect.value = matchedMember.name;
                     } else {
-                        // 2. 無 Email 匹配，改用姓名忽略大小寫
                         const nameMatched = ledger.members.find(m => {
                             const memberName = typeof m === 'string' ? m : m.name;
                             return memberName.toLowerCase() === currentUser.name.toLowerCase();
@@ -1419,7 +1539,8 @@
                         }
                     }
                 }
-                // ===============================================================
+                // 觸發一次摘要刷新（科目、地點初始無值，無動作）
+                refreshSummaryByMode();
             }
 
             calcAverage();
@@ -1483,6 +1604,25 @@
                     }
                 }
 
+                // 目的地處理（僅交通類需要）
+                let destinationObj = null;
+                if(categoryObj.main.name.includes('交通')) {
+                    const destVal = document.getElementById('expenseDestination').value;
+                    if(destVal) {
+                        if(destVal.startsWith('city_')) {
+                            const id = destVal.split('_')[1];
+                            const city = ledger.locations.cities.find(c=>c.id==id);
+                            destinationObj = { city: { id, name: city.name }, district: null };
+                        } else if(destVal.startsWith('district_')) {
+                            const [_, cid, did] = destVal.split('_');
+                            const city = ledger.locations.cities.find(c=>c.id==cid);
+                            const distList = ledger.locations.districts[cid] || [];
+                            const dist = distList.find(d=>d.id==did);
+                            destinationObj = { city: { id: cid, name: city.name }, district: { id: did, name: dist.name } };
+                        }
+                    }
+                }
+
                 const amt = parseFloat(document.getElementById('expenseAmount').value);
                 const isTreat = document.getElementById('expenseTreat').checked;
 
@@ -1500,6 +1640,7 @@
                     isTreat: isTreat,
                     category: categoryObj,
                     location: locationObj,
+                    destination: destinationObj,
                     receipt: document.getElementById('receiptImagePreview').src || null
                 };
 
@@ -1653,48 +1794,6 @@
                 document.getElementById('expenseList').innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-book text-2xl text-slate-300"></i></div><p>請先選擇帳冊，開始記錄您的旅程</p></div>';
             }
             updateAdminControls();
-        }
-
-        // ========== 交通邏輯輔助函數 ==========
-        function getSelectedMainCategoryName() {
-            const catVal = document.getElementById('expenseCategory').value;
-            if (!catVal) return '';
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            if (!ledger) return '';
-            let mainId;
-            if (catVal.startsWith('main_')) mainId = catVal.split('_')[1];
-            else if (catVal.startsWith('sub_')) mainId = catVal.split('_')[1];
-            else return '';
-            const mainCat = ledger.categories.main.find(c => c.id === mainId);
-            return mainCat ? mainCat.name : '';
-        }
-
-        function checkTransportLogic() {
-            const mainName = getSelectedMainCategoryName();
-            const destWrapper = document.getElementById('destinationWrapper');
-            if (mainName.includes('交通')) {
-                destWrapper.classList.remove('hidden');
-            } else {
-                destWrapper.classList.add('hidden');
-                document.getElementById('expenseDestination').value = "";
-            }
-        }
-
-        function updateTransportDesc() {
-            const mainName = getSelectedMainCategoryName();
-            if (!mainName.includes('交通')) return;
-            const locSel = document.getElementById('expenseLocation');
-            const destSel = document.getElementById('expenseDestination');
-            const getText = (el) => {
-                if (el.selectedIndex < 0 || !el.value) return '';
-                let text = el.options[el.selectedIndex].text;
-                return text.replace(/^[　↳\s]+/, '').trim();
-            };
-            const origin = getText(locSel);
-            const dest = getText(destSel);
-            if (origin && dest) {
-                document.getElementById('expenseDescription').value = `${origin} 往 ${dest}`;
-            }
         }
 
         // ========== 統計報表 ==========
@@ -1964,9 +2063,19 @@
             };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
             
-            document.getElementById('expenseCategory').addEventListener('change', checkTransportLogic);
-            document.getElementById('expenseLocation').addEventListener('change', updateTransportDesc);
-            document.getElementById('expenseDestination').addEventListener('change', updateTransportDesc);
+            // 綁定科目、地點變更事件，觸發智能摘要
+            document.getElementById('expenseCategory').addEventListener('change', () => {
+                checkTransportAndRefresh();
+            });
+            document.getElementById('expenseLocation').addEventListener('change', () => {
+                refreshSummaryByMode();
+            });
+            document.getElementById('expenseDestination').addEventListener('change', () => {
+                const catNames = getSelectedCategoryNames();
+                if(catNames.main && catNames.main.includes('交通')) {
+                    updateTransportDesc();
+                }
+            });
 
             document.getElementById('deleteLedgerBtn').onclick = () => {
                 if(confirm('確定要永久刪除此帳冊嗎？此動作無法復原。')) {
