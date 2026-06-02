@@ -2,635 +2,197 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊收支記帳管家 - 智能摘要版</title>
-    <!-- 注意：生產環境建議使用 PostCSS 安裝 Tailwind，此 CDN 僅供開發測試 -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>旅遊收支記帳管家 - 主程式</title>
+    <!-- 正式環境建議改用 PostCSS，此處為開發測試用 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- QR Code 產生器 (輕量無依賴) -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-    
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
-        
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
-        
-        /* 自定義滾動條 */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        .receipt-preview { max-width: 100px; max-height: 100px; cursor: pointer; border-radius: 8px; transition: transform 0.2s; object-fit: cover; border: 1px solid #e2e8f0; }
-        .receipt-preview:hover { transform: scale(1.05); }
-        
+        .receipt-preview { max-width: 100px; max-height: 100px; cursor: pointer; border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; }
         .card-hover { transition: all 0.2s ease; }
-        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
-        
-        .tab-btn { position: relative; color: #64748b; transition: all 0.3s; }
-        .tab-active { color: #2563eb; background-color: #eff6ff; }
-        .tab-active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background-color: #2563eb; border-radius: 3px 3px 0 0; }
-        
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
-        .modal-content { background-color: white; margin: 5% auto; padding: 24px; border-radius: 16px; width: 90%; max-width: 650px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .modal-content { background-color: white; margin: 5% auto; padding: 24px; border-radius: 16px; width: 90%; max-width: 650px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
         .animate-fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        
-        .chart-container { position: relative; height: 300px; width: 100%; }
-        
-        /* 標籤與設定介面優化 */
         .config-cols { display: flex; gap: 16px; height: 320px; }
         .config-col { flex: 1; display: flex; flex-direction: column; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; }
-        .config-col-header { background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 0.9rem; color: #475569; display: flex; justify-content: space-between; align-items: center; }
-        .config-col-body { flex: 1; overflow-y: auto; padding: 8px; background-color: #fff; }
-        .config-col-footer { padding: 12px; border-top: 1px solid #e2e8f0; background-color: #f8fafc; display: flex; gap: 8px; }
-
-        .tag-editable { display: flex; align-items: center; justify-content: space-between; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
-        .tag-editable:hover { border-color: #93c5fd; background-color: #f0f9ff; }
-        .tag-editable.selected { background-color: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; font-weight: 500; }
-        
-        .tag-actions { display: flex; gap: 4px; opacity: 0.4; transition: opacity 0.2s; }
+        .config-col-header { background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 0.9rem; display: flex; justify-content: space-between; }
+        .config-col-body { flex: 1; overflow-y: auto; padding: 8px; }
+        .tag-editable { display: flex; align-items: center; justify-content: space-between; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; cursor: pointer; }
+        .tag-editable.selected { background-color: #eff6ff; border-color: #2563eb; }
+        .tag-actions { display: flex; gap: 4px; opacity: 0.4; }
         .tag-editable:hover .tag-actions { opacity: 1; }
-        .tag-btn-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #64748b; transition: background 0.2s; }
-        .tag-btn-icon:hover { background-color: #e2e8f0; color: #2563eb; }
-        .tag-btn-delete { color: #ef4444; }
-        .tag-btn-delete:hover { background-color: #fee2e2; color: #dc2626; }
-
-        .hierarchical-select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: white; font-size: 14px; color: #334155; transition: border-color 0.2s; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; }
-        .hierarchical-select:focus { outline: none; border-color: #2563eb; ring: 2px; ring-color: #bfdbfe; }
-
-        .transition-height { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; }
-        .rotate-180 { transform: rotate(180deg); }
-        .chevron-icon { transition: transform 0.3s ease; }
-
-        /* Ledger Stats Bar */
-        .ledger-stats-bar { display: flex; gap: 1px; background: #e2e8f0; border-radius: 8px; overflow: hidden; margin-top: 12px; border: 1px solid #e2e8f0; }
+        .tag-btn-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+        .tag-btn-icon:hover { background-color: #e2e8f0; }
+        .hierarchical-select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: white; }
+        .ledger-stats-bar { display: flex; gap: 1px; background: #e2e8f0; border-radius: 8px; overflow: hidden; margin-top: 12px; }
         .stat-item { flex: 1; background: white; padding: 10px; text-align: center; }
-        .stat-item .label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
-        .stat-item .value { font-size: 1.1rem; font-weight: 700; color: #1e293b; font-family: 'Roboto Mono', monospace; }
-        .stat-item.treat .value { color: #ec4899; }
-        .stat-item.settled .value { color: #10b981; }
-        .stat-item.outstanding .value { color: #f59e0b; }
-        
-        .treat-badge { background-color: #fce7f3; color: #db2777; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; border: 1px solid #fbcfe8; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+        .stat-item .label { font-size: 0.7rem; color: #64748b; font-weight: 700; }
+        .stat-item .value { font-size: 1.1rem; font-weight: 700; }
+        .treat-badge { background-color: #fce7f3; color: #db2777; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+        #expenseModal .modal-header-close { display: none; }
+        option:disabled { color: #64748b; background-color: #f1f5f9; font-weight: bold; }
+        .settle-checkbox { width: 18px; height: 18px; cursor: pointer; margin-left: 8px; }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
     <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <div class="bg-blue-600 text-white p-2 rounded-lg shadow-md">
-                    <i class="fas fa-plane-departure text-xl"></i>
-                </div>
-                <div class="flex flex-col">
-                    <h1 class="text-xl font-bold text-slate-800 tracking-tight">旅遊記帳管家</h1>
-                    <span id="versionTag" class="text-xs text-slate-500 font-mono"></span>
-                </div>
+                <div class="bg-blue-600 text-white p-2 rounded-lg shadow-md"><i class="fas fa-plane-departure text-xl"></i></div>
+                <div><h1 class="text-xl font-bold text-slate-800">旅遊記帳管家</h1><span id="versionTag" class="text-xs text-slate-500 font-mono"></span></div>
             </div>
             <div class="flex items-center gap-3">
-                <div id="syncStatus" class="hidden text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium border border-orange-200 flex items-center gap-1">
-                    <i class="fas fa-circle-notch fa-spin"></i> 連線中...
-                </div> 
-                
-                <div id="userBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200 relative" title="使用者設定">
-                    <i id="navUserIcon" class="fas fa-user"></i>
-                    <div id="userStatusDot" class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-400 rounded-full border-2 border-white"></div>
-                </div>
-
-                <div id="cloudStatus" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-400 border border-slate-200" title="Firebase 雲端狀態">
-                    <i class="fas fa-database"></i>
-                </div>
-
-                <div id="aboutBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200" title="關於">
-                    <i class="fas fa-info"></i>
-                </div>
+                <div id="firebaseStatus" class="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 flex items-center gap-1"><i class="fas fa-plug"></i> <span>連線中...</span></div>
+                <button id="viewStatsBtn" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100 transition flex items-center gap-2"><i class="fas fa-chart-pie"></i> 檢視統計</button>
+                <div id="userBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 relative"><i class="fas fa-user"></i><div id="userStatusDot" class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-400 rounded-full border-2 border-white"></div></div>
+                <div id="aboutBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100"><i class="fas fa-info"></i></div>
             </div>
         </div>
     </nav>
 
-    <div id="cloudMenu" class="hidden bg-white border-b shadow-lg animate-fade-in absolute w-full z-40">
-        <div class="container mx-auto px-4 py-4 flex flex-wrap gap-3 justify-center md:justify-end items-center">
-            <span class="text-sm text-slate-500 mr-2 flex items-center gap-2">
-                <i class="fas fa-fire text-amber-500"></i> Firebase 自動同步中
-            </span>
-            <div class="h-6 w-px bg-gray-300 mx-2"></div>
-            <button id="exportBtn" class="text-slate-600 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-100 transition flex items-center gap-2">
-                <i class="fas fa-file-export"></i> 匯出備份檔
-            </button>
-            <label for="importFile" class="text-slate-600 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-100 transition cursor-pointer flex items-center gap-2">
-                <i class="fas fa-file-import"></i> 匯入備份檔
-            </label>
-            <input type="file" id="importFile" accept=".json" class="hidden">
-        </div>
-    </div>
-
     <main class="container mx-auto px-4 py-6 max-w-5xl">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
-            <div id="ledgerToggleHeader" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition select-none border-b border-transparent">
-                <div class="flex items-center gap-3">
-                    <div class="bg-blue-100 text-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
-                        <i class="fas fa-book-open"></i>
-                    </div>
-                    <div>
-                        <h2 id="displayLedgerName" class="text-lg font-bold text-slate-800">請選擇或建立帳冊</h2>
-                        <div id="ledgerMetaSummary" class="text-xs text-slate-500 hidden">點擊展開詳細資訊</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span id="lockBadge" class="hidden px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-600 border border-red-200">
-                        <i class="fas fa-lock mr-1"></i> 已鎖定
-                    </span>
-                    <i id="ledgerChevron" class="fas fa-chevron-down text-slate-400 transform transition-transform duration-300"></i>
-                </div>
+            <div id="ledgerToggleHeader" class="p-5 flex justify-between items-center cursor-pointer">
+                <div><h2 id="displayLedgerName" class="text-lg font-bold text-slate-800">請選擇或建立帳冊</h2><div id="ledgerMetaSummary" class="text-xs text-slate-500 hidden"></div></div>
+                <div><span id="lockBadge" class="hidden px-2 py-0.5 rounded text-xs bg-red-100 text-red-600"><i class="fas fa-lock mr-1"></i>已鎖定</span><i id="ledgerChevron" class="fas fa-chevron-down text-slate-400 ml-3"></i></div>
             </div>
-            
-            <div id="ledgerCollapsible" class="transition-height duration-300 ease-in-out overflow-hidden" style="max-height: 500px; opacity: 1;">
-                <div class="p-5 pt-0 border-t border-slate-100">
-                    <div class="mt-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                            <div class="relative flex-1 md:flex-none min-w-[200px]">
-                                <select id="ledgerSelect" class="w-full appearance-none bg-slate-50 border border-slate-300 rounded-lg pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 font-medium cursor-pointer">
-                                    <option value="">請選擇帳冊</option>
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-                                    <i class="fas fa-caret-down"></i>
-                                </div>
-                            </div>
-                            <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm flex items-center gap-2">
-                                <i class="fas fa-plus"></i> 新增
-                            </button>
-                            <button id="editLedgerBtn" class="bg-white text-slate-600 border border-slate-300 px-4 py-2.5 rounded-lg hover:bg-slate-50 transition text-sm font-medium flex items-center gap-2">
-                                <i class="fas fa-sliders-h"></i> 設定
-                            </button>
-                        </div>
+            <div id="ledgerCollapsible" class="transition-all duration-300 overflow-hidden" style="max-height: 500px;">
+                <div class="p-5 pt-0 border-t">
+                    <div class="mt-4 flex flex-wrap gap-4 items-center">
+                        <select id="ledgerSelect" class="border rounded-lg px-4 py-2.5 w-64"><option value="">請選擇帳冊</option></select>
+                        <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 新增</button>
+                        <button id="editLedgerBtn" class="bg-white border px-4 py-2.5 rounded-lg"><i class="fas fa-sliders-h"></i> 設定</button>
                         <div id="adminControls" class="hidden flex gap-2">
-                            <button id="toggleLockLedgerBtn" class="text-amber-600 hover:bg-amber-50 px-3 py-2 rounded-lg transition" title="鎖定/解鎖">
-                                <i class="fas fa-lock"></i>
-                            </button>
-                            <button id="deleteLedgerBtn" class="text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition" title="刪除">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
+                            <button id="toggleLockLedgerBtn" class="text-amber-600"><i class="fas fa-lock"></i></button>
+                            <button id="deleteLedgerBtn" class="text-red-600"><i class="fas fa-trash-alt"></i></button>
                         </div>
                     </div>
-
-                    <div id="ledgerInfo" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-3">
-                            <div>
-                                <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">科目</div>
-                                <span id="ledgerCategories" class="text-slate-700 font-medium"></span>
-                            </div>
-                            <div>
-                                <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">地點</div>
-                                <span id="ledgerLocations" class="text-slate-700 font-medium"></span>
-                            </div>
-                            <div>
-                                <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">成員</div>
-                                <span id="ledgerMembers" class="text-slate-700 font-medium"></span>
-                            </div>
-                        </div>
-                        
-                        <div class="ledger-stats-bar">
-                            <div class="stat-item treat">
-                                <div class="label"><i class="fas fa-gift mr-1"></i> 免結 (請客)</div>
-                                <div id="statWaived" class="value">0</div>
-                            </div>
-                            <div class="stat-item settled">
-                                <div class="label"><i class="fas fa-check-circle mr-1"></i> 已結</div>
-                                <div id="statSettled" class="value">0</div>
-                            </div>
-                            <div class="stat-item outstanding">
-                                <div class="label"><i class="fas fa-clock mr-1"></i> 未結</div>
-                                <div id="statOutstanding" class="value">0</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="label">總額</div>
-                                <div id="statTotal" class="value">0</div>
-                            </div>
-                        </div>
+                    <div id="ledgerInfo" class="hidden mt-4 bg-slate-50 p-4 rounded-xl">
+                        <div class="grid grid-cols-3 gap-4 text-sm"><div><div class="text-slate-400 text-xs">科目</div><span id="ledgerCategories"></span></div><div><div class="text-slate-400 text-xs">地點</div><span id="ledgerLocations"></span></div><div><div class="text-slate-400 text-xs">成員</div><span id="ledgerMembers"></span></div></div>
+                        <div class="ledger-stats-bar"><div class="stat-item treat"><div class="label">請客</div><div id="statWaived">0</div></div><div class="stat-item settled"><div class="label">已結</div><div id="statSettled">0</div></div><div class="stat-item outstanding"><div class="label">未結</div><div id="statOutstanding">0</div></div><div class="stat-item"><div class="label">總額</div><div id="statTotal">0</div></div></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in min-h-[500px]">
-            <div class="flex border-b border-slate-100">
-                <button class="tab-btn tab-active flex-1 py-4 text-center font-medium text-sm flex items-center justify-center gap-2" data-tab="expenses">
-                    <i class="fas fa-receipt"></i> 支出記錄
-                </button>
-                <button class="tab-btn flex-1 py-4 text-center font-medium text-sm flex items-center justify-center gap-2" data-tab="query">
-                    <i class="fas fa-chart-pie"></i> 統計報表
-                </button>
-                <button class="tab-btn flex-1 py-4 text-center font-medium text-sm flex items-center justify-center gap-2" data-tab="charts">
-                    <i class="fas fa-chart-bar"></i> 圖表分析
-                </button>
-            </div>
-
-            <div id="expensesTab" class="p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-bold text-lg text-slate-800">支出明細</h3>
-                    <button id="addExpenseBtn" class="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 transition shadow-md shadow-green-200 flex items-center gap-2 font-medium">
-                        <i class="fas fa-plus"></i> 記一筆
-                    </button>
-                </div>
-                
-                <div id="expenseList" class="space-y-4 max-h-[600px] overflow-y-auto pr-2 pb-4">
-                    <div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400">
-                        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                            <i class="fas fa-book text-2xl text-slate-300"></i>
-                        </div>
-                        <p>請先選擇帳冊，開始記錄您的旅程</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="queryTab" class="p-6 hidden">
-                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 mb-6">
-                    <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-filter text-blue-500"></i> 篩選條件</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">金主 (支付者)</label>
-                            <div class="relative">
-                                <select id="queryPayer" class="w-full appearance-none bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
-                                <i class="fas fa-caret-down absolute right-3 top-2.5 text-slate-400 pointer-events-none"></i>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">分攤人員</label>
-                            <div class="relative">
-                                <select id="querySplitter" class="w-full appearance-none bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
-                                <i class="fas fa-caret-down absolute right-3 top-2.5 text-slate-400 pointer-events-none"></i>
-                            </div>
-                        </div>
-                        <div class="flex items-end">
-                            <button id="queryBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
-                                開始統計
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="queryResults" class="hidden animate-fade-in">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                            <div class="text-slate-500 text-sm mb-1">符合總支出</div>
-                            <div id="totalAmount" class="text-2xl font-bold text-slate-800">0</div>
-                        </div>
-                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                             <div class="text-slate-500 text-sm mb-1">金主請客額</div>
-                             <div id="treatAmount" class="text-2xl font-bold text-pink-500">0</div>
-                        </div>
-                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                            <div class="text-slate-500 text-sm mb-1">應付/分攤金額</div>
-                            <div id="splitterAmount" class="text-2xl font-bold text-purple-600">0</div>
-                        </div>
-                        <div class="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                            <div class="text-slate-500 text-sm mb-1">符合筆數</div>
-                            <div id="totalCount" class="text-2xl font-bold text-blue-600">0</div>
-                        </div>
-                    </div>
-
-                    <!-- 科目與城市統計 -->
-                    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fas fa-tag text-blue-500"></i> 科目支出統計</h4>
-                            <div id="categoryStats" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1"></div>
-                        </div>
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fas fa-map-marker-alt text-red-500"></i> 城市支出統計</h4>
-                            <div id="cityStats" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1"></div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden mt-6">
-                        <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 font-bold text-slate-700 text-sm">分攤明細 (不含請客)</div>
-                        <div id="splitterDetails" class="divide-y divide-slate-100 max-h-80 overflow-y-auto"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="chartsTab" class="p-6 hidden">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">金主支付比例 (含請客)</h3>
-                        <div class="chart-container"><canvas id="payerChart"></canvas></div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">人員應付分攤 (不含請客)</h3>
-                        <div class="chart-container"><canvas id="splitterChart"></canvas></div>
-                    </div>
-                </div>
-                <!-- 新增科目與城市圖表 -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">科目支出比例</h3>
-                        <div class="chart-container"><canvas id="categoryChart"></canvas></div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">城市支出比例</h3>
-                        <div class="chart-container"><canvas id="cityChart"></canvas></div>
-                    </div>
-                </div>
-            </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div class="flex justify-between items-center mb-6"><h3 class="font-bold text-lg">支出明細</h3><button id="addExpenseBtn" class="bg-green-600 text-white px-5 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 記一筆</button></div>
+            <div id="expenseList" class="space-y-4 max-h-[600px] overflow-y-auto"></div>
         </div>
     </main>
 
-    <div id="aboutModal" class="modal">
-        <div class="modal-content animate-fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-800">關於本程式</h3>
-                <button class="closeModal text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times text-xl"></i></button>
+    <div id="aboutModal" class="modal"><div class="modal-content"><div class="flex justify-between"><h3 class="text-xl font-bold">關於</h3><button class="closeModal"><i class="fas fa-times"></i></button></div><div id="qrcodeContainer" class="flex justify-center my-4"></div><p class="text-center text-sm">旅遊收支記帳管家 Pro<br>版本 <span id="aboutVersion"></span></p></div></div>
+    
+    <!-- 使用者設定 Modal - 改良顯示目前登入者 -->
+    <div id="userProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="userModalTitle" class="text-xl font-bold text-slate-800">使用者設定</h3>
+                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
             </div>
-            <div class="space-y-4">
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="bg-amber-500 text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg">
-                        <i class="fas fa-fire"></i>
-                    </div>
+            <div id="currentUserInfo" class="mb-4 p-3 bg-slate-50 rounded-lg hidden">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center"><i class="fas fa-user-circle text-xl"></i></div>
                     <div>
-                        <h4 class="font-bold text-lg text-slate-800">旅遊收支記帳管家</h4>
-                        <p class="text-slate-500 text-sm">Pro 專業版 (Firebase Sync)</p>
+                        <div class="font-bold" id="currentUserName"></div>
+                        <div class="text-xs text-slate-500" id="currentUserEmail"></div>
                     </div>
                 </div>
-                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2 text-sm">
-                    <div class="flex justify-between"><span class="font-medium text-slate-500">版次</span> <span id="aboutVersion" class="font-mono text-slate-700"></span></div>
-                    <div class="flex justify-between"><span class="font-medium text-slate-500">構想提供</span> <span class="text-slate-700">JumperHsu</span></div>
-                    <div class="flex justify-between"><span class="font-medium text-slate-500">設計開發</span> <span class="text-slate-700">DeepSeek/Gemini 3 Pro</span></div>
-                    <div class="flex justify-between"><span class="font-medium text-slate-500">資料庫</span> <span class="text-slate-700">Google Firebase</span></div>
-                </div>
-
-                <!-- QR Code 分享區塊 -->
-                <div class="text-center pt-2 border-t border-slate-100 mt-4">
-                    <p class="text-sm font-medium text-slate-700 mb-3 flex items-center justify-center gap-2">
-                        <i class="fas fa-qrcode text-blue-500"></i> 掃描 QR Code 開啟本程式
-                    </p>
-                    <div id="qrcodeContainer" class="flex justify-center my-2"></div>
-                    <div class="text-xs text-slate-400 mt-2 break-all" id="currentUrlDisplay"></div>
-                </div>
-
-                <div class="text-xs text-slate-400 text-center pt-2">
-                    <p>資料將自動同步至 travelexpense-fcc89 專案</p>
-                </div>
             </div>
-        </div>
-    </div>
-
-    <div id="userProfileModal" class="modal" data-backdrop="static">
-        <div class="modal-content animate-fade-in text-center">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-800" id="userModalTitle">使用者設定</h3>
-                <button class="closeModal text-slate-400 hover:text-slate-600" id="userModalCloseBtn"><i class="fas fa-times text-xl"></i></button>
-            </div>
-            
-            <div class="mb-6">
-                <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl border border-blue-100">
-                    <i class="fas fa-user-circle"></i>
-                </div>
-                <p class="text-slate-600 mb-4 font-medium" id="userModalDesc">請輸入您的資訊以識別身份</p>
-            </div>
-
-            <form id="userForm" class="text-left space-y-4">
+            <form id="userForm" class="space-y-4">
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-1">顯示名稱 (暱稱)</label>
-                    <input type="text" id="inputUserName" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：小明">
+                    <input type="text" id="inputUserName" required class="w-full border rounded p-2" placeholder="例如：小明">
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Google Email <span class="text-xs font-normal text-slate-500">(用於權限識別)</span></label>
-                    <input type="email" id="inputUserEmail" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="example@gmail.com">
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Google Email</label>
+                    <input type="email" id="inputUserEmail" required class="w-full border rounded p-2" placeholder="example@gmail.com">
                 </div>
-                
-                <div id="adminBadgeContainer" class="hidden text-center mt-2">
-                     <span class="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold inline-flex items-center">
-                        <i class="fas fa-shield-alt mr-1"></i> 您是系統管理員
-                    </span>
+                <div id="adminBadgeContainer" class="hidden text-center">
+                    <span class="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full"><i class="fas fa-shield-alt mr-1"></i> 系統管理員</span>
                 </div>
-
-                <div class="pt-4 border-t border-slate-100 mt-4 flex flex-col gap-3">
-                    <button type="submit" class="w-full bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium shadow-md shadow-blue-200">確認並登入</button>
-                    <button type="button" id="switchUserBtn" class="hidden w-full border border-slate-300 text-slate-600 bg-white px-6 py-2.5 rounded-lg hover:bg-slate-50 transition font-medium">切換使用者 (登出)</button>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">更新資料</button>
+                    <button type="button" id="switchUserBtn" class="border border-slate-300 text-slate-600 px-4 py-2 rounded hover:bg-slate-50">切換使用者</button>
                 </div>
             </form>
         </div>
     </div>
-
+    
     <div id="ledgerModal" class="modal">
-        <div class="modal-content animate-fade-in" style="max-width: 800px;">
-            <div class="flex justify-between items-center mb-6">
-                <h3 id="ledgerModalTitle" class="text-xl font-bold text-slate-800">新增帳冊</h3>
-                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
-            </div>
+        <div class="modal-content">
+            <h3 id="ledgerModalTitle" class="text-xl font-bold mb-4">新增帳冊</h3>
             <form id="ledgerForm">
-                <div class="mb-6">
-                    <label class="block text-sm font-bold text-slate-700 mb-1.5">帳冊名稱</label>
-                    <input type="text" id="ledgerName" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：2025 日本東京賞櫻">
-                </div>
-                
-                <div class="mb-6">
-                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i class="fas fa-tags text-blue-500"></i> 科目設定</h4>
-                    <div class="config-cols">
-                        <div class="config-col">
-                            <div class="config-col-header">主要科目 <span class="text-xs font-normal bg-slate-200 px-2 py-0.5 rounded">Enter 新增</span></div>
-                            <div class="config-col-body" id="mainCatList"></div>
-                            <div class="config-col-footer">
-                                <input type="text" id="newMainCatInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="輸入名稱">
-                                <button type="button" id="btnAddMainCat" class="bg-blue-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                        <div class="config-col">
-                            <div class="config-col-header">次要科目 <span class="text-xs font-normal text-slate-400">需先選左側主科目</span></div>
-                            <div class="config-col-body" id="subCatList">
-                                <div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側主要科目</div>
-                            </div>
-                            <div class="config-col-footer">
-                                <input type="text" id="newSubCatInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-green-500 outline-none" placeholder="輸入名稱" disabled>
-                                <button type="button" id="btnAddSubCat" class="bg-green-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-green-700 disabled:opacity-50" disabled><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-6">
-                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i class="fas fa-map-marker-alt text-red-500"></i> 地點設定</h4>
-                    <div class="config-cols">
-                        <div class="config-col">
-                            <div class="config-col-header">城市 <span class="text-xs font-normal bg-slate-200 px-2 py-0.5 rounded">Enter 新增</span></div>
-                            <div class="config-col-body" id="cityList"></div>
-                            <div class="config-col-footer">
-                                <input type="text" id="newCityInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="輸入名稱">
-                                <button type="button" id="btnAddCity" class="bg-blue-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                        <div class="config-col">
-                            <div class="config-col-header">區域 <span class="text-xs font-normal text-slate-400">需先選左側城市</span></div>
-                            <div class="config-col-body" id="districtList">
-                                <div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側城市</div>
-                            </div>
-                            <div class="config-col-footer">
-                                <input type="text" id="newDistrictInput" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:border-green-500 outline-none" placeholder="輸入名稱" disabled>
-                                <button type="button" id="btnAddDistrict" class="bg-green-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-green-700 disabled:opacity-50" disabled><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-6">
-                    <label class="block text-sm font-bold text-slate-700 mb-2">分攤人員 <span class="text-xs font-normal text-slate-500 ml-2">(輸入 Google Email 可連結權限)</span></label>
-                    <div class="flex flex-col gap-2 p-4 border border-slate-300 rounded-lg mb-3 min-h-[60px] bg-slate-50" id="memberTagsList"></div>
-                    <div class="flex gap-2">
-                        <input type="text" id="memberInput" class="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="輸入姓名或 姓名<email> 後按 Enter">
-                        <button type="button" id="addMemberBtn" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-medium">新增</button>
-                    </div>
-                </div>
-                
-                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                    <button type="button" class="closeModal bg-white border border-slate-300 text-slate-700 px-6 py-2.5 rounded-lg hover:bg-slate-50 transition">取消</button>
-                    <button type="submit" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-200">儲存設定</button>
+                <input type="text" id="ledgerName" placeholder="帳冊名稱" required class="w-full border rounded p-2 mb-4">
+                <div id="configArea"></div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" class="closeModal bg-white border px-4 py-2 rounded">取消</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">儲存</button>
                 </div>
             </form>
         </div>
     </div>
-
-    <div id="expenseModal" class="modal">
+    
+    <div id="expenseModal" class="modal" data-backdrop="static">
         <div class="modal-content animate-fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 id="expenseModalTitle" class="text-xl font-bold text-slate-800">新增支出</h3>
-                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
-            </div>
-            
-            <div id="lockedMessage" class="hidden mb-4 p-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm flex items-center gap-2">
-                <i class="fas fa-lock"></i> 帳冊已鎖定，您僅有檢視權限。
-            </div>
-
+            <h3 id="expenseModalTitle" class="text-xl font-bold mb-4">新增支出</h3>
+            <div id="lockedMessage" class="hidden mb-4 p-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm"><i class="fas fa-lock"></i> 帳冊已鎖定，您僅有檢視權限。</div>
             <form id="expenseForm">
                 <fieldset id="expenseFieldset">
-                    <div class="grid grid-cols-2 gap-4 mb-5">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">日期</label>
-                            <input type="date" id="expenseDate" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">時間</label>
-                            <input type="time" id="expenseTime" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                        </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <input type="date" id="expenseDate" required class="border rounded p-2">
+                        <input type="time" id="expenseTime" required class="border rounded p-2">
                     </div>
-                    
-                    <div class="grid grid-cols-2 gap-4 mb-5">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">科目</label>
-                            <select id="expenseCategory" required class="hierarchical-select">
-                                <option value="">請選擇科目</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">地點</label>
-                            <select id="expenseLocation" required class="hierarchical-select">
-                                <option value="">請選擇地點</option>
-                            </select>
-                        </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <select id="expenseCategory" required class="border rounded p-2"></select>
+                        <select id="expenseLocation" required class="border rounded p-2"></select>
                     </div>
-                    
-                    <div id="destinationWrapper" class="hidden mb-5">
-                        <label class="block text-xs font-bold text-blue-500 mb-1.5 uppercase"><i class="fas fa-map-marker-alt mr-1"></i> 目的地點 (交通)</label>
-                        <select id="expenseDestination" class="hierarchical-select border-blue-300 bg-blue-50">
-                            <option value="">請選擇目的地</option>
-                        </select>
+                    <div id="destinationWrapper" class="hidden mb-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">目的地點</label>
+                        <select id="expenseDestination" class="border rounded p-2 w-full"></select>
                     </div>
-
-                    <div class="mb-5">
-                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">摘要說明</label>
-                        <input type="text" id="expenseDescription" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="自動根據科目、地點生成...">
+                    <input type="text" id="expenseDescription" placeholder="摘要" required class="w-full border rounded p-2 mb-4">
+                    <div class="relative mb-4">
+                        <span class="absolute left-3 top-2 text-slate-400">$</span>
+                        <input type="number" id="expenseAmount" step="0.01" placeholder="金額" required class="w-full border rounded pl-8 p-2">
                     </div>
-
-                    <div class="grid grid-cols-2 gap-4 mb-5">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">金額</label>
-                            <div class="relative">
-                                <span class="absolute left-3 top-2.5 text-slate-400">$</span>
-                                <input type="number" id="expenseAmount" required min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-8 pr-4 py-2.5 font-mono text-lg font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">金主</label>
-                            <select id="expensePayer" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white"></select>
-                        </div>
+                    <select id="expensePayer" required class="w-full border rounded p-2 mb-4"></select>
+                    <div class="mb-4 p-3 bg-slate-50 rounded-lg">
+                        <div class="font-medium text-sm mb-2">分攤人員與付款狀態</div>
+                        <div id="expenseSplitters" class="space-y-2 mb-2"></div>
+                        <div class="text-right text-sm">每人平均：<span id="averageAmount" class="font-bold text-blue-600">0.00</span></div>
                     </div>
-
-                    <div class="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <div class="flex justify-between items-center mb-3">
-                            <label class="block text-xs font-bold text-slate-500 uppercase">分攤人員</label>
-                            <div class="flex items-center">
-                                <input type="checkbox" id="selectAllSplitters" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer mr-2">
-                                <label for="selectAllSplitters" class="text-sm text-slate-600 cursor-pointer select-none">全選</label>
-                            </div>
-                        </div>
-                        <div id="expenseSplitters" class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-32 overflow-y-auto mb-3"></div>
-                        <div class="text-right text-sm text-slate-600 border-t border-slate-200 pt-2">
-                            每人平均：<span id="averageAmount" class="font-bold text-blue-600 text-lg ml-1">0</span>
-                        </div>
+                    <div class="flex gap-4 mb-4">
+                        <label class="flex items-center gap-1"><input type="checkbox" id="expenseTreat"> 金主請客</label>
                     </div>
-
-                    <div class="mb-6 flex flex-wrap gap-4">
-                        <div class="flex items-center">
-                            <input type="checkbox" id="expenseSettled" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer mr-2">
-                            <label for="expenseSettled" class="font-medium text-slate-700 cursor-pointer select-none">此筆款項已結清</label>
-                        </div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="expenseTreat" class="w-5 h-5 rounded text-pink-500 focus:ring-pink-400 border-gray-300 cursor-pointer mr-2">
-                            <label for="expenseTreat" class="font-medium text-pink-600 cursor-pointer select-none"><i class="fas fa-gift mr-1"></i> 金主請客</label>
-                        </div>
-                    </div>
-
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase">收據圖片</label>
-                        <input type="file" id="expenseReceipt" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                        <div id="receiptPreview" class="mt-3 hidden text-center bg-slate-100 rounded-lg p-2">
-                            <img id="receiptImagePreview" class="receipt-preview mx-auto">
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100" id="expenseModalActions">
-                        <button type="button" class="closeModal bg-white border border-slate-300 text-slate-700 px-6 py-2.5 rounded-lg hover:bg-slate-50 transition">取消</button>
-                        <button type="submit" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-200">儲存記錄</button>
+                    <input type="file" id="expenseReceipt" accept="image/*" class="mb-4">
+                    <div id="receiptPreview" class="hidden mb-4"><img id="receiptImagePreview" class="receipt-preview"></div>
+                    <div class="flex justify-end gap-3 pt-2">
+                        <button type="button" id="cancelExpenseBtn" class="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg">取消</button>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg shadow-md">儲存記錄</button>
                     </div>
                 </fieldset>
             </form>
         </div>
     </div>
-
-    <div id="receiptViewModal" class="modal">
-        <div class="modal-content animate-fade-in text-center p-0 overflow-hidden bg-black" style="max-width: 800px; background: transparent;">
-            <div class="relative">
-                <button class="closeModal absolute top-4 right-4 bg-black/50 text-white w-10 h-10 rounded-full hover:bg-black/70 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
-                <img id="receiptViewImage" class="max-w-full max-h-[80vh] rounded-lg shadow-2xl mx-auto">
-            </div>
-        </div>
-    </div>
-
-    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-xl hidden z-[2000] flex items-center gap-3 animate-fade-in transform translate-y-0">
-        <i class="fas fa-info-circle text-blue-400"></i>
-        <span id="toastMsg"></span>
-    </div>
-
-    <div id="syncOverlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-[2000] flex items-center justify-center">
-        <div class="bg-white px-8 py-6 rounded-2xl shadow-2xl text-center">
-            <div class="inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <div class="font-bold text-slate-800 text-lg" id="syncMsg">處理中...</div>
-        </div>
-    </div>
+    
+    <div id="receiptViewModal" class="modal"><div class="modal-content p-0 bg-black/80 text-center"><img id="receiptViewImage" class="max-w-full max-h-[80vh] mx-auto"><button class="closeModal absolute top-2 right-2 text-white text-2xl">&times;</button></div></div>
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50"></div>
 
     <script>
-        // ========== 版本 v20260331.001 - 智能摘要完整版 ==========
-        // 功能：交通類支出自動生成「出發地 往 目的地」摘要
-        //       其他支出自動生成「城市+區域+主科目+子科目」摘要（例：上海七寶古鎮飲食早餐）
-        //       編輯時保留原摘要，僅在用戶變更科目/地點時觸發更新
-        // ====================================================
-        const CURRENT_VERSION = 'v20260331.001';
+        const CURRENT_VERSION = 'v20260602.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
-        
-        // --- Firebase Config ---
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
             authDomain: "travelexpense-fcc89.firebaseapp.com",
@@ -640,310 +202,187 @@
             messagingSenderId: "77168421477",
             appId: "1:77168421477:web:c8f123a416c81197b1348c"
         };
-
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const dbRef = db.ref('travel_data');
-
-        // --- 全域變數 ---
+        
         let appData = { ledgers: [], currentLedgerId: null, expenses: [] };
         let currentUser = null;
-        let isFirebaseConnected = false;
-        
-        let tempLedger = {
-            mainCats: [], subCats: {}, cities: [], districts: {}, members: []
-        };
-        
-        let selectedMainCatId = null;
-        let selectedCityId = null;
         let currentEditingExpenseId = null;
-        let charts = {};
-        let skipAutoSummary = false;   // 編輯模式時避免自動覆蓋摘要
+        let skipAutoSummary = false;
+        let tempLedger = { mainCats: [], subCats: {}, cities: [], districts: {}, members: [] };
+        let selectedMainCatId = null, selectedCityId = null;
+        let isFirebaseConnected = false;
 
-        // ========== DOMContentLoaded 啟動點 ==========
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('versionTag').textContent = CURRENT_VERSION;
-            document.getElementById('aboutVersion').textContent = CURRENT_VERSION;
-            
-            loadLocalData();
-            initUserSystem();
-            setupFirebaseSync();
-            setupEvents();
-            updateUI();
-        });
+        function isTransportByMainCat(mainName) {
+            return mainName && mainName.includes('交通');
+        }
 
-        // ========== 資料持久層 ==========
+        function upgradeOldExpense(exp) {
+            if(exp.splitterSettled === undefined && exp.splitters) {
+                const isSettled = exp.isSettled === true;
+                const splitterSettled = {};
+                exp.splitters.forEach(s => { splitterSettled[s] = isSettled; });
+                exp.splitterSettled = splitterSettled;
+                delete exp.isSettled;
+            }
+            return exp;
+        }
+
         function loadLocalData() {
             const saved = localStorage.getItem('travelAccountingApp');
             if (saved) {
-                try { appData = JSON.parse(saved); } catch (e) { console.error(e); }
+                try {
+                    const parsed = JSON.parse(saved);
+                    appData = {
+                        ledgers: Array.isArray(parsed.ledgers) ? parsed.ledgers : [],
+                        currentLedgerId: parsed.currentLedgerId || null,
+                        expenses: (Array.isArray(parsed.expenses) ? parsed.expenses : []).map(upgradeOldExpense)
+                    };
+                } catch(e) {
+                    console.error("JSON parse error", e);
+                    appData = { ledgers: [], currentLedgerId: null, expenses: [] };
+                }
             }
             if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) {
                 appData.currentLedgerId = null;
             }
         }
-
         function saveData() {
             localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
             if(isFirebaseConnected) {
-                const statusEl = document.getElementById('syncStatus');
-                statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 上傳中...';
-                statusEl.classList.remove('hidden', 'bg-green-100', 'text-green-700');
-                statusEl.classList.add('bg-blue-100', 'text-blue-700');
-
-                dbRef.set(appData)
-                    .then(() => {
-                        setTimeout(() => {
-                            statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 已同步';
-                            statusEl.classList.remove('bg-blue-100', 'text-blue-700');
-                            statusEl.classList.add('bg-green-100', 'text-green-700');
-                        }, 500);
-                    })
-                    .catch((error) => {
-                        console.error("Firebase Sync Error", error);
-                        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 同步失敗';
-                        statusEl.classList.remove('bg-blue-100', 'text-blue-700');
-                        statusEl.classList.add('bg-red-100', 'text-red-700');
-                    });
+                db.ref('travel_data').set(appData).catch(e => console.error("Firebase save error", e));
             }
         }
-
-        // ========== Firebase 同步監聽 ==========
         function setupFirebaseSync() {
-            const statusEl = document.getElementById('syncStatus');
-            const cloudIcon = document.getElementById('cloudStatus');
-            statusEl.classList.remove('hidden');
-            
+            const statusEl = document.getElementById('firebaseStatus');
             db.ref('.info/connected').on('value', (snap) => {
                 if (snap.val() === true) {
                     isFirebaseConnected = true;
-                    cloudIcon.classList.remove('text-slate-400');
-                    cloudIcon.classList.add('text-green-500', 'bg-green-50');
-                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 已同步';
-                    statusEl.classList.add('bg-green-100', 'text-green-700');
+                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> <span>已連線</span>';
+                    statusEl.classList.remove('bg-red-100', 'text-red-600');
+                    statusEl.classList.add('bg-green-100', 'text-green-600');
                 } else {
                     isFirebaseConnected = false;
-                    cloudIcon.classList.add('text-slate-400');
-                    cloudIcon.classList.remove('text-green-500', 'bg-green-50');
-                    statusEl.innerHTML = '<i class="fas fa-wifi"></i> 離線模式';
-                    statusEl.classList.remove('bg-green-100', 'text-green-700');
-                    statusEl.classList.add('bg-slate-100', 'text-slate-600');
+                    statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> <span>離線模式</span>';
+                    statusEl.classList.remove('bg-green-100', 'text-green-600');
+                    statusEl.classList.add('bg-yellow-100', 'text-yellow-600');
+                    showToast('Firebase 連線失敗，資料僅儲存於本機');
                 }
             });
 
-            dbRef.on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    appData = data;
-                    localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
-                    updateUI(); 
-                } else {
-                    if (appData.ledgers.length > 0) {
-                        saveData(); 
+            db.ref('travel_data').on('value', (snap) => {
+                if (snap.val()) {
+                    const remote = snap.val();
+                    const newAppData = {
+                        ledgers: Array.isArray(remote.ledgers) ? remote.ledgers : [],
+                        currentLedgerId: remote.currentLedgerId || null,
+                        expenses: (Array.isArray(remote.expenses) ? remote.expenses : []).map(upgradeOldExpense)
+                    };
+                    if(JSON.stringify(appData) !== JSON.stringify(newAppData)) {
+                        appData = newAppData;
+                        localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
+                        updateUI();
+                        showToast('雲端資料已同步');
                     }
+                } else {
+                    if(appData.ledgers.length > 0) saveData();
                 }
             });
         }
 
-        // ========== 使用者系統 ==========
         function initUserSystem() {
             const savedUser = localStorage.getItem('travelAccountingUser');
             if (savedUser) {
-                currentUser = JSON.parse(savedUser);
-                updateUserUI();
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    updateUserUI();
+                } catch(e) { currentUser = null; showUserModal(); }
             } else {
-                showUserModal(true); 
+                showUserModal();
             }
         }
-
-        function showUserModal(forced = false) {
+        function showUserModal() {
             const modal = document.getElementById('userProfileModal');
-            const closeBtn = document.getElementById('userModalCloseBtn');
-            const switchBtn = document.getElementById('switchUserBtn');
+            const currentInfoDiv = document.getElementById('currentUserInfo');
+            const userNameSpan = document.getElementById('currentUserName');
+            const userEmailSpan = document.getElementById('currentUserEmail');
+            const inputName = document.getElementById('inputUserName');
+            const inputEmail = document.getElementById('inputUserEmail');
+            const adminBadge = document.getElementById('adminBadgeContainer');
             const title = document.getElementById('userModalTitle');
-            const desc = document.getElementById('userModalDesc');
-
-            modal.style.display = 'block';
-
-            if (forced) {
-                closeBtn.style.display = 'none';
-                switchBtn.classList.add('hidden');
-                title.textContent = "歡迎使用";
-                desc.textContent = "初次使用，請設定您的身份";
-                modal.onclick = null; 
-            } else {
-                closeBtn.style.display = 'block';
-                if (currentUser) {
-                    switchBtn.classList.remove('hidden');
-                    document.getElementById('inputUserName').value = currentUser.name;
-                    document.getElementById('inputUserEmail').value = currentUser.email;
-                    title.textContent = "編輯個人資料";
-                    desc.textContent = "更新您的顯示名稱或 Email";
-                }
-            }
             
-            const badge = document.getElementById('adminBadgeContainer');
-            if(currentUser && currentUser.email === APP_ADMIN_EMAIL) {
-                badge.classList.remove('hidden');
+            if (currentUser) {
+                currentInfoDiv.classList.remove('hidden');
+                userNameSpan.innerText = currentUser.name;
+                userEmailSpan.innerText = currentUser.email;
+                inputName.value = currentUser.name;
+                inputEmail.value = currentUser.email;
+                title.innerText = '編輯個人資料';
+                if (currentUser.email === APP_ADMIN_EMAIL) {
+                    adminBadge.classList.remove('hidden');
+                } else {
+                    adminBadge.classList.add('hidden');
+                }
             } else {
-                badge.classList.add('hidden');
+                currentInfoDiv.classList.add('hidden');
+                inputName.value = '';
+                inputEmail.value = '';
+                title.innerText = '登入 / 註冊';
+                adminBadge.classList.add('hidden');
             }
+            modal.style.display = 'block';
         }
-
         function handleUserLogin(e) {
             e.preventDefault();
             const name = document.getElementById('inputUserName').value.trim();
             const email = document.getElementById('inputUserEmail').value.trim();
             if (!name || !email) return showToast('請完整輸入名稱與 Email');
-
+            const previousUser = currentUser;
             currentUser = { name, email };
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
             document.getElementById('userProfileModal').style.display = 'none';
-            document.getElementById('userProfileModal').onclick = (ev) => {
-                 if(ev.target.classList.contains('modal')) ev.target.style.display = 'none';
-            };
             updateUserUI();
-            updateUI();
+            if (!previousUser || previousUser.email !== email) {
+                // 切換使用者時重設當前選擇的帳冊，避免權限問題
+                appData.currentLedgerId = null;
+                updateUI();
+            } else {
+                updateUI();
+            }
             showToast(`歡迎, ${name}`);
         }
-
         function updateUserUI() {
-            if (currentUser) {
-                document.getElementById('userStatusDot').classList.remove('bg-red-400');
-                document.getElementById('userStatusDot').classList.add('bg-green-500');
-                updateAdminControls();
-            } else {
-                document.getElementById('userStatusDot').classList.add('bg-red-400');
-                document.getElementById('userStatusDot').classList.remove('bg-green-500');
-            }
+            const dot = document.getElementById('userStatusDot');
+            if (currentUser) dot.classList.replace('bg-red-400', 'bg-green-500');
+            else dot.classList.replace('bg-green-500', 'bg-red-400');
+            updateAdminControls();
         }
-
         function updateAdminControls() {
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
-            const adminPanel = document.getElementById('adminControls');
-            if(isAdmin) adminPanel.classList.remove('hidden');
-            else adminPanel.classList.add('hidden');
+            document.getElementById('adminControls').classList.toggle('hidden', !isAdmin);
         }
 
-        // ========== 智能摘要核心函數 ==========
-        // 取得當前選擇的科目名稱
-        function getSelectedCategoryNames() {
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            if(!ledger) return { main: null, sub: null };
-            const catVal = document.getElementById('expenseCategory')?.value;
-            if(!catVal) return { main: null, sub: null };
-            if(catVal.startsWith('main_')) {
-                const id = catVal.split('_')[1];
-                const main = ledger.categories.main.find(c => c.id === id);
-                return { main: main?.name || null, sub: null };
-            } else if(catVal.startsWith('sub_')) {
-                const parts = catVal.split('_');
-                const mainId = parts[1];
-                const subId = parts[2];
-                const main = ledger.categories.main.find(c => c.id === mainId);
-                const subList = ledger.categories.sub[mainId] || [];
-                const sub = subList.find(s => s.id === subId);
-                return { main: main?.name || null, sub: sub?.name || null };
-            }
-            return { main: null, sub: null };
-        }
-
-        // 取得當前選擇的地點名稱（城市、區域）
-        function getSelectedLocationNames() {
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            if(!ledger) return { city: null, district: null };
-            const locVal = document.getElementById('expenseLocation')?.value;
-            if(!locVal) return { city: null, district: null };
-            if(locVal.startsWith('city_')) {
-                const id = locVal.split('_')[1];
-                const city = ledger.locations.cities.find(c => c.id === id);
-                return { city: city?.name || null, district: null };
-            } else if(locVal.startsWith('district_')) {
-                const parts = locVal.split('_');
-                const cityId = parts[1];
-                const distId = parts[2];
-                const city = ledger.locations.cities.find(c => c.id === cityId);
-                const distList = ledger.locations.districts[cityId] || [];
-                const district = distList.find(d => d.id === distId);
-                return { city: city?.name || null, district: district?.name || null };
-            }
-            return { city: null, district: null };
-        }
-
-        // 非交通類自動生成摘要（地點 + 科目）
-        function generateNonTransportSummary() {
-            const loc = getSelectedLocationNames();
-            const cat = getSelectedCategoryNames();
-            let parts = [];
-            if(loc.city) parts.push(loc.city);
-            if(loc.district) parts.push(loc.district);
-            if(cat.main) parts.push(cat.main);
-            if(cat.sub) parts.push(cat.sub);
-            return parts.join('');
-        }
-
-        // 交通類摘要（出發地→目的地）
-        function updateTransportDesc() {
-            if(skipAutoSummary) return;
-            const originSelect = document.getElementById('expenseLocation');
-            const destSelect = document.getElementById('expenseDestination');
-            const getText = (el) => {
-                if(el.selectedIndex < 0 || !el.value) return '';
-                let txt = el.options[el.selectedIndex].text;
-                return txt.replace(/^[　↳\s]+/, '').trim();
-            };
-            const origin = getText(originSelect);
-            const dest = getText(destSelect);
-            const descField = document.getElementById('expenseDescription');
-            if(origin && dest) {
-                descField.value = `${origin} 往 ${dest}`;
-            } else if(origin && !dest) {
-                descField.value = `${origin} 出發`;
-            } else {
-                descField.value = '';
+        function checkUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const action = urlParams.get('action');
+            const expenseId = urlParams.get('expenseId');
+            const ledgerId = urlParams.get('ledgerId');
+            if (action === 'edit' && expenseId && ledgerId) {
+                appData.currentLedgerId = ledgerId;
+                updateUI();
+                setTimeout(() => { openExpenseModal(expenseId); }, 500);
+                window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
 
-        // 統一刷新摘要：根據是否交通類選擇對應方式
-        function refreshSummaryByMode() {
-            if(skipAutoSummary) return;
-            const catNames = getSelectedCategoryNames();
-            const isTransport = catNames.main && catNames.main.includes('交通');
-            if(isTransport) {
-                updateTransportDesc();
-            } else {
-                const autoSummary = generateNonTransportSummary();
-                if(autoSummary) {
-                    document.getElementById('expenseDescription').value = autoSummary;
-                }
-            }
-        }
-
-        // 檢查是否為交通類，控制目的地欄位顯示/隱藏，並刷新摘要
-        function checkTransportAndRefresh() {
-            const catNames = getSelectedCategoryNames();
-            const isTransport = catNames.main && catNames.main.includes('交通');
-            const destWrapper = document.getElementById('destinationWrapper');
-            if(isTransport) {
-                destWrapper.classList.remove('hidden');
-                refreshSummaryByMode();
-            } else {
-                destWrapper.classList.add('hidden');
-                document.getElementById('expenseDestination').value = "";
-                refreshSummaryByMode();
-            }
-        }
-
-        // ========== 帳冊設定相關函數（完整保留）==========
+        // ==================== 帳冊設定（完整功能）====================
         function openLedgerModal(ledgerId = null) {
+            const modal = document.getElementById('ledgerModal');
             const form = document.getElementById('ledgerForm');
             form.reset();
-            
             selectedMainCatId = null;
             selectedCityId = null;
-            tempLedger = { mainCats: [], subCats: {}, cities: [], districts: {}, members: [] };
-
+            
             if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
                 if (ledger) {
@@ -951,821 +390,517 @@
                         showToast('此帳冊已鎖定，無法修改設定');
                         return;
                     }
-                    document.getElementById('ledgerModalTitle').textContent = '編輯帳冊設定';
-                    document.getElementById('ledgerName').value = ledger.name;
-                    tempLedger.mainCats = JSON.parse(JSON.stringify(ledger.categories.main));
-                    tempLedger.subCats = JSON.parse(JSON.stringify(ledger.categories.sub));
-                    tempLedger.cities = JSON.parse(JSON.stringify(ledger.locations.cities));
-                    tempLedger.districts = JSON.parse(JSON.stringify(ledger.locations.districts));
-                    tempLedger.members = JSON.parse(JSON.stringify(ledger.members));
-                }
-            } else {
-                document.getElementById('ledgerModalTitle').textContent = '建立新帳冊';
-                if (currentUser) {
-                    tempLedger.members.push({ name: currentUser.name, email: currentUser.email });
+                    document.getElementById('ledgerModalTitle').innerText = '編輯帳冊設定';
+                    document.getElementById('ledgerName').value = ledger.name || '';
+                    tempLedger.mainCats = Array.isArray(ledger.categories?.main) ? JSON.parse(JSON.stringify(ledger.categories.main)) : [];
+                    tempLedger.subCats = ledger.categories?.sub ? JSON.parse(JSON.stringify(ledger.categories.sub)) : {};
+                    tempLedger.cities = Array.isArray(ledger.locations?.cities) ? JSON.parse(JSON.stringify(ledger.locations.cities)) : [];
+                    tempLedger.districts = ledger.locations?.districts ? JSON.parse(JSON.stringify(ledger.locations.districts)) : {};
+                    tempLedger.members = Array.isArray(ledger.members) ? JSON.parse(JSON.stringify(ledger.members)) : [];
+                } else {
+                    ledgerId = null;
                 }
             }
-
+            if (!ledgerId) {
+                document.getElementById('ledgerModalTitle').innerText = '建立新帳冊';
+                const now = Date.now();
+                const defaultMainCats = [
+                    { id: `${now}_1`, name: '交通' },
+                    { id: `${now}_2`, name: '飲食' },
+                    { id: `${now}_3`, name: '景點' },
+                    { id: `${now}_4`, name: '活動' },
+                    { id: `${now}_5`, name: '購物' },
+                    { id: `${now}_6`, name: '其他' }
+                ];
+                tempLedger.mainCats = defaultMainCats;
+                tempLedger.subCats = {};
+                defaultMainCats.forEach(cat => { tempLedger.subCats[cat.id] = []; });
+                tempLedger.cities = [];
+                tempLedger.districts = {};
+                tempLedger.members = currentUser ? [{ name: currentUser.name, email: currentUser.email }] : [];
+            }
             renderLedgerConfigUI();
-            document.getElementById('ledgerModal').style.display = 'block';
-            document.getElementById('ledgerForm').dataset.mode = ledgerId ? 'edit' : 'add';
-            document.getElementById('ledgerForm').dataset.id = ledgerId || '';
+            modal.style.display = 'block';
+            form.dataset.mode = ledgerId ? 'edit' : 'add';
+            form.dataset.id = ledgerId || '';
         }
-
         function renderLedgerConfigUI() {
-            renderList('mainCatList', tempLedger.mainCats, selectedMainCatId, 
-                (id) => {
-                    selectedMainCatId = id;
-                    renderLedgerConfigUI();
-                    document.getElementById('newSubCatInput').focus();
-                }, 
-                deleteMainCat,
-                (id, newVal) => {
-                    const item = tempLedger.mainCats.find(x => x.id === id);
-                    if(item) item.name = newVal;
-                },
-                (idx) => {
-                    if(idx > 0) {
-                        [tempLedger.mainCats[idx-1], tempLedger.mainCats[idx]] = [tempLedger.mainCats[idx], tempLedger.mainCats[idx-1]];
-                        renderLedgerConfigUI();
-                    }
-                },
-                (idx) => {
-                    if(idx < tempLedger.mainCats.length - 1) {
-                        [tempLedger.mainCats[idx+1], tempLedger.mainCats[idx]] = [tempLedger.mainCats[idx], tempLedger.mainCats[idx+1]];
-                        renderLedgerConfigUI();
-                    }
-                }
-            );
-
-            renderList('cityList', tempLedger.cities, selectedCityId, 
-                (id) => {
-                    selectedCityId = id;
-                    renderLedgerConfigUI();
-                    document.getElementById('newDistrictInput').focus();
-                }, 
-                deleteCity,
-                (id, newVal) => {
-                    const item = tempLedger.cities.find(x => x.id === id);
-                    if(item) item.name = newVal;
-                },
-                (idx) => {
-                    if(idx > 0) {
-                        [tempLedger.cities[idx-1], tempLedger.cities[idx]] = [tempLedger.cities[idx], tempLedger.cities[idx-1]];
-                        renderLedgerConfigUI();
-                    }
-                },
-                (idx) => {
-                    if(idx < tempLedger.cities.length - 1) {
-                        [tempLedger.cities[idx+1], tempLedger.cities[idx]] = [tempLedger.cities[idx], tempLedger.cities[idx+1]];
-                        renderLedgerConfigUI();
-                    }
-                }
-            );
-
-            const subCatListDiv = document.getElementById('subCatList');
-            const subInput = document.getElementById('newSubCatInput');
-            const subBtn = document.getElementById('btnAddSubCat');
-            
-            if (selectedMainCatId) {
+            const container = document.getElementById('configArea');
+            container.innerHTML = `
+                <div class="mb-6"><h4 class="font-bold mb-2">科目設定</h4><div class="config-cols"><div class="config-col"><div class="config-col-header">主要科目</div><div id="mainCatList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newMainCatInput" class="border rounded px-2 py-1 flex-1" placeholder="新科目"><button id="btnAddMainCat" class="bg-blue-600 text-white px-3 py-1 rounded">+</button></div></div><div class="config-col"><div class="config-col-header">次要科目</div><div id="subCatList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newSubCatInput" class="border rounded px-2 py-1 flex-1" placeholder="新次要" disabled><button id="btnAddSubCat" class="bg-green-600 text-white px-3 py-1 rounded" disabled>+</button></div></div></div></div>
+                <div class="mb-6"><h4 class="font-bold mb-2">地點設定</h4><div class="config-cols"><div class="config-col"><div class="config-col-header">城市</div><div id="cityList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newCityInput" class="border rounded px-2 py-1 flex-1" placeholder="新城市"><button id="btnAddCity" class="bg-blue-600 text-white px-3 py-1 rounded">+</button></div></div><div class="config-col"><div class="config-col-header">區域</div><div id="districtList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newDistrictInput" class="border rounded px-2 py-1 flex-1" placeholder="新區域" disabled><button id="btnAddDistrict" class="bg-green-600 text-white px-3 py-1 rounded" disabled>+</button></div></div></div></div>
+                <div><h4 class="font-bold mb-2">成員</h4><div id="memberTagsList" class="border rounded p-2 min-h-[60px] mb-2"></div><div class="flex gap-2"><input type="text" id="memberInput" class="border rounded px-2 py-1 flex-1" placeholder="姓名 或 姓名&lt;email&gt;"><button id="addMemberBtn" class="bg-blue-600 text-white px-3 py-1 rounded">新增</button></div></div>
+            `;
+            document.getElementById('btnAddMainCat').onclick = addMainCat;
+            document.getElementById('btnAddSubCat').onclick = addSubCat;
+            document.getElementById('btnAddCity').onclick = addCity;
+            document.getElementById('btnAddDistrict').onclick = addDistrict;
+            document.getElementById('addMemberBtn').onclick = addMember;
+            ['newMainCatInput','newSubCatInput','newCityInput','newDistrictInput','memberInput'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.addEventListener('keypress', (e) => { if(e.key==='Enter') e.preventDefault(); });
+            });
+            renderList('mainCatList', tempLedger.mainCats, selectedMainCatId, (id) => { selectedMainCatId = id; renderLedgerConfigUI(); }, deleteMainCat, (id,newVal)=>{ let m=tempLedger.mainCats.find(x=>x.id===id); if(m) m.name=newVal; renderLedgerConfigUI(); }, (idx)=>{ if(idx>0){ [tempLedger.mainCats[idx-1],tempLedger.mainCats[idx]]=[tempLedger.mainCats[idx],tempLedger.mainCats[idx-1]]; renderLedgerConfigUI(); } }, (idx)=>{ if(idx<tempLedger.mainCats.length-1){ [tempLedger.mainCats[idx+1],tempLedger.mainCats[idx]]=[tempLedger.mainCats[idx],tempLedger.mainCats[idx+1]]; renderLedgerConfigUI(); } });
+            renderList('cityList', tempLedger.cities, selectedCityId, (id) => { selectedCityId = id; renderLedgerConfigUI(); }, deleteCity, (id,newVal)=>{ let c=tempLedger.cities.find(x=>x.id===id); if(c) c.name=newVal; renderLedgerConfigUI(); }, (idx)=>{ if(idx>0){ [tempLedger.cities[idx-1],tempLedger.cities[idx]]=[tempLedger.cities[idx],tempLedger.cities[idx-1]]; renderLedgerConfigUI(); } }, (idx)=>{ if(idx<tempLedger.cities.length-1){ [tempLedger.cities[idx+1],tempLedger.cities[idx]]=[tempLedger.cities[idx],tempLedger.cities[idx+1]]; renderLedgerConfigUI(); } });
+            if(selectedMainCatId){
                 const subs = tempLedger.subCats[selectedMainCatId] || [];
-                renderList('subCatList', subs, null, null, 
-                    (subId) => deleteSubCat(selectedMainCatId, subId),
-                    (subId, newVal) => {
-                        const item = tempLedger.subCats[selectedMainCatId].find(x => x.id === subId);
-                        if(item) item.name = newVal;
-                    },
-                    (idx) => {
-                        if(idx > 0) {
-                            const arr = tempLedger.subCats[selectedMainCatId];
-                            [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
-                            renderLedgerConfigUI();
-                        }
-                    },
-                    (idx) => {
-                        const arr = tempLedger.subCats[selectedMainCatId];
-                        if(idx < arr.length - 1) {
-                            [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
-                            renderLedgerConfigUI();
-                        }
-                    }
-                );
-                subInput.disabled = false;
-                subBtn.disabled = false;
-                subCatListDiv.classList.remove('flex', 'items-center', 'justify-center');
+                renderList('subCatList', subs, null, null, (subId)=>deleteSubCat(selectedMainCatId,subId), (subId,newVal)=>{ let s=tempLedger.subCats[selectedMainCatId].find(x=>x.id===subId); if(s) s.name=newVal; renderLedgerConfigUI(); }, (idx)=>{ let arr=tempLedger.subCats[selectedMainCatId]; if(idx>0){ [arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]]; renderLedgerConfigUI(); } }, (idx)=>{ let arr=tempLedger.subCats[selectedMainCatId]; if(idx<arr.length-1){ [arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]]; renderLedgerConfigUI(); } });
+                document.getElementById('newSubCatInput').disabled = false;
+                document.getElementById('btnAddSubCat').disabled = false;
             } else {
-                subCatListDiv.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側主要科目</div>';
-                subInput.disabled = true;
-                subBtn.disabled = true;
+                document.getElementById('subCatList').innerHTML = '<div class="text-center text-slate-400 p-4">請選擇左側主要科目</div>';
+                document.getElementById('newSubCatInput').disabled = true;
+                document.getElementById('btnAddSubCat').disabled = true;
             }
-
-            const districtListDiv = document.getElementById('districtList');
-            const distInput = document.getElementById('newDistrictInput');
-            const distBtn = document.getElementById('btnAddDistrict');
-
-            if (selectedCityId) {
+            if(selectedCityId){
                 const dists = tempLedger.districts[selectedCityId] || [];
-                renderList('districtList', dists, null, null, 
-                    (distId) => deleteDistrict(selectedCityId, distId),
-                    (distId, newVal) => {
-                        const item = tempLedger.districts[selectedCityId].find(x => x.id === distId);
-                        if(item) item.name = newVal;
-                    },
-                    (idx) => {
-                        if(idx > 0) {
-                            const arr = tempLedger.districts[selectedCityId];
-                            [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
-                            renderLedgerConfigUI();
-                        }
-                    },
-                    (idx) => {
-                        const arr = tempLedger.districts[selectedCityId];
-                        if(idx < arr.length - 1) {
-                            [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
-                            renderLedgerConfigUI();
-                        }
-                    }
-                );
-                distInput.disabled = false;
-                distBtn.disabled = false;
-                districtListDiv.classList.remove('flex', 'items-center', 'justify-center');
+                renderList('districtList', dists, null, null, (distId)=>deleteDistrict(selectedCityId,distId), (distId,newVal)=>{ let d=tempLedger.districts[selectedCityId].find(x=>x.id===distId); if(d) d.name=newVal; renderLedgerConfigUI(); }, (idx)=>{ let arr=tempLedger.districts[selectedCityId]; if(idx>0){ [arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]]; renderLedgerConfigUI(); } }, (idx)=>{ let arr=tempLedger.districts[selectedCityId]; if(idx<arr.length-1){ [arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]]; renderLedgerConfigUI(); } });
+                document.getElementById('newDistrictInput').disabled = false;
+                document.getElementById('btnAddDistrict').disabled = false;
             } else {
-                districtListDiv.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 text-xs">請選擇左側城市</div>';
-                distInput.disabled = true;
-                distBtn.disabled = true;
+                document.getElementById('districtList').innerHTML = '<div class="text-center text-slate-400 p-4">請選擇左側城市</div>';
+                document.getElementById('newDistrictInput').disabled = true;
+                document.getElementById('btnAddDistrict').disabled = true;
             }
-
             renderMembers();
         }
-
         function renderList(containerId, items, selectedId, onSelect, onDelete, onEdit, onMoveUp, onMoveDown) {
             const container = document.getElementById(containerId);
+            if(!container) return;
             container.innerHTML = '';
             items.forEach((item, idx) => {
                 const el = document.createElement('div');
                 el.className = `tag-editable ${selectedId === item.id ? 'selected' : ''}`;
-                
-                const displayName = item.name || item; 
-                
-                el.innerHTML = `
-                    <span class="flex-1 truncate font-medium text-slate-700">${displayName}</span>
-                    <div class="tag-actions">
-                        ${onEdit ? `<div class="tag-btn-icon tag-btn-edit"><i class="fas fa-pen"></i></div>` : ''}
-                        ${onMoveUp ? `<div class="tag-btn-icon tag-btn-up"><i class="fas fa-arrow-up"></i></div>` : ''}
-                        ${onMoveDown ? `<div class="tag-btn-icon tag-btn-down"><i class="fas fa-arrow-down"></i></div>` : ''}
-                        <div class="tag-btn-icon tag-btn-delete"><i class="fas fa-times"></i></div>
-                    </div>
-                `;
-                
-                if (onSelect) {
-                    el.addEventListener('click', (e) => {
-                        if (!e.target.closest('.tag-actions')) onSelect(item.id);
-                    });
-                }
-                
-                if (onEdit) {
-                    el.querySelector('.tag-btn-edit').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const newVal = prompt('請輸入新名稱', displayName);
-                        if(newVal && newVal.trim() !== '') {
-                            onEdit(item.id, newVal.trim());
-                            renderLedgerConfigUI();
-                        }
-                    });
-                }
-                
-                if (onMoveUp) {
-                    el.querySelector('.tag-btn-up').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        onMoveUp(idx);
-                    });
-                }
-                
-                if (onMoveDown) {
-                    el.querySelector('.tag-btn-down').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        onMoveDown(idx);
-                    });
-                }
-
-                el.querySelector('.tag-btn-delete').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if(confirm('確定刪除此項目?')) onDelete(item.id);
-                });
+                el.innerHTML = `<span class="flex-1 truncate">${item.name}</span><div class="tag-actions">${onEdit?`<div class="tag-btn-icon tag-btn-edit"><i class="fas fa-pen"></i></div>`:''}${onMoveUp?`<div class="tag-btn-icon tag-btn-up"><i class="fas fa-arrow-up"></i></div>`:''}${onMoveDown?`<div class="tag-btn-icon tag-btn-down"><i class="fas fa-arrow-down"></i></div>`:''}<div class="tag-btn-icon tag-btn-delete"><i class="fas fa-times"></i></div></div>`;
+                if(onSelect) el.addEventListener('click', (e) => { if(!e.target.closest('.tag-actions')) onSelect(item.id); });
+                if(onEdit) el.querySelector('.tag-btn-edit')?.addEventListener('click', (e) => { e.stopPropagation(); let newVal = prompt('請輸入新名稱', item.name); if(newVal?.trim()) onEdit(item.id, newVal.trim()); });
+                if(onMoveUp) el.querySelector('.tag-btn-up')?.addEventListener('click', (e) => { e.stopPropagation(); onMoveUp(idx); });
+                if(onMoveDown) el.querySelector('.tag-btn-down')?.addEventListener('click', (e) => { e.stopPropagation(); onMoveDown(idx); });
+                el.querySelector('.tag-btn-delete').addEventListener('click', (e) => { e.stopPropagation(); if(confirm('刪除?')) onDelete(item.id); });
                 container.appendChild(el);
             });
         }
-
         function renderMembers() {
             const container = document.getElementById('memberTagsList');
+            if(!container) return;
             container.innerHTML = '';
             tempLedger.members.forEach((m, idx) => {
-                const el = document.createElement('div');
-                el.className = 'bg-white text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center justify-between gap-2 text-sm shadow-sm mb-1';
-                
-                const nameDisplay = typeof m === 'string' ? m : `<span class="font-bold">${m.name}</span>${m.email ? ` <span class='text-xs text-slate-400'>(${m.email})</span>` : ''}`;
-                
-                el.innerHTML = `
-                    <div class="flex items-center gap-2 overflow-hidden">
-                        ${nameDisplay}
-                    </div>
-                    <div class="flex gap-1">
-                        <i class="fas fa-arrow-up text-slate-300 hover:text-blue-500 cursor-pointer p-1 btn-move-up"></i>
-                        <i class="fas fa-arrow-down text-slate-300 hover:text-blue-500 cursor-pointer p-1 btn-move-down"></i>
-                        <i class="fas fa-pen text-slate-300 hover:text-blue-500 cursor-pointer p-1 btn-edit"></i>
-                        <i class="fas fa-times text-slate-300 hover:text-red-500 cursor-pointer p-1 btn-del"></i>
-                    </div>
-                `;
-                
-                el.querySelector('.btn-move-up').onclick = () => {
-                    if(idx > 0) {
-                        [tempLedger.members[idx-1], tempLedger.members[idx]] = [tempLedger.members[idx], tempLedger.members[idx-1]];
-                        renderMembers();
-                    }
-                };
-                el.querySelector('.btn-move-down').onclick = () => {
-                    if(idx < tempLedger.members.length - 1) {
-                        [tempLedger.members[idx+1], tempLedger.members[idx]] = [tempLedger.members[idx], tempLedger.members[idx+1]];
-                        renderMembers();
-                    }
-                };
-                el.querySelector('.btn-edit').onclick = () => {
-                    const currentName = typeof m === 'string' ? m : m.name;
-                    const currentEmail = typeof m === 'string' ? '' : m.email;
-                    const defaultVal = currentEmail ? `${currentName} <${currentEmail}>` : currentName;
-                    const val = prompt('編輯成員 (格式: 姓名 或 姓名 <email>)', defaultVal);
-                    if(val) {
-                        let newName = val.trim();
-                        let newEmail = '';
-                        const match = val.match(/(.*)<(.+)>/);
-                        if(match) {
-                            newName = match[1].trim();
-                            newEmail = match[2].trim();
-                        }
-                        tempLedger.members[idx] = { name: newName, email: newEmail };
-                        renderMembers();
-                    }
-                };
-                el.querySelector('.btn-del').onclick = () => {
-                    tempLedger.members.splice(idx, 1);
-                    renderMembers();
-                };
-                container.appendChild(el);
+                const div = document.createElement('div');
+                div.className = 'bg-slate-100 rounded px-2 py-1 mb-1 flex justify-between items-center';
+                div.innerHTML = `<span>${m.name}${m.email?` (${m.email})`:''}</span><div><i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i><i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i><i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i><i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i></div>`;
+                div.querySelector('.move-up').onclick = () => { if(idx>0){ [tempLedger.members[idx-1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx-1]]; renderMembers(); } };
+                div.querySelector('.move-down').onclick = () => { if(idx<tempLedger.members.length-1){ [tempLedger.members[idx+1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx+1]]; renderMembers(); } };
+                div.querySelector('.edit').onclick = () => { let newName = prompt('新名稱', m.name); if(newName) m.name = newName; renderMembers(); };
+                div.querySelector('.del').onclick = () => { tempLedger.members.splice(idx,1); renderMembers(); };
+                container.appendChild(div);
             });
         }
-
-        function addMainCat() {
-            const input = document.getElementById('newMainCatInput');
-            const val = input.value.trim();
-            if(!val) return;
-            const id = Date.now().toString();
-            tempLedger.mainCats.push({id, name: val});
-            tempLedger.subCats[id] = [];
-            input.value = '';
-            renderLedgerConfigUI();
-            selectedMainCatId = id; 
-            renderLedgerConfigUI();
-            document.getElementById('newSubCatInput').focus();
-        }
-        function deleteMainCat(id) {
-            tempLedger.mainCats = tempLedger.mainCats.filter(c => c.id !== id);
-            delete tempLedger.subCats[id];
-            if(selectedMainCatId === id) selectedMainCatId = null;
-            renderLedgerConfigUI();
-        }
-        function addSubCat() {
-            if(!selectedMainCatId) return;
-            const input = document.getElementById('newSubCatInput');
-            const val = input.value.trim();
-            if(!val) return;
-            if (!tempLedger.subCats[selectedMainCatId]) {
-                tempLedger.subCats[selectedMainCatId] = [];
-            }
-            tempLedger.subCats[selectedMainCatId].push({id: Date.now().toString(), name: val});
-            input.value = '';
-            renderLedgerConfigUI();
-            input.focus();
-        }
-        function deleteSubCat(pid, id) {
-            if (!tempLedger.subCats[pid]) return;
-            tempLedger.subCats[pid] = tempLedger.subCats[pid].filter(c => c.id !== id);
-            renderLedgerConfigUI();
-        }
-        function addCity() {
-            const input = document.getElementById('newCityInput');
-            const val = input.value.trim();
-            if(!val) return;
-            const id = Date.now().toString();
-            tempLedger.cities.push({id, name: val});
-            tempLedger.districts[id] = [];
-            input.value = '';
-            renderLedgerConfigUI();
-            selectedCityId = id;
-            renderLedgerConfigUI();
-            document.getElementById('newDistrictInput').focus();
-        }
-        function deleteCity(id) {
-            tempLedger.cities = tempLedger.cities.filter(c => c.id !== id);
-            delete tempLedger.districts[id];
-            if(selectedCityId === id) selectedCityId = null;
-            renderLedgerConfigUI();
-        }
-        function addDistrict() {
-            if(!selectedCityId) return;
-            const input = document.getElementById('newDistrictInput');
-            const val = input.value.trim();
-            if(!val) return;
-            if (!tempLedger.districts[selectedCityId]) {
-                tempLedger.districts[selectedCityId] = [];
-            }
-            tempLedger.districts[selectedCityId].push({id: Date.now().toString(), name: val});
-            input.value = '';
-            renderLedgerConfigUI();
-            input.focus();
-        }
-        function deleteDistrict(pid, id) {
-            if (!tempLedger.districts[pid]) return;
-            tempLedger.districts[pid] = tempLedger.districts[pid].filter(c => c.id !== id);
-            renderLedgerConfigUI();
-        }
-        function addMember() {
-            const input = document.getElementById('memberInput');
-            const val = input.value.trim();
-            if(!val) return;
-            
-            let name = val;
-            let email = '';
-            const emailMatch = val.match(/(.*)<(.+)>/);
-            if(emailMatch) {
-                name = emailMatch[1].trim();
-                email = emailMatch[2].trim();
-            }
-            
-            if(tempLedger.members.some(m => (typeof m === 'string' ? m : m.name) === name)) {
-                showToast('成員名稱重複');
-                return;
-            }
-            
-            tempLedger.members.push({name, email});
-            input.value = '';
-            renderMembers();
-            input.focus();
-        }
-
-        function updateLedgerInfoPanel() {
-            const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
-            if(!l) return;
-            
-            document.getElementById('displayLedgerName').textContent = l.name;
-            document.getElementById('ledgerMetaSummary').textContent = `${l.locations.cities.length} 個城市 · ${l.members.length} 位成員`;
-            
-            document.getElementById('ledgerInfo').classList.remove('hidden');
-            document.getElementById('ledgerCategories').textContent = l.categories.main.map(c => c.name).join('、');
-            document.getElementById('ledgerLocations').textContent = l.locations.cities.map(c => c.name).join('、');
-            document.getElementById('ledgerMembers').textContent = l.members.map(m => typeof m === 'string' ? m : m.name).join('、');
-
-            if(l.locked) document.getElementById('lockBadge').classList.remove('hidden');
-            else document.getElementById('lockBadge').classList.add('hidden');
-
-            const expenses = appData.expenses || [];
-            const exps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            let waived = 0, settled = 0, outstanding = 0;
-            exps.forEach(e => {
-                if(e.isTreat) waived += e.amount;
-                else if(e.isSettled) settled += e.amount;
-                else outstanding += e.amount;
-            });
-            const total = waived + settled + outstanding;
-            document.getElementById('statWaived').textContent = waived.toLocaleString();
-            document.getElementById('statSettled').textContent = settled.toLocaleString();
-            document.getElementById('statOutstanding').textContent = outstanding.toLocaleString();
-            document.getElementById('statTotal').textContent = total.toLocaleString();
-        }
-
+        function addMainCat() { let val = document.getElementById('newMainCatInput')?.value.trim(); if(!val) return; let id=Date.now().toString(); tempLedger.mainCats.push({id,name:val}); tempLedger.subCats[id]=[]; document.getElementById('newMainCatInput').value=''; renderLedgerConfigUI(); selectedMainCatId=id; renderLedgerConfigUI(); }
+        function deleteMainCat(id) { tempLedger.mainCats=tempLedger.mainCats.filter(c=>c.id!==id); delete tempLedger.subCats[id]; if(selectedMainCatId===id) selectedMainCatId=null; renderLedgerConfigUI(); }
+        function addSubCat() { if(!selectedMainCatId) return; let val=document.getElementById('newSubCatInput')?.value.trim(); if(!val) return; if(!tempLedger.subCats[selectedMainCatId]) tempLedger.subCats[selectedMainCatId]=[]; tempLedger.subCats[selectedMainCatId].push({id:Date.now().toString(), name:val}); document.getElementById('newSubCatInput').value=''; renderLedgerConfigUI(); }
+        function deleteSubCat(pid,id) { if(tempLedger.subCats[pid]) tempLedger.subCats[pid]=tempLedger.subCats[pid].filter(s=>s.id!==id); renderLedgerConfigUI(); }
+        function addCity() { let val=document.getElementById('newCityInput')?.value.trim(); if(!val) return; let id=Date.now().toString(); tempLedger.cities.push({id,name:val}); tempLedger.districts[id]=[]; document.getElementById('newCityInput').value=''; renderLedgerConfigUI(); selectedCityId=id; renderLedgerConfigUI(); }
+        function deleteCity(id) { tempLedger.cities=tempLedger.cities.filter(c=>c.id!==id); delete tempLedger.districts[id]; if(selectedCityId===id) selectedCityId=null; renderLedgerConfigUI(); }
+        function addDistrict() { if(!selectedCityId) return; let val=document.getElementById('newDistrictInput')?.value.trim(); if(!val) return; if(!tempLedger.districts[selectedCityId]) tempLedger.districts[selectedCityId]=[]; tempLedger.districts[selectedCityId].push({id:Date.now().toString(), name:val}); document.getElementById('newDistrictInput').value=''; renderLedgerConfigUI(); }
+        function deleteDistrict(pid,id) { if(tempLedger.districts[pid]) tempLedger.districts[pid]=tempLedger.districts[pid].filter(d=>d.id!==id); renderLedgerConfigUI(); }
+        function addMember() { let val=document.getElementById('memberInput')?.value.trim(); if(!val) return; let name=val, email=''; let match=val.match(/(.*)<(.+)>/); if(match){ name=match[1].trim(); email=match[2].trim(); } if(tempLedger.members.some(m=>m.name===name)) return showToast('成員名稱重複'); tempLedger.members.push({name,email}); document.getElementById('memberInput').value=''; renderMembers(); }
         function handleLedgerSubmit(e) {
             e.preventDefault();
             const mode = e.target.dataset.mode;
             const name = document.getElementById('ledgerName').value.trim();
-            
-            if(tempLedger.mainCats.length === 0 || tempLedger.cities.length === 0 || tempLedger.members.length === 0) {
-                return showToast('科目、地點與成員請至少建立一項');
-            }
-
-            const newLedgerData = {
-                name,
-                categories: { main: tempLedger.mainCats, sub: tempLedger.subCats },
-                locations: { cities: tempLedger.cities, districts: tempLedger.districts },
-                members: tempLedger.members,
-                locked: false
-            };
-
-            if(mode === 'edit') {
-                const id = e.target.dataset.id;
-                const idx = appData.ledgers.findIndex(l => l.id === id);
-                if(idx >= 0) {
-                    newLedgerData.id = id;
-                    newLedgerData.locked = appData.ledgers[idx].locked;
-                    appData.ledgers[idx] = newLedgerData;
-                }
+            if(!name || tempLedger.mainCats.length===0 || tempLedger.cities.length===0 || tempLedger.members.length===0) return showToast('請填寫帳冊名稱，並至少建立一項科目、城市與成員');
+            const newLedger = { name, categories: { main: tempLedger.mainCats, sub: tempLedger.subCats }, locations: { cities: tempLedger.cities, districts: tempLedger.districts }, members: tempLedger.members, locked: false };
+            if(mode==='edit'){
+                const id=e.target.dataset.id;
+                const idx=appData.ledgers.findIndex(l=>l.id===id);
+                if(idx>=0){ newLedger.id=id; newLedger.locked=appData.ledgers[idx].locked; appData.ledgers[idx]=newLedger; }
             } else {
-                newLedgerData.id = Date.now().toString();
-                appData.ledgers.push(newLedgerData);
-                appData.currentLedgerId = newLedgerData.id;
+                newLedger.id=Date.now().toString();
+                appData.ledgers.push(newLedger);
+                appData.currentLedgerId = newLedger.id;
             }
-
             saveData();
             updateUI();
-            document.getElementById('ledgerModal').style.display = 'none';
-            showToast('帳冊設定已儲存');
+            document.getElementById('ledgerModal').style.display='none';
+            showToast('帳冊已儲存');
         }
 
-        // ========== 支出相關函數 ==========
+        // ==================== 支出功能（修正名稱儲存與顯示） ====================
         function openExpenseModal(expenseId = null) {
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
-            
-            const isMember = ledger.members.some(m => (typeof m === 'object' && m.email === currentUser.email));
-            const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-            if (!isMember && !isAdmin) {
-                return showToast('您不是此帳冊的成員，無法新增支出');
-            }
-
+            const members = ledger.members || [];
+            const isMember = members.some(m => m.email === currentUser?.email) || currentUser?.email === APP_ADMIN_EMAIL;
+            if (!isMember) return showToast('您不是此帳冊的成員，無法新增支出');
+            const modal = document.getElementById('expenseModal');
             const form = document.getElementById('expenseForm');
             form.reset();
             currentEditingExpenseId = expenseId;
             document.getElementById('receiptPreview').classList.add('hidden');
-            document.getElementById('receiptImagePreview').src = '';
             document.getElementById('destinationWrapper').classList.add('hidden');
-
             const fieldset = document.getElementById('expenseFieldset');
             const lockedMsg = document.getElementById('lockedMessage');
-            const actions = document.getElementById('expenseModalActions');
-
-            if (ledger.locked && !isAdmin) {
-                fieldset.disabled = true;
-                lockedMsg.classList.remove('hidden');
-                actions.classList.add('hidden');
-                document.getElementById('expenseModalTitle').textContent = '檢視支出 (唯讀)';
-            } else {
-                fieldset.disabled = false;
-                lockedMsg.classList.add('hidden');
-                actions.classList.remove('hidden');
-                if(!expenseId) document.getElementById('expenseModalTitle').textContent = '新增支出';
-            }
-
-            // --- 科目下拉選單 ---
+            const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
+            const isLocked = ledger.locked && !isAdmin;
+            fieldset.disabled = isLocked;
+            lockedMsg.classList.toggle('hidden', !isLocked);
+            document.getElementById('expenseModalTitle').innerText = isLocked ? '檢視支出 (唯讀)' : (expenseId ? '編輯支出' : '新增支出');
+            
             const catSelect = document.getElementById('expenseCategory');
-            catSelect.innerHTML = '<option value="">請選擇科目</option>';
-            ledger.categories.main.forEach(m => {
-                const mOpt = document.createElement('option');
-                mOpt.value = `main_${m.id}`;
-                mOpt.textContent = m.name;
-                mOpt.className = 'font-bold bg-slate-100';
-                catSelect.appendChild(mOpt);
-                (ledger.categories.sub[m.id] || []).forEach(s => {
-                    const sOpt = document.createElement('option');
-                    sOpt.value = `sub_${m.id}_${s.id}`;
-                    sOpt.textContent = `　↳ ${s.name}`;
-                    catSelect.appendChild(sOpt);
+            catSelect.innerHTML = '<option value="" disabled selected>請選擇科目</option>';
+            const mainCats = ledger.categories?.main || [];
+            const subCats = ledger.categories?.sub || {};
+            mainCats.forEach(main => {
+                const mainOpt = document.createElement('option');
+                mainOpt.value = `main_${main.id}`;
+                mainOpt.textContent = main.name;
+                mainOpt.disabled = true;
+                mainOpt.className = 'font-bold bg-slate-100';
+                catSelect.appendChild(mainOpt);
+                (subCats[main.id] || []).forEach(sub => {
+                    const subOpt = document.createElement('option');
+                    subOpt.value = `sub_${main.id}_${sub.id}`;
+                    subOpt.textContent = `　↳ ${sub.name}`;
+                    subOpt.setAttribute('data-main-name', main.name);
+                    subOpt.setAttribute('data-sub-name', sub.name);
+                    catSelect.appendChild(subOpt);
                 });
             });
-
-            // --- 地點下拉選單 (出發地 & 目的地) ---
-            const locSelect = document.getElementById('expenseLocation');
-            const destSelect = document.getElementById('expenseDestination');
-            const fillLocationOptions = (selectEl) => {
-                selectEl.innerHTML = '<option value="">請選擇地點</option>';
-                ledger.locations.cities.forEach(c => {
+            const loadLocationOptions = (selectEl) => {
+                selectEl.innerHTML = '<option value="" disabled selected>請選擇地點</option>';
+                const cities = ledger.locations?.cities || [];
+                const districts = ledger.locations?.districts || {};
+                cities.forEach(c => {
                     const cOpt = document.createElement('option');
                     cOpt.value = `city_${c.id}`;
                     cOpt.textContent = c.name;
-                    cOpt.className = 'font-bold bg-slate-100';
+                    cOpt.className = 'font-bold';
+                    cOpt.setAttribute('data-location-full', c.name);
                     selectEl.appendChild(cOpt);
-                    (ledger.locations.districts[c.id] || []).forEach(d => {
+                    const distList = districts[c.id] || [];
+                    distList.forEach(d => {
                         const dOpt = document.createElement('option');
                         dOpt.value = `district_${c.id}_${d.id}`;
                         dOpt.textContent = `　↳ ${d.name}`;
+                        dOpt.setAttribute('data-location-full', `${c.name}${d.name}`);
                         selectEl.appendChild(dOpt);
                     });
                 });
             };
-            fillLocationOptions(locSelect);
-            fillLocationOptions(destSelect);
-
-            // --- 金主與分攤人員 ---
+            loadLocationOptions(document.getElementById('expenseLocation'));
+            loadLocationOptions(document.getElementById('expenseDestination'));
             const payerSelect = document.getElementById('expensePayer');
             const splittersDiv = document.getElementById('expenseSplitters');
             payerSelect.innerHTML = '';
             splittersDiv.innerHTML = '';
-            const memberNames = ledger.members.map(m => typeof m === 'string' ? m : m.name);
-            memberNames.forEach(name => {
-                payerSelect.add(new Option(name, name));
-                const label = document.createElement('label');
-                label.className = 'flex items-center space-x-2 p-2 rounded hover:bg-slate-100 cursor-pointer border border-slate-100';
-                label.innerHTML = `<input type="checkbox" value="${name}" class="splitter-chk w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"> <span class="text-sm">${name}</span>`;
-                splittersDiv.appendChild(label);
+            members.forEach(m => {
+                payerSelect.add(new Option(m.name, m.name));
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 bg-white rounded border';
+                div.innerHTML = `
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" value="${m.name}" class="splitter-chk">
+                        <span>${m.name}</span>
+                    </label>
+                    <label class="flex items-center gap-1 text-sm text-slate-500">
+                        <input type="checkbox" class="settle-checkbox" data-splitter="${m.name}" disabled style="transform:scale(0.9);">
+                        已付款給金主
+                    </label>
+                `;
+                splittersDiv.appendChild(div);
             });
-
-            // --- 編輯模式：載入既有資料，此時跳過自動摘要 ---
             if (expenseId) {
-                if (!appData.expenses) appData.expenses = [];
-                const exp = appData.expenses.find(e => e.id === expenseId);
+                const exp = (appData.expenses || []).find(e => e.id === expenseId);
                 if (exp) {
-                    if (!fieldset.disabled) document.getElementById('expenseModalTitle').textContent = '編輯支出';
-                    document.getElementById('expenseDate').value = exp.date;
-                    document.getElementById('expenseTime').value = exp.time;
-                    document.getElementById('expenseDescription').value = exp.description;
-                    document.getElementById('expenseAmount').value = exp.amount;
-                    document.getElementById('expensePayer').value = exp.payer;
-                    document.getElementById('expenseSettled').checked = exp.isSettled;
-                    document.getElementById('expenseTreat').checked = !!exp.isTreat;
-                    
-                    if(exp.category.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
-                    else catSelect.value = `main_${exp.category.main.id}`;
-                    
-                    if(exp.location.district) locSelect.value = `district_${exp.location.city.id}_${exp.location.district.id}`;
-                    else locSelect.value = `city_${exp.location.city.id}`;
-
+                    document.getElementById('expenseDate').value = exp.date || '';
+                    document.getElementById('expenseTime').value = exp.time || '';
+                    document.getElementById('expenseDescription').value = exp.description || '';
+                    document.getElementById('expenseAmount').value = exp.amount || 0;
+                    document.getElementById('expensePayer').value = exp.payer || '';
+                    document.getElementById('expenseTreat').checked = exp.isTreat || false;
+                    if(exp.category?.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
+                    else if(exp.category?.main) catSelect.value = `main_${exp.category.main.id}`;
+                    if(exp.location?.district) document.getElementById('expenseLocation').value = `district_${exp.location.city.id}_${exp.location.district.id}`;
+                    else if(exp.location?.city) document.getElementById('expenseLocation').value = `city_${exp.location.city.id}`;
                     exp.splitters.forEach(s => {
-                        const chk = splittersDiv.querySelector(`input[value="${s}"]`);
+                        const chk = splittersDiv.querySelector(`.splitter-chk[value="${s}"]`);
                         if(chk) chk.checked = true;
-                    });
-                    
-                    if(exp.receipt) {
-                        document.getElementById('receiptImagePreview').src = exp.receipt;
-                        document.getElementById('receiptPreview').classList.remove('hidden');
-                    }
-                    // 編輯模式：暫時禁用自動摘要，避免覆蓋用戶原有摘要
-                    skipAutoSummary = true;
-                    // 刷新交通控制顯示（根據科目）
-                    checkTransportAndRefresh();
-                    // 手動觸發目的地欄位事件（若交通類且已有目的地，需設定目的地選項）
-                    if(exp.location.district && exp.category.main && exp.category.main.name.includes('交通')) {
-                        // 若原本有目的地，需要設定 destination 選擇框的值
-                        // 但由於目的地選項需要從 ledger 重建，這裡簡單處理：如果編輯的是交通類，嘗試設定目的地值
-                        if(exp.destination && exp.destination.city && exp.destination.district) {
-                            destSelect.value = `district_${exp.destination.city.id}_${exp.destination.district.id}`;
-                        } else if(exp.destination && exp.destination.city) {
-                            destSelect.value = `city_${exp.destination.city.id}`;
+                        const settleChk = splittersDiv.querySelector(`.settle-checkbox[data-splitter="${s}"]`);
+                        if(settleChk && exp.splitterSettled && exp.splitterSettled[s] === true) {
+                            settleChk.checked = true;
                         }
+                    });
+                    if(exp.receipt) { document.getElementById('receiptImagePreview').src = exp.receipt; document.getElementById('receiptPreview').classList.remove('hidden'); }
+                    if(exp.destination) {
+                        if(exp.destination.district) document.getElementById('expenseDestination').value = `district_${exp.destination.city.id}_${exp.destination.district.id}`;
+                        else if(exp.destination.city) document.getElementById('expenseDestination').value = `city_${exp.destination.city.id}`;
                     }
-                    skipAutoSummary = false;
+                    skipAutoSummary = true;
                 }
-            } 
-            // --- 新增模式：預設值，啟用自動摘要 ---
-            else {
-                skipAutoSummary = false;
+            } else {
                 const now = new Date();
                 document.getElementById('expenseDate').value = now.toISOString().split('T')[0];
-                document.getElementById('expenseTime').value = now.toTimeString().slice(0, 5);
-                splittersDiv.querySelectorAll('input').forEach(i => i.checked = true);
-                document.getElementById('selectAllSplitters').checked = true;
-
-                // 預設金主：優先比對 Email，無 Email 則比對姓名 (不區分大小寫)
-                if (currentUser && currentUser.name) {
-                    const matchedMember = ledger.members.find(m => 
-                        (typeof m === 'object' && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
-                    );
-                    if (matchedMember) {
-                        payerSelect.value = matchedMember.name;
-                    } else {
-                        const nameMatched = ledger.members.find(m => {
-                            const memberName = typeof m === 'string' ? m : m.name;
-                            return memberName.toLowerCase() === currentUser.name.toLowerCase();
-                        });
-                        if (nameMatched) {
-                            const targetName = typeof nameMatched === 'string' ? nameMatched : nameMatched.name;
-                            payerSelect.value = targetName;
-                        }
-                    }
+                document.getElementById('expenseTime').value = now.toTimeString().slice(0,5);
+                splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.checked = true);
+                if (currentUser) {
+                    const matched = members.find(m => m.email === currentUser.email);
+                    if(matched) payerSelect.value = matched.name;
                 }
-                // 觸發一次摘要刷新（科目、地點初始無值，無動作）
-                refreshSummaryByMode();
+                skipAutoSummary = false;
             }
-
+            const updateSettleCheckboxes = () => {
+                splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => {
+                    const settleChk = chk.closest('.flex').querySelector('.settle-checkbox');
+                    if(settleChk) settleChk.disabled = !chk.checked;
+                });
+                calcAverage();
+            };
+            splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => {
+                chk.addEventListener('change', updateSettleCheckboxes);
+            });
+            const calcAverage = () => {
+                const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
+                const isTreat = document.getElementById('expenseTreat').checked;
+                const cnt = splittersDiv.querySelectorAll('.splitter-chk:checked').length;
+                const avg = (cnt>0 && !isTreat) ? (amt / cnt).toFixed(2) : (isTreat ? 0 : amt).toFixed(2);
+                const avgSpan = document.getElementById('averageAmount');
+                avgSpan.innerText = avg;
+                if(isTreat) avgSpan.classList.add('line-through', 'text-slate-400');
+                else avgSpan.classList.remove('line-through', 'text-slate-400');
+            };
+            document.getElementById('expenseAmount').addEventListener('input', calcAverage);
+            document.getElementById('expenseTreat').addEventListener('change', calcAverage);
+            updateSettleCheckboxes();
             calcAverage();
-            document.getElementById('expenseTreat').dispatchEvent(new Event('change'));
-            document.getElementById('expenseModal').style.display = 'block';
+            const getSelectedMainName = () => {
+                const selected = catSelect.options[catSelect.selectedIndex];
+                return selected ? selected.getAttribute('data-main-name') : '';
+            };
+            const getSelectedLocationFull = (selectEl) => {
+                const selected = selectEl.options[selectEl.selectedIndex];
+                return selected ? (selected.getAttribute('data-location-full') || selected.textContent.replace(/^[　↳\s]+/, '')) : '';
+            };
+            const refreshSummary = () => {
+                const mainName = getSelectedMainName();
+                const isTransport = isTransportByMainCat(mainName);
+                const locFull = getSelectedLocationFull(document.getElementById('expenseLocation'));
+                const descField = document.getElementById('expenseDescription');
+                if(isTransport) {
+                    const destFull = getSelectedLocationFull(document.getElementById('expenseDestination'));
+                    if(locFull && destFull) descField.value = `${locFull} 往 ${destFull}`;
+                    else if(locFull) descField.value = `${locFull} 出發`;
+                    else descField.value = '';
+                } else {
+                    const subName = catSelect.options[catSelect.selectedIndex]?.getAttribute('data-sub-name') || '';
+                    descField.value = locFull + (subName || mainName);
+                }
+            };
+            const updateTransportUI = () => {
+                const mainName = getSelectedMainName();
+                const isTransport = isTransportByMainCat(mainName);
+                document.getElementById('destinationWrapper').classList.toggle('hidden', !isTransport);
+                if(!skipAutoSummary) refreshSummary();
+            };
+            catSelect.onchange = () => {
+                if(!skipAutoSummary) updateTransportUI();
+                else {
+                    const isTransport = isTransportByMainCat(getSelectedMainName());
+                    document.getElementById('destinationWrapper').classList.toggle('hidden', !isTransport);
+                }
+            };
+            document.getElementById('expenseLocation').onchange = () => { if(!skipAutoSummary) refreshSummary(); };
+            document.getElementById('expenseDestination').onchange = () => { if(!skipAutoSummary) refreshSummary(); };
+            updateTransportUI();
+            if(!skipAutoSummary) refreshSummary();
+            skipAutoSummary = false;
+            modal.style.display = 'block';
         }
-
         function handleExpenseSubmit(e) {
             e.preventDefault();
-            try {
-                const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-                const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-                if (ledger.locked && !isAdmin) return showToast('帳冊已鎖定，無法變更');
-
-                const catVal = document.getElementById('expenseCategory').value;
-                const locVal = document.getElementById('expenseLocation').value;
-                if(!catVal || !locVal) return showToast('請完整選擇科目與地點');
-                
-                const splitters = Array.from(document.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
-                if(splitters.length === 0) return showToast('至少需有一位分攤人員');
-
-                // Category Logic
-                let categoryObj = {};
+            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
+            if (ledger.locked && !isAdmin) return showToast('帳冊已鎖定，無法變更');
+            const catVal = document.getElementById('expenseCategory').value;
+            const locVal = document.getElementById('expenseLocation').value;
+            if(!catVal || !locVal) return showToast('請完整選擇科目與地點');
+            const splittersDiv = document.getElementById('expenseSplitters');
+            const splitters = Array.from(splittersDiv.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
+            if(splitters.length===0) return showToast('至少需有一位分攤人員');
+            const splitterSettled = {};
+            splittersDiv.querySelectorAll('.splitter-chk:checked').forEach(chk => {
+                const splitter = chk.value;
+                const settleChk = chk.closest('.flex').querySelector('.settle-checkbox');
+                splitterSettled[splitter] = settleChk ? settleChk.checked : false;
+            });
+            // 直接從選項中獲取科目名稱（不依賴 ledger 查找，避免因 ID 遺漏導致未知）
+            let categoryName = '', subName = '';
+            const catOption = document.getElementById('expenseCategory').options[document.getElementById('expenseCategory').selectedIndex];
+            if(catOption && catVal !== '') {
                 if(catVal.startsWith('main_')) {
-                    const id = catVal.split('_')[1];
-                    const mainCat = ledger.categories.main.find(c=>c.id==id);
-                    categoryObj = { main: { id, name: mainCat.name }, sub: null };
-                } else {
-                    const [_, mid, sid] = catVal.split('_');
-                    const mainCat = ledger.categories.main.find(c=>c.id==mid);
-                    const subList = ledger.categories.sub[mid] || [];
-                    const subCat = subList.find(s=>s.id==sid);
-                    if(mainCat && subCat) {
-                        categoryObj = { 
-                            main: { id: mid, name: mainCat.name }, 
-                            sub: { id: sid, name: subCat.name } 
-                        };
-                    } else {
-                        categoryObj = { main: { id: mid, name: mainCat ? mainCat.name : 'Unknown' }, sub: null };
-                    }
+                    categoryName = catOption.textContent;
+                } else if(catVal.startsWith('sub_')) {
+                    categoryName = catOption.getAttribute('data-main-name') || '';
+                    subName = catOption.getAttribute('data-sub-name') || '';
                 }
-
-                // Location Logic
-                let locationObj = {};
-                if(locVal.startsWith('city_')) {
-                    const id = locVal.split('_')[1];
-                    const city = ledger.locations.cities.find(c=>c.id==id);
-                    locationObj = { city: { id, name: city.name }, district: null };
-                } else {
-                    const [_, cid, did] = locVal.split('_');
-                    const city = ledger.locations.cities.find(c=>c.id==cid);
-                    const distList = ledger.locations.districts[cid] || [];
-                    const dist = distList.find(d=>d.id==did);
-                    if(city && dist) {
-                        locationObj = { 
-                            city: { id: cid, name: city.name }, 
-                            district: { id: did, name: dist.name } 
-                        };
-                    } else {
-                         locationObj = { city: { id: cid, name: city ? city.name : 'Unknown' }, district: null };
-                    }
-                }
-
-                // 目的地處理（僅交通類需要）
-                let destinationObj = null;
-                if(categoryObj.main.name.includes('交通')) {
-                    const destVal = document.getElementById('expenseDestination').value;
-                    if(destVal) {
-                        if(destVal.startsWith('city_')) {
-                            const id = destVal.split('_')[1];
-                            const city = ledger.locations.cities.find(c=>c.id==id);
-                            destinationObj = { city: { id, name: city.name }, district: null };
-                        } else if(destVal.startsWith('district_')) {
-                            const [_, cid, did] = destVal.split('_');
-                            const city = ledger.locations.cities.find(c=>c.id==cid);
-                            const distList = ledger.locations.districts[cid] || [];
-                            const dist = distList.find(d=>d.id==did);
-                            destinationObj = { city: { id: cid, name: city.name }, district: { id: did, name: dist.name } };
-                        }
-                    }
-                }
-
-                const amt = parseFloat(document.getElementById('expenseAmount').value);
-                const isTreat = document.getElementById('expenseTreat').checked;
-
-                const expense = {
-                    id: currentEditingExpenseId || Date.now().toString(),
-                    ledgerId: appData.currentLedgerId,
-                    date: document.getElementById('expenseDate').value,
-                    time: document.getElementById('expenseTime').value,
-                    description: document.getElementById('expenseDescription').value,
-                    amount: amt,
-                    payer: document.getElementById('expensePayer').value,
-                    splitters: splitters,
-                    averageAmount: splitters.length > 0 ? amt / splitters.length : 0,
-                    isSettled: document.getElementById('expenseSettled').checked,
-                    isTreat: isTreat,
-                    category: categoryObj,
-                    location: locationObj,
-                    destination: destinationObj,
-                    receipt: document.getElementById('receiptImagePreview').src || null
-                };
-
-                if (!appData.expenses) appData.expenses = [];
-                if(currentEditingExpenseId) {
-                    const idx = appData.expenses.findIndex(e => e.id === currentEditingExpenseId);
-                    if(idx >= 0) appData.expenses[idx] = expense;
-                } else {
-                    appData.expenses.push(expense);
-                }
-
-                saveData();
-                renderExpenseList();
-                updateLedgerInfoPanel();
-                document.getElementById('expenseModal').style.display = 'none';
-                showToast('記錄已儲存');
-            } catch (err) {
-                console.error(err);
-                showToast('儲存時發生錯誤，請查看 Console');
             }
+            // 解析出發地名稱
+            let cityName = '', districtName = '';
+            const locOption = document.getElementById('expenseLocation').options[document.getElementById('expenseLocation').selectedIndex];
+            if(locOption && locVal !== '') {
+                if(locVal.startsWith('city_')) {
+                    cityName = locOption.textContent;
+                } else if(locVal.startsWith('district_')) {
+                    cityName = locOption.textContent.replace(/^[　↳\s]+/, '');
+                }
+            }
+            // 目的地
+            let destinationObj = null;
+            const isTransport = categoryName.includes('交通');
+            if(isTransport) {
+                const destVal = document.getElementById('expenseDestination').value;
+                if(destVal) {
+                    const destOption = document.getElementById('expenseDestination').options[document.getElementById('expenseDestination').selectedIndex];
+                    if(destOption) {
+                        let destCityName = '', destDistrictName = '';
+                        if(destVal.startsWith('city_')) {
+                            destCityName = destOption.textContent;
+                        } else if(destVal.startsWith('district_')) {
+                            destCityName = destOption.textContent.replace(/^[　↳\s]+/, '');
+                        }
+                        destinationObj = { city: { id: 'temp', name: destCityName }, district: destDistrictName ? { id: 'temp', name: destDistrictName } : null };
+                    }
+                }
+            }
+            const amt = parseFloat(document.getElementById('expenseAmount').value);
+            const isTreat = document.getElementById('expenseTreat').checked;
+            const expense = {
+                id: currentEditingExpenseId || Date.now().toString(),
+                ledgerId: appData.currentLedgerId,
+                date: document.getElementById('expenseDate').value,
+                time: document.getElementById('expenseTime').value,
+                description: document.getElementById('expenseDescription').value,
+                amount: amt,
+                payer: document.getElementById('expensePayer').value,
+                splitters: splitters,
+                averageAmount: splitters.length>0 && !isTreat ? amt/splitters.length : 0,
+                isTreat: isTreat,
+                splitterSettled: splitterSettled,
+                category: {
+                    main: { id: catVal, name: categoryName || '未分類' },
+                    sub: subName ? { id: 'sub', name: subName } : null
+                },
+                location: {
+                    city: { id: locVal, name: cityName || '未知地點' },
+                    district: districtName ? { id: 'dist', name: districtName } : null
+                },
+                destination: destinationObj,
+                receipt: document.getElementById('receiptImagePreview').src || null
+            };
+            if(!appData.expenses) appData.expenses = [];
+            if(currentEditingExpenseId){
+                const idx = appData.expenses.findIndex(e=>e.id===currentEditingExpenseId);
+                if(idx>=0) appData.expenses[idx] = expense;
+            } else {
+                appData.expenses.push(expense);
+            }
+            saveData();
+            renderExpenseList();
+            updateLedgerInfoPanel();
+            document.getElementById('expenseModal').style.display = 'none';
+            showToast('記錄已儲存');
         }
-
         function renderExpenseList() {
             const list = document.getElementById('expenseList');
-            const expenses = appData.expenses || [];
-            const exps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            
-            if(exps.length === 0) {
-                list.innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-receipt text-2xl text-slate-300"></i></div><p>尚無支出記錄</p></div>';
-                return;
-            }
-
-            exps.sort((a,b) => new Date(`${b.date} ${b.time}`) - new Date(`${a.date} ${a.time}`));
-
+            const exps = (appData.expenses||[]).filter(e=>e.ledgerId===appData.currentLedgerId);
+            if(!exps.length) { list.innerHTML='<div class="text-center py-12 text-slate-400">尚無支出記錄</div>'; return; }
+            exps.sort((a,b)=>new Date(`${b.date} ${b.time}`)-new Date(`${a.date} ${a.time}`));
             list.innerHTML = exps.map(e => {
-                const catStr = e.category.sub ? `${e.category.main.name} · ${e.category.sub.name}` : e.category.main.name;
-                const locStr = e.location.district ? `${e.location.city.name} ${e.location.district.name}` : e.location.city.name;
-                const treatBadge = e.isTreat ? `<span class="treat-badge ml-2"><i class="fas fa-gift"></i> 金主請客</span>` : '';
-
-                return `
-                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm card-hover relative group">
-                    <div class="flex justify-between items-start mb-2">
+                const categoryName = e.category?.main?.name || '未知';
+                const subName = e.category?.sub?.name || '';
+                const displayCat = subName ? `${categoryName} · ${subName}` : categoryName;
+                const locationName = e.location?.city?.name || '未知';
+                const totalSplitters = e.splitters.length;
+                const settledCount = e.splitterSettled ? Object.values(e.splitterSettled).filter(v=>v===true).length : 0;
+                const progressBadge = !e.isTreat ? `<span class="text-xs ml-2 ${settledCount===totalSplitters ? 'text-green-600' : 'text-amber-500'}">(${settledCount}/${totalSplitters} 人已付款)</span>` : '';
+                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover">
+                    <div class="flex justify-between">
                         <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded font-medium">${catStr}</span>
-                                <span class="text-xs text-slate-400">${e.date}</span>
-                                ${treatBadge}
-                            </div>
-                            <div class="font-bold text-slate-800 text-lg">${e.description}</div>
-                            <div class="text-xs text-slate-500 mt-1"><i class="fas fa-map-marker-alt text-red-400 mr-1"></i> ${locStr}</div>
+                            <div class="font-bold">${e.description || ''}</div>
+                            <div class="text-xs text-slate-500">${e.date || ''} | ${locationName} | ${displayCat}</div>
                         </div>
-                        <div class="text-right">
-                            <div class="font-bold text-xl ${e.isSettled ? 'text-slate-400 line-through' : (e.isTreat ? 'text-pink-500' : 'text-slate-800')}">$${e.amount}</div>
-                            <div class="text-xs font-medium ${e.isSettled ? 'text-green-600' : 'text-amber-500'}">${e.isSettled ? '已結帳' : '未結帳'}</div>
-                        </div>
+                        <div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div>
                     </div>
-                    <div class="mt-3 pt-3 border-t border-slate-50 flex justify-between items-center">
-                        <div class="text-xs text-slate-600">
-                            <span class="font-bold">${e.payer}</span> 付款 <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${e.splitters.length} 人分攤
-                        </div>
-                        <div class="flex gap-3">
-                            ${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-image"></i></button>` : ''}
-                            <button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500 transition"><i class="fas fa-pen"></i></button>
-                            <button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500 transition"><i class="fas fa-trash"></i></button>
+                    <div class="flex justify-between items-center mt-2">
+                        <div class="text-xs"><span class="font-bold">${e.payer}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div>
+                        <div class="flex gap-2">
+                            ${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-image"></i></button>` : ''}
+                            <button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i> 編輯</button>
+                            <button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
                 </div>`;
             }).join('');
         }
-
         function deleteExpense(id) {
-            const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-            const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-            if (ledger.locked && !isAdmin) return showToast('帳冊已鎖定，無法刪除');
-            if(confirm('確定刪除此筆記錄?')) {
-                if(appData.expenses) {
-                    appData.expenses = appData.expenses.filter(e => e.id !== id);
-                    saveData();
-                    renderExpenseList();
-                    updateLedgerInfoPanel();
-                    showToast('記錄已刪除');
-                }
+            const ledger = appData.ledgers.find(l=>l.id===appData.currentLedgerId);
+            if(ledger.locked && currentUser?.email!==APP_ADMIN_EMAIL) return showToast('帳冊已鎖定，無法刪除');
+            if(confirm('確定刪除此筆記錄?')){
+                appData.expenses = appData.expenses.filter(e=>e.id!==id);
+                saveData();
+                renderExpenseList();
+                updateLedgerInfoPanel();
+                showToast('已刪除');
             }
         }
-
-        function calcAverage() {
-            const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
-            const cnt = document.querySelectorAll('.splitter-chk:checked').length;
-            document.getElementById('averageAmount').textContent = cnt > 0 ? (amt / cnt).toFixed(2) : 0;
-        }
-
-        function checkSelectAll() {
-            const all = document.querySelectorAll('.splitter-chk');
-            const checked = document.querySelectorAll('.splitter-chk:checked');
-            document.getElementById('selectAllSplitters').checked = all.length > 0 && all.length === checked.length;
-        }
-
-        function viewReceipt(id) {
-            if(!appData.expenses) return;
-            const exp = appData.expenses.find(e => e.id === id);
-            if(exp && exp.receipt) {
+        function viewReceipt(id){
+            const exp = appData.expenses.find(e=>e.id===id);
+            if(exp?.receipt){
                 document.getElementById('receiptViewImage').src = exp.receipt;
                 document.getElementById('receiptViewModal').style.display = 'block';
             }
         }
 
-        // ========== UI 更新函數 ==========
+        function updateLedgerInfoPanel() {
+            const l = appData.ledgers.find(x=>x.id===appData.currentLedgerId);
+            if(!l) return;
+            document.getElementById('displayLedgerName').innerText = l.name;
+            const cityCount = (l.locations?.cities || []).length;
+            const memberCount = (l.members || []).length;
+            document.getElementById('ledgerMetaSummary').innerText = `${cityCount} 個城市 · ${memberCount} 位成員`;
+            document.getElementById('ledgerInfo').classList.remove('hidden');
+            document.getElementById('ledgerCategories').innerText = (l.categories?.main || []).map(c=>c.name).join('、');
+            document.getElementById('ledgerLocations').innerText = (l.locations?.cities || []).map(c=>c.name).join('、');
+            document.getElementById('ledgerMembers').innerText = (l.members || []).map(m=>m.name).join('、');
+            document.getElementById('lockBadge').classList.toggle('hidden', !l.locked);
+            const exps = (appData.expenses||[]).filter(e=>e.ledgerId===appData.currentLedgerId);
+            let waived=0, settledSum=0, outstandingSum=0;
+            exps.forEach(e=>{
+                if(e.isTreat) waived+=e.amount;
+                else {
+                    if(e.splitterSettled) {
+                        const allSettled = Object.values(e.splitterSettled).every(v=>v===true);
+                        if(allSettled) settledSum += e.amount;
+                        else outstandingSum += e.amount;
+                    } else {
+                        outstandingSum += e.amount;
+                    }
+                }
+            });
+            document.getElementById('statWaived').innerText = waived.toFixed(0);
+            document.getElementById('statSettled').innerText = settledSum.toFixed(0);
+            document.getElementById('statOutstanding').innerText = outstandingSum.toFixed(0);
+            document.getElementById('statTotal').innerText = (waived+settledSum+outstandingSum).toFixed(0);
+        }
         function updateUI() {
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
-            
             const visibleLedgers = appData.ledgers.filter(l => {
                 if(!currentUser) return false;
-                if(currentUser.email === APP_ADMIN_EMAIL) return true;
-                return l.members.some(m => {
-                    const memberEmail = (typeof m === 'string') ? '' : m.email;
-                    return memberEmail === currentUser.email;
-                });
+                if(currentUser.email===APP_ADMIN_EMAIL) return true;
+                return (l.members || []).some(m=>m.email===currentUser.email);
             });
-
-            visibleLedgers.forEach(l => {
-                select.add(new Option(`${l.name}${l.locked ? ' (已鎖定)' : ''}`, l.id));
-            });
-            
-            if(appData.currentLedgerId && visibleLedgers.some(l => l.id === appData.currentLedgerId)) {
+            visibleLedgers.forEach(l=>select.add(new Option(`${l.name}${l.locked?' (已鎖定)':''}`, l.id)));
+            if(appData.currentLedgerId && visibleLedgers.some(l=>l.id===appData.currentLedgerId)){
                 select.value = appData.currentLedgerId;
                 updateLedgerInfoPanel();
                 renderExpenseList();
@@ -1773,424 +908,68 @@
                 document.getElementById('ledgerCollapsible').style.opacity = '0';
                 document.getElementById('ledgerChevron').classList.remove('rotate-180');
                 document.getElementById('ledgerMetaSummary').classList.remove('hidden');
-                
-                const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
-                const isLocked = currentLedger && currentLedger.locked;
-                const isAdmin = currentUser.email === APP_ADMIN_EMAIL;
-                
-                if (isLocked && !isAdmin) {
-                    document.getElementById('addExpenseBtn').classList.add('hidden');
-                } else {
-                    document.getElementById('addExpenseBtn').classList.remove('hidden');
-                }
-
+                const ledger = appData.ledgers.find(l=>l.id===appData.currentLedgerId);
+                const isLocked = ledger && ledger.locked;
+                const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
+                document.getElementById('addExpenseBtn').classList.toggle('hidden', isLocked && !isAdmin);
             } else {
                 appData.currentLedgerId = null;
-                document.getElementById('displayLedgerName').textContent = "請選擇或建立帳冊";
+                document.getElementById('displayLedgerName').innerText = "請選擇或建立帳冊";
                 document.getElementById('ledgerMetaSummary').classList.add('hidden');
                 document.getElementById('ledgerInfo').classList.add('hidden');
                 document.getElementById('lockBadge').classList.add('hidden');
                 document.getElementById('addExpenseBtn').classList.add('hidden');
-                document.getElementById('expenseList').innerHTML = '<div class="empty-state flex flex-col items-center justify-center py-12 text-slate-400"><div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><i class="fas fa-book text-2xl text-slate-300"></i></div><p>請先選擇帳冊，開始記錄您的旅程</p></div>';
+                document.getElementById('expenseList').innerHTML = '<div class="text-center py-12 text-slate-400">請先選擇帳冊</div>';
             }
             updateAdminControls();
         }
-
-        // ========== 統計報表 ==========
-        function updateQueryOptions() {
-            const expenses = appData.expenses || [];
-            const ledgerExps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            const payers = [...new Set(ledgerExps.map(e => e.payer))];
-            const splitters = [...new Set(ledgerExps.flatMap(e => e.splitters))];
-             
-            const pSel = document.getElementById('queryPayer');
-            pSel.innerHTML = '<option value="">所有金主</option>';
-            payers.forEach(p => pSel.add(new Option(p, p)));
-
-            const sSel = document.getElementById('querySplitter');
-            sSel.innerHTML = '<option value="">所有分攤者</option>';
-            splitters.forEach(s => sSel.add(new Option(s, s)));
-             
-            document.getElementById('queryBtn').onclick = () => {
-                const pFilter = pSel.value;
-                const sFilter = sSel.value;
-                let res = ledgerExps;
-                if(pFilter) res = res.filter(e => e.payer === pFilter);
-                if(sFilter) res = res.filter(e => e.splitters.includes(sFilter));
-                 
-                const total = res.reduce((a,b)=>a+b.amount, 0);
-                const treatTotal = res.filter(e => e.isTreat).reduce((a,b)=>a+b.amount, 0);
-                 
-                document.getElementById('totalAmount').textContent = total.toFixed(2);
-                document.getElementById('treatAmount').textContent = treatTotal.toFixed(2);
-                document.getElementById('totalCount').textContent = res.length;
-                 
-                // 科目統計
-                const catMap = {};
-                res.forEach(e => {
-                    const mainCatName = e.category.main.name;
-                    catMap[mainCatName] = (catMap[mainCatName] || 0) + e.amount;
-                });
-                const catStatsEl = document.getElementById('categoryStats');
-                if (res.length === 0) {
-                    catStatsEl.innerHTML = '<div class="text-slate-400 text-sm p-2">無符合項目</div>';
-                } else {
-                    catStatsEl.innerHTML = Object.entries(catMap).map(([name, amt]) => `
-                        <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-                            <span class="font-medium text-slate-700">${name}</span>
-                            <span class="font-bold text-blue-600">$${amt.toFixed(0)}</span>
-                        </div>
-                    `).join('');
-                }
-
-                // 城市統計
-                const cityMap = {};
-                res.forEach(e => {
-                    const cityName = e.location.city.name;
-                    cityMap[cityName] = (cityMap[cityName] || 0) + e.amount;
-                });
-                const cityStatsEl = document.getElementById('cityStats');
-                if (res.length === 0) {
-                    cityStatsEl.innerHTML = '<div class="text-slate-400 text-sm p-2">無符合項目</div>';
-                } else {
-                    cityStatsEl.innerHTML = Object.entries(cityMap).map(([name, amt]) => `
-                        <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-                            <span class="font-medium text-slate-700">${name}</span>
-                            <span class="font-bold text-blue-600">$${amt.toFixed(0)}</span>
-                        </div>
-                    `).join('');
-                }
-
-                const detailDiv = document.getElementById('splitterDetails');
-                if(sFilter) {
-                    const myShare = res.filter(e => !e.isTreat).reduce((sum, e) => sum + e.averageAmount, 0);
-                    document.getElementById('splitterAmount').textContent = myShare.toFixed(2);
-                    const myItems = res.filter(e => !e.isTreat);
-                    if(myItems.length > 0) {
-                        detailDiv.innerHTML = myItems.map(e => `
-                            <div class="flex justify-between text-sm py-3 px-5 hover:bg-slate-50 transition">
-                                <span class="text-slate-700">${e.date} ${e.description}</span>
-                                <span class="font-bold text-slate-800">$${e.averageAmount.toFixed(0)}</span>
-                            </div>
-                        `).join('');
-                    } else {
-                        detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">無應付項目</div>';
-                    }
-                } else {
-                    document.getElementById('splitterAmount').textContent = '-';
-                    detailDiv.innerHTML = '<div class="p-5 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細 (自動排除請客項目)</div>';
-                }
-                document.getElementById('queryResults').classList.remove('hidden');
-            };
+        function showToast(msg){
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('hidden');
+            setTimeout(()=>t.classList.add('hidden'),2500);
         }
 
-        // ========== 圖表分析 ==========
-        function renderCharts() {
-            const expenses = appData.expenses || [];
-            const ledgerExps = expenses.filter(e => e.ledgerId === appData.currentLedgerId);
-            if(ledgerExps.length === 0) return;
-
-            // 金主支付比例
-            const pData = {};
-            ledgerExps.forEach(e => pData[e.payer] = (pData[e.payer] || 0) + e.amount);
-            if(charts.payer) charts.payer.destroy();
-            charts.payer = new Chart(document.getElementById('payerChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(pData),
-                    datasets: [{ data: Object.values(pData), backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'], borderWidth: 0 }]
-                },
-                options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-            });
-
-            // 人員應付分攤
-            const sData = {};
-            ledgerExps.filter(e => !e.isTreat).forEach(e => {
-                e.splitters.forEach(s => {
-                    if(!sData[s]) sData[s] = 0;
-                    sData[s] += e.averageAmount;
-                });
-            });
-            if(charts.splitter) charts.splitter.destroy();
-            charts.splitter = new Chart(document.getElementById('splitterChart'), {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(sData),
-                    datasets: [{ label: '應付金額', data: Object.values(sData), backgroundColor: '#6366f1', borderRadius: 4 }]
-                },
-                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-            });
-
-            // 科目比例圖
-            const catData = {};
-            ledgerExps.forEach(e => {
-                const mainName = e.category.main.name;
-                catData[mainName] = (catData[mainName] || 0) + e.amount;
-            });
-            if (charts.categoryChart) charts.categoryChart.destroy();
-            if (Object.keys(catData).length > 0) {
-                charts.categoryChart = new Chart(document.getElementById('categoryChart'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: Object.keys(catData),
-                        datasets: [{ 
-                            data: Object.values(catData), 
-                            backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#94a3b8'], 
-                            borderWidth: 0 
-                        }]
-                    },
-                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-                });
-            }
-
-            // 城市比例圖
-            const cityData = {};
-            ledgerExps.forEach(e => {
-                const cityName = e.location.city.name;
-                cityData[cityName] = (cityData[cityName] || 0) + e.amount;
-            });
-            if (charts.cityChart) charts.cityChart.destroy();
-            if (Object.keys(cityData).length > 0) {
-                charts.cityChart = new Chart(document.getElementById('cityChart'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: Object.keys(cityData),
-                        datasets: [{ 
-                            data: Object.values(cityData), 
-                            backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#94a3b8'], 
-                            borderWidth: 0 
-                        }]
-                    },
-                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-                });
-            }
-        }
-
-        // ========== 事件監聽註冊 ==========
         function setupEvents() {
-            document.getElementById('ledgerToggleHeader').onclick = () => {
-                const el = document.getElementById('ledgerCollapsible');
-                const chevron = document.getElementById('ledgerChevron');
-                if (el.style.maxHeight === '0px' || !el.style.maxHeight) {
-                    el.style.maxHeight = '800px';
-                    el.style.opacity = '1';
-                    chevron.classList.add('rotate-180');
-                    updateLedgerInfoPanel();
-                } else {
-                    el.style.maxHeight = '0px';
-                    el.style.opacity = '0';
-                    chevron.classList.remove('rotate-180');
-                }
-            };
-
-            ['newMainCatInput', 'newSubCatInput', 'newCityInput', 'newDistrictInput', 'memberInput'].forEach(id => {
-                document.getElementById(id).addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if(id === 'newMainCatInput') addMainCat();
-                        if(id === 'newSubCatInput') addSubCat();
-                        if(id === 'newCityInput') addCity();
-                        if(id === 'newDistrictInput') addDistrict();
-                        if(id === 'memberInput') addMember();
-                    }
-                });
-            });
-
-            // 為所有「+」按鈕綁定點擊事件
-            document.getElementById('btnAddMainCat').addEventListener('click', addMainCat);
-            document.getElementById('btnAddSubCat').addEventListener('click', addSubCat);
-            document.getElementById('btnAddCity').addEventListener('click', addCity);
-            document.getElementById('btnAddDistrict').addEventListener('click', addDistrict);
-            document.getElementById('addMemberBtn').addEventListener('click', addMember);
-
-            document.querySelectorAll('.closeModal').forEach(b => b.onclick = (e) => e.target.closest('.modal').style.display = 'none');
-            window.onclick = (e) => { 
-                if(e.target.classList.contains('modal') && e.target.id !== 'userProfileModal') e.target.style.display = 'none';
-                if(!e.target.closest('#cloudStatus') && !e.target.closest('#cloudMenu')) document.getElementById('cloudMenu').classList.add('hidden');
-            };
-
-            document.getElementById('userBtn').onclick = () => showUserModal(false);
             document.getElementById('userForm').onsubmit = handleUserLogin;
             document.getElementById('switchUserBtn').onclick = () => {
-                currentUser = null;
                 localStorage.removeItem('travelAccountingUser');
-                document.getElementById('userProfileModal').style.display = 'none';
-                initUserSystem(); 
-            };
-
-            // 關於按鈕 QR Code
-            document.getElementById('aboutBtn').onclick = () => {
-                const aboutModal = document.getElementById('aboutModal');
-                aboutModal.style.display = 'block';
-                const currentUrl = window.location.href;
-                document.getElementById('currentUrlDisplay').textContent = currentUrl;
-                const container = document.getElementById('qrcodeContainer');
-                container.innerHTML = '';
-                try {
-                    const qr = qrcode(0, 'M');
-                    qr.addData(currentUrl);
-                    qr.make();
-                    const canvas = document.createElement('canvas');
-                    const size = qr.getModuleCount() * 5;
-                    canvas.width = size;
-                    canvas.height = size;
-                    const ctx = canvas.getContext('2d');
-                    const modules = qr.getModuleCount();
-                    for (let row = 0; row < modules; row++) {
-                        for (let col = 0; col < modules; col++) {
-                            ctx.fillStyle = qr.isDark(row, col) ? '#000000' : '#ffffff';
-                            ctx.fillRect(col * 5, row * 5, 5, 5);
-                        }
-                    }
-                    container.appendChild(canvas);
-                } catch (err) {
-                    console.error('QR Code 生成失敗', err);
-                    container.innerHTML = '<span class="text-red-500 text-xs">無法產生 QR Code</span>';
-                }
-            };
-
-            document.getElementById('cloudStatus').onclick = (e) => { e.stopPropagation(); document.getElementById('cloudMenu').classList.toggle('hidden'); };
-
-            document.getElementById('ledgerSelect').onchange = (e) => {
-                appData.currentLedgerId = e.target.value;
+                currentUser = null;
+                // 清空當前選擇的帳冊，避免權限問題
+                appData.currentLedgerId = null;
                 updateUI();
-                saveData(); 
+                showUserModal();
+                showToast('已切換使用者');
             };
-            document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
-            document.getElementById('editLedgerBtn').onclick = () => {
+            document.getElementById('userBtn').onclick = () => showUserModal();
+            document.getElementById('viewStatsBtn').onclick = () => {
                 if(!appData.currentLedgerId) return showToast('請先選擇帳冊');
-                openLedgerModal(appData.currentLedgerId);
+                window.location.href = `view.html?ledgerId=${appData.currentLedgerId}`;
             };
-            document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
-            
-            // 綁定科目、地點變更事件，觸發智能摘要
-            document.getElementById('expenseCategory').addEventListener('change', () => {
-                checkTransportAndRefresh();
-            });
-            document.getElementById('expenseLocation').addEventListener('change', () => {
-                refreshSummaryByMode();
-            });
-            document.getElementById('expenseDestination').addEventListener('change', () => {
-                const catNames = getSelectedCategoryNames();
-                if(catNames.main && catNames.main.includes('交通')) {
-                    updateTransportDesc();
-                }
-            });
-
-            document.getElementById('deleteLedgerBtn').onclick = () => {
-                if(confirm('確定要永久刪除此帳冊嗎？此動作無法復原。')) {
-                    appData.ledgers = appData.ledgers.filter(l => l.id !== appData.currentLedgerId);
-                    if(appData.expenses) {
-                        appData.expenses = appData.expenses.filter(e => e.ledgerId !== appData.currentLedgerId);
-                    }
-                    appData.currentLedgerId = null;
-                    saveData();
-                    updateUI();
-                    showToast('帳冊已刪除');
-                }
-            };
-            document.getElementById('toggleLockLedgerBtn').onclick = () => {
-                const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
-                if(l) {
-                    l.locked = !l.locked;
-                    saveData();
-                    updateUI();
-                    showToast(l.locked ? '帳冊已鎖定' : '帳冊已解鎖');
-                }
-            };
-
             document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
+            document.getElementById('cancelExpenseBtn').onclick = () => document.getElementById('expenseModal').style.display = 'none';
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
-            
-            document.getElementById('expenseReceipt').onchange = (e) => {
-                const f = e.target.files[0];
-                if(f) {
-                    const r = new FileReader();
-                    r.onload = (ev) => {
-                        document.getElementById('receiptImagePreview').src = ev.target.result;
-                        document.getElementById('receiptPreview').classList.remove('hidden');
-                    };
-                    r.readAsDataURL(f);
-                }
-            };
-            document.getElementById('expenseAmount').oninput = calcAverage;
-            document.getElementById('expenseSplitters').onclick = (e) => {
-                if(e.target.tagName === 'INPUT') {
-                    calcAverage();
-                    checkSelectAll();
-                }
-            };
-            document.getElementById('selectAllSplitters').onchange = (e) => {
-                document.querySelectorAll('.splitter-chk').forEach(c => c.checked = e.target.checked);
-                calcAverage();
-            };
-            
-            document.getElementById('expenseTreat').onchange = (e) => {
-                const isTreat = e.target.checked;
-                const avgEl = document.getElementById('averageAmount');
-                if(isTreat) {
-                    avgEl.style.textDecoration = 'line-through';
-                    avgEl.style.color = '#cbd5e1';
-                } else {
-                    avgEl.style.textDecoration = 'none';
-                    avgEl.style.color = '#2563eb';
-                }
-            };
-
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                b.onclick = () => {
-                    document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
-                    b.classList.add('tab-active');
-                    document.getElementById('expensesTab').classList.add('hidden');
-                    document.getElementById('queryTab').classList.add('hidden');
-                    document.getElementById('chartsTab').classList.add('hidden');
-                    document.getElementById(b.dataset.tab + 'Tab').classList.remove('hidden');
-                    if(b.dataset.tab === 'query') updateQueryOptions();
-                    if(b.dataset.tab === 'charts') renderCharts();
-                };
-            });
-
-            document.getElementById('exportBtn').onclick = () => {
-                const blob = new Blob([JSON.stringify(appData)], {type: 'application/json'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `travel_backup_${new Date().toISOString().slice(0,10)}.json`;
-                a.click();
-            };
-
-            document.getElementById('importFile').onchange = (e) => {
-                const f = e.target.files[0];
-                if(!f) return;
-                const r = new FileReader();
-                r.onload = (ev) => {
-                    try {
-                        const importedData = JSON.parse(ev.target.result);
-                        if(confirm('匯入將會覆蓋目前的資料，確定嗎？')) {
-                            appData = importedData;
-                            saveData(); 
-                            updateUI();
-                            showToast('匯入成功');
-                        }
-                    } catch(err) { alert('檔案格式錯誤'); }
-                };
-                r.readAsText(f);
-                e.target.value = '';
-            };
+            document.getElementById('ledgerSelect').onchange = (e) => { appData.currentLedgerId = e.target.value; updateUI(); saveData(); };
+            document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
+            document.getElementById('editLedgerBtn').onclick = () => { if(appData.currentLedgerId) openLedgerModal(appData.currentLedgerId); else showToast('請先選擇帳冊'); };
+            document.getElementById('deleteLedgerBtn').onclick = () => { if(confirm('刪除帳冊？所有相關支出將一併刪除')){ appData.ledgers = appData.ledgers.filter(l=>l.id!==appData.currentLedgerId); appData.expenses = appData.expenses.filter(e=>e.ledgerId!==appData.currentLedgerId); appData.currentLedgerId=null; saveData(); updateUI(); } };
+            document.getElementById('toggleLockLedgerBtn').onclick = () => { const l=appData.ledgers.find(l=>l.id===appData.currentLedgerId); if(l){ l.locked=!l.locked; saveData(); updateUI(); showToast(l.locked?'帳冊已鎖定':'帳冊已解鎖'); } };
+            document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
+            document.getElementById('expenseReceipt').onchange = (e) => { const f=e.target.files[0]; if(f){ const r=new FileReader(); r.onload=(ev)=>{ document.getElementById('receiptImagePreview').src=ev.target.result; document.getElementById('receiptPreview').classList.remove('hidden'); }; r.readAsDataURL(f); } };
+            document.getElementById('ledgerToggleHeader').onclick = () => { const el=document.getElementById('ledgerCollapsible'); const chevron=document.getElementById('ledgerChevron'); if(el.style.maxHeight==='0px' || !el.style.maxHeight){ el.style.maxHeight='800px'; el.style.opacity='1'; chevron.classList.add('rotate-180'); updateLedgerInfoPanel(); } else { el.style.maxHeight='0px'; el.style.opacity='0'; chevron.classList.remove('rotate-180'); } };
+            document.querySelectorAll('.closeModal').forEach(btn => btn.onclick = (e) => { e.target.closest('.modal').style.display = 'none'; });
+            window.onclick = (e) => { if(e.target.classList.contains('modal') && e.target.id !== 'expenseModal') e.target.style.display = 'none'; };
+            document.getElementById('aboutBtn').onclick = () => { const modal=document.getElementById('aboutModal'); modal.style.display='block'; const url=window.location.href; const container=document.getElementById('qrcodeContainer'); container.innerHTML=''; try{ const qr=qrcode(0,'M'); qr.addData(url); qr.make(); const canvas=document.createElement('canvas'); const size=qr.getModuleCount()*5; canvas.width=size; canvas.height=size; const ctx=canvas.getContext('2d'); for(let r=0;r<qr.getModuleCount();r++) for(let c=0;c<qr.getModuleCount();c++){ ctx.fillStyle=qr.isDark(r,c)?'#000':'#fff'; ctx.fillRect(c*5,r*5,5,5); } container.appendChild(canvas); }catch(e){ container.innerHTML='QR Code 生成失敗'; } };
         }
 
-        // ========== 工具函數 ==========
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            document.getElementById('toastMsg').textContent = msg;
-            t.classList.remove('hidden', 'translate-y-10', 'opacity-0');
-            setTimeout(() => t.classList.add('hidden'), 3000);
-        }
-
-        function showLoading(show, msg = '處理中...') {
-            document.getElementById('syncMsg').textContent = msg;
-            document.getElementById('syncOverlay').classList.toggle('hidden', !show);
-        }
+        document.getElementById('versionTag').innerText = CURRENT_VERSION;
+        document.getElementById('aboutVersion').innerText = CURRENT_VERSION;
+        loadLocalData();
+        initUserSystem();
+        setupFirebaseSync();
+        setupEvents();
+        checkUrlParams();
+        updateUI();
     </script>
 </body>
 </html>

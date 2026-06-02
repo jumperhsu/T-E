@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅遊收支統計報表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        .chart-container { height: 250px; width: 100%; }
+        .settlement-card { transition: all 0.2s; }
+        .settlement-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .batch-checkbox { transform: scale(1.2); margin-right: 8px; }
+        .tab-btn { transition: all 0.2s; border-bottom: 2px solid transparent; }
+        .tab-active { color: #2563eb; border-bottom-color: #2563eb; }
+    </style>
+</head>
+<body>
+    <nav class="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+        <div class="flex items-center gap-2"><i class="fas fa-chart-line text-indigo-500 text-xl"></i><span class="font-bold text-lg">統計報表 & 結算</span></div>
+        <div class="flex gap-2">
+            <button id="exportPdfBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center gap-2"><i class="fas fa-file-pdf"></i> 匯出 PDF</button>
+            <button id="backToMainBtn" class="bg-slate-100 px-4 py-2 rounded-lg hover:bg-slate-200 transition"><i class="fas fa-arrow-left"></i> 返回主程式</button>
+        </div>
+    </nav>
+    <main class="container mx-auto px-4 py-6 max-w-7xl" id="pdf-export-area">
+        <!-- 篩選條件區塊（固定） -->
+        <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+            <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-filter text-blue-500"></i> 篩選條件</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div><label class="block text-xs font-bold text-slate-500 mb-1.5">金主</label><select id="queryPayer" class="w-full border rounded-lg p-2"><option value="">所有金主</option></select></div>
+                <div><label class="block text-xs font-bold text-slate-500 mb-1.5">分攤人員</label><select id="querySplitter" class="w-full border rounded-lg p-2"><option value="">所有分攤者</option></select></div>
+                <div class="flex items-end gap-2"><button id="queryBtn" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg"><i class="fas fa-chart-simple"></i> 更新統計</button><button id="resetBtn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg"><i class="fas fa-undo"></i> 重置</button></div>
+            </div>
+        </div>
+
+        <!-- 統計卡片區塊（固定） -->
+        <div id="queryResults">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white p-5 rounded-xl"><div class="text-slate-500 text-sm">總支出</div><div id="totalAmount" class="text-2xl font-bold">0</div></div>
+                <div class="bg-white p-5 rounded-xl"><div class="text-slate-500 text-sm">請客總額</div><div id="treatAmount" class="text-2xl font-bold text-pink-500">0</div></div>
+                <div class="bg-white p-5 rounded-xl"><div class="text-slate-500 text-sm">應付/分攤金額</div><div id="splitterAmount" class="text-2xl font-bold text-purple-600">0</div></div>
+                <div class="bg-white p-5 rounded-xl"><div class="text-slate-500 text-sm">符合筆數</div><div id="totalCount" class="text-2xl font-bold text-blue-600">0</div></div>
+            </div>
+
+            <!-- 科目與城市統計（固定） -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white p-5 rounded-xl"><h4 class="font-bold mb-3"><i class="fas fa-tag text-blue-500"></i> 科目支出統計</h4><div id="categoryStats" class="flex flex-wrap gap-2"></div></div>
+                <div class="bg-white p-5 rounded-xl"><h4 class="font-bold mb-3"><i class="fas fa-map-marker-alt text-red-500"></i> 城市支出統計</h4><div id="cityStats" class="flex flex-wrap gap-2"></div></div>
+            </div>
+
+            <!-- 分攤明細（固定） -->
+            <div class="bg-white rounded-xl border p-5 mb-6"><h3 class="font-bold mb-3"><i class="fas fa-users text-cyan-600"></i> 分攤明細 (不含請客)</h3><div id="splitterDetails" class="max-h-80 overflow-y-auto"></div></div>
+
+            <!-- 頁籤區域 -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+                <div class="flex border-b">
+                    <button id="tabChartBtn" class="tab-btn flex-1 py-3 text-center font-medium text-sm flex items-center justify-center gap-2 tab-active"><i class="fas fa-chart-pie"></i> 圖表分析</button>
+                    <button id="tabSettlementBtn" class="tab-btn flex-1 py-3 text-center font-medium text-sm flex items-center justify-center gap-2"><i class="fas fa-hand-holding-usd"></i> 分攤者結算</button>
+                </div>
+                <div id="tabChartContent" class="p-5">
+                    <!-- 圖表分析內容 -->
+                    <div class="flex justify-between items-center flex-wrap gap-4 mb-4">
+                        <h3 class="font-bold text-slate-700"><i class="fas fa-chart-pie text-indigo-500"></i> 圖表分析</h3>
+                        <div class="flex gap-3">
+                            <select id="chartPayerFilter" class="border rounded px-2 py-1 text-sm"><option value="">所有金主</option></select>
+                            <select id="chartSplitterFilter" class="border rounded px-2 py-1 text-sm"><option value="">所有分攤者</option></select>
+                            <button id="updateChartsBtn" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded text-sm"><i class="fas fa-sync-alt"></i> 更新圖表</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div><h4 class="font-bold text-center mb-2">金主支付比例</h4><div class="chart-container"><canvas id="payerChart"></canvas></div></div>
+                        <div><h4 class="font-bold text-center mb-2">成員應付分攤</h4><div class="chart-container"><canvas id="splitterChart"></canvas></div></div>
+                        <div><h4 class="font-bold text-center mb-2">科目支出比例</h4><div class="chart-container"><canvas id="categoryChart"></canvas></div></div>
+                        <div><h4 class="font-bold text-center mb-2">城市支出比例</h4><div class="chart-container"><canvas id="cityChart"></canvas></div></div>
+                    </div>
+                </div>
+                <div id="tabSettlementContent" class="p-5 hidden">
+                    <!-- 分攤者結算內容 -->
+                    <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-hand-holding-usd text-green-600"></i> 分攤者結算（未結清部分）</h3>
+                    <div id="settlementContainer" class="space-y-4 mb-4"></div>
+                    <div class="flex justify-end"><button id="batchSettleBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg"><i class="fas fa-check-double"></i> 一鍵結帳（勾選的金主）</button></div>
+                </div>
+            </div>
+
+            <!-- 支出明細列表（固定） -->
+            <div class="bg-white rounded-xl shadow-sm p-5"><h3 class="font-bold text-lg mb-4">支出明細（可勾選未結項目批次結帳）</h3><div id="expenseDetailList" class="space-y-3 max-h-[500px] overflow-y-auto"></div></div>
+        </div>
+    </main>
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50"></div>
+
+    <script>
+        const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
+        const firebaseConfig = {
+            apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
+            authDomain: "travelexpense-fcc89.firebaseapp.com",
+            databaseURL: "https://travelexpense-fcc89-default-rtdb.firebaseio.com",
+            projectId: "travelexpense-fcc89",
+            storageBucket: "travelexpense-fcc89.firebasestorage.app",
+            messagingSenderId: "77168421477",
+            appId: "1:77168421477:web:c8f123a416c81197b1348c"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let appData = { ledgers: [], expenses: [] };
+        let currentLedgerId = null, currentUser = null, charts = {};
+
+        function upgradeOldExpense(exp) {
+            if(exp.splitterSettled === undefined && exp.splitters) {
+                const isSettled = exp.isSettled === true;
+                const splitterSettled = {};
+                exp.splitters.forEach(s => splitterSettled[s] = isSettled);
+                exp.splitterSettled = splitterSettled;
+                delete exp.isSettled;
+            }
+            return exp;
+        }
+
+        function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            currentLedgerId = urlParams.get('ledgerId');
+            const storedUser = localStorage.getItem('travelAccountingUser');
+            if(!storedUser || !currentLedgerId) { showAuthError(); return; }
+            try { currentUser = JSON.parse(storedUser); } catch(e) { showAuthError(); return; }
+            db.ref('travel_data').on('value', (snap) => {
+                if(snap.val()) {
+                    const remote = snap.val();
+                    appData = {
+                        ledgers: Array.isArray(remote.ledgers) ? remote.ledgers : [],
+                        expenses: (Array.isArray(remote.expenses) ? remote.expenses : []).map(upgradeOldExpense)
+                    };
+                    checkPermissionAndRender();
+                } else showAuthError();
+            });
+        }
+
+        function checkPermissionAndRender() {
+            const ledger = appData.ledgers?.find(l => l.id === currentLedgerId);
+            if(!ledger) { showAuthError(); return; }
+            const isMember = (ledger.members || []).some(m => m.email === currentUser.email) || currentUser.email === APP_ADMIN_EMAIL;
+            if(!isMember) { showAuthError(); return; }
+            initFilterOptions(ledger);
+            applyFiltersAndRender();
+            setupEvents(ledger);
+        }
+
+        function showAuthError() { document.body.innerHTML = '<div class="container mx-auto p-8 text-center">無權限</div>'; }
+        function showToast(msg) { const t=document.getElementById('toast'); t.innerText=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),2500); }
+
+        function initFilterOptions(ledger) {
+            const expenses = (appData.expenses||[]).filter(e=>e.ledgerId===currentLedgerId);
+            const payers = [...new Set(expenses.map(e=>e.payer))];
+            const splitters = [...new Set(expenses.flatMap(e=>e.splitters))];
+            ['queryPayer','chartPayerFilter'].forEach(id => { const sel=document.getElementById(id); sel.innerHTML='<option value="">所有金主</option>'; payers.forEach(p=>sel.add(new Option(p,p))); });
+            ['querySplitter','chartSplitterFilter'].forEach(id => { const sel=document.getElementById(id); sel.innerHTML='<option value="">所有分攤者</option>'; splitters.forEach(s=>sel.add(new Option(s,s))); });
+        }
+
+        function applyFiltersAndRender() {
+            const pFilter = document.getElementById('queryPayer').value;
+            const sFilter = document.getElementById('querySplitter').value;
+            let expenses = (appData.expenses||[]).filter(e=>e.ledgerId===currentLedgerId);
+            if(pFilter) expenses = expenses.filter(e=>e.payer===pFilter);
+            if(sFilter) expenses = expenses.filter(e=>e.splitters.includes(sFilter));
+            renderStatistics(expenses, sFilter);
+            renderSplitterDetails(expenses, sFilter);
+            renderSettlement();  // 結算不受篩選影響（基於所有未結清）
+            renderExpenseListWithCheckbox(expenses);
+        }
+
+        function renderStatistics(expenses, sFilter) {
+            const total = expenses.reduce((s,e)=>s+e.amount,0);
+            const treatTotal = expenses.filter(e=>e.isTreat).reduce((s,e)=>s+e.amount,0);
+            let splitterTotal = 0;
+            if(sFilter) splitterTotal = expenses.filter(e=>!e.isTreat).reduce((s,e)=>s + (e.averageAmount||0),0);
+            document.getElementById('totalAmount').innerText = total.toFixed(2);
+            document.getElementById('treatAmount').innerText = treatTotal.toFixed(2);
+            document.getElementById('splitterAmount').innerHTML = sFilter ? splitterTotal.toFixed(2) : '-';
+            document.getElementById('totalCount').innerText = expenses.length;
+            const catMap = {}; expenses.forEach(e=>catMap[e.category.main.name]=(catMap[e.category.main.name]||0)+e.amount);
+            document.getElementById('categoryStats').innerHTML = Object.entries(catMap).map(([n,a])=>`<div class="bg-white px-3 py-2 rounded-lg border"><span class="font-medium">${n}</span><span class="font-bold ml-2 text-blue-600">$${a.toFixed(0)}</span></div>`).join('');
+            const cityMap = {}; expenses.forEach(e=>cityMap[e.location.city.name]=(cityMap[e.location.city.name]||0)+e.amount);
+            document.getElementById('cityStats').innerHTML = Object.entries(cityMap).map(([n,a])=>`<div class="bg-white px-3 py-2 rounded-lg border"><span class="font-medium">${n}</span><span class="font-bold ml-2 text-blue-600">$${a.toFixed(0)}</span></div>`).join('');
+        }
+
+        function renderSplitterDetails(expenses, selectedSplitter) {
+            const container = document.getElementById('splitterDetails');
+            if(selectedSplitter) {
+                const myItems = expenses.filter(e => !e.isTreat && e.splitters.includes(selectedSplitter));
+                if(myItems.length) {
+                    container.innerHTML = myItems.map(e => `<div class="flex justify-between text-sm py-2 px-3 border-b"><span>${e.date} ${e.description}</span><span class="font-bold">$${e.averageAmount.toFixed(0)}</span></div>`).join('');
+                } else {
+                    container.innerHTML = '<div class="p-4 text-center text-slate-400">無應付項目</div>';
+                }
+            } else {
+                container.innerHTML = '<div class="p-4 text-center text-slate-400">請選擇分攤人員以查看詳細應付明細</div>';
+            }
+        }
+
+        function renderSettlement() {
+            const expenses = (appData.expenses||[]).filter(e=>e.ledgerId===currentLedgerId && !e.isTreat);
+            const unsettledMap = {};
+            expenses.forEach(exp => {
+                if(!exp.splitterSettled) return;
+                const amountPerPerson = exp.averageAmount || 0;
+                exp.splitters.forEach(splitter => {
+                    if(exp.splitterSettled[splitter] === false) {
+                        if(!unsettledMap[splitter]) unsettledMap[splitter] = {};
+                        if(!unsettledMap[splitter][exp.payer]) unsettledMap[splitter][exp.payer] = { total: 0, expenseIds: [] };
+                        unsettledMap[splitter][exp.payer].total += amountPerPerson;
+                        unsettledMap[splitter][exp.payer].expenseIds.push({ expenseId: exp.id, splitter: splitter });
+                    }
+                });
+            });
+            const container = document.getElementById('settlementContainer');
+            if(Object.keys(unsettledMap).length===0) { container.innerHTML='<div class="text-center text-slate-400 p-4">無未結清之應付項目</div>'; return; }
+            container.innerHTML = '';
+            for(const splitter in unsettledMap) {
+                const card = document.createElement('div');
+                card.className = 'border rounded-lg p-4 settlement-card bg-slate-50 mb-4';
+                card.innerHTML = `<div class="font-bold text-lg mb-2">${splitter}</div><div class="space-y-2"></div>`;
+                const innerDiv = card.querySelector('.space-y-2');
+                for(const payer in unsettledMap[splitter]) {
+                    const data = unsettledMap[splitter][payer];
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'flex items-center justify-between p-2 bg-white rounded border';
+                    rowDiv.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" class="batch-checkbox payer-checkbox" data-splitter="${splitter}" data-payer="${payer}" data-expense-ids='${JSON.stringify(data.expenseIds)}'>
+                            <span class="font-medium">${payer}</span>
+                        </div>
+                        <span class="text-red-600 font-bold">應付 $${data.total.toFixed(2)}</span>
+                    `;
+                    innerDiv.appendChild(rowDiv);
+                }
+                container.appendChild(card);
+            }
+            document.querySelectorAll('.payer-checkbox').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const expenseItems = JSON.parse(e.target.dataset.expenseIds);
+                    const isChecked = e.target.checked;
+                    expenseItems.forEach(item => {
+                        const rowChk = document.querySelector(`.expense-row-checkbox[data-expense-id="${item.expenseId}"][data-splitter="${item.splitter}"]`);
+                        if(rowChk) rowChk.checked = isChecked;
+                    });
+                });
+            });
+        }
+
+        function renderExpenseListWithCheckbox(expenses) {
+            const container = document.getElementById('expenseDetailList');
+            if(!expenses.length) { container.innerHTML='<div class="text-center py-8 text-slate-400">尚無支出記錄</div>'; return; }
+            expenses.sort((a,b)=>new Date(`${b.date} ${b.time}`)-new Date(`${a.date} ${a.time}`));
+            let html = '';
+            expenses.forEach(e => {
+                const isTreat = e.isTreat;
+                const splitterRows = e.splitters.map(splitter => {
+                    const isSettled = e.splitterSettled ? e.splitterSettled[splitter] === true : false;
+                    const canSettle = !isTreat && !isSettled;
+                    const checkboxHtml = canSettle ? `<input type="checkbox" class="expense-row-checkbox" data-expense-id="${e.id}" data-splitter="${splitter}" data-payer="${e.payer}" style="transform:scale(1.2); margin-right:8px;">` : '';
+                    const statusText = isTreat ? '請客' : (isSettled ? '已付款' : '未付款');
+                    return `<div class="flex justify-between items-center border-b py-2"><div class="flex items-center">${checkboxHtml}<span class="font-medium w-24">${splitter}</span><span class="text-sm">${statusText}</span></div><div class="text-sm">分攤 ${e.averageAmount.toFixed(2)} 元</div></div>`;
+                }).join('');
+                html += `<div class="border rounded-lg p-3 mb-2"><div class="font-bold">${e.description}</div><div class="text-xs text-slate-500">${e.date} | ${e.category.main.name}${e.category.sub?`·${e.category.sub.name}`:''} | 金主:${e.payer} | 總額:${e.amount.toFixed(0)}</div><div class="mt-2 space-y-1">${splitterRows}</div></div>`;
+            });
+            container.innerHTML = html;
+            document.querySelectorAll('.expense-row-checkbox').forEach(chk => {
+                chk.addEventListener('change', (e) => {
+                    const expenseId = e.target.dataset.expenseId;
+                    const splitter = e.target.dataset.splitter;
+                    const payer = e.target.dataset.payer;
+                    const parentCheckbox = document.querySelector(`.payer-checkbox[data-splitter="${splitter}"][data-payer="${payer}"]`);
+                    if(parentCheckbox) {
+                        const allRelated = Array.from(document.querySelectorAll(`.expense-row-checkbox[data-splitter="${splitter}"][data-payer="${payer}"]`));
+                        const allChecked = allRelated.every(cb => cb.checked);
+                        parentCheckbox.checked = allChecked;
+                    }
+                });
+            });
+        }
+
+        async function batchSettle() {
+            const checkedItems = document.querySelectorAll('.expense-row-checkbox:checked');
+            if(checkedItems.length === 0) { showToast('請至少勾選一筆未結清項目'); return; }
+            if(!confirm(`確定要將 ${checkedItems.length} 筆分攤項目標記為「已付款」嗎？`)) return;
+            const updates = [];
+            checkedItems.forEach(cb => {
+                const expenseId = cb.dataset.expenseId;
+                const splitter = cb.dataset.splitter;
+                const exp = appData.expenses.find(e => e.id === expenseId);
+                if(exp && exp.splitterSettled && exp.splitterSettled[splitter] === false) {
+                    exp.splitterSettled[splitter] = true;
+                    updates.push({expenseId, splitter});
+                }
+            });
+            if(updates.length === 0) { showToast('無可更新的項目'); return; }
+            localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
+            await db.ref('travel_data').set(appData).catch(e=>console.error);
+            showToast(`已結清 ${updates.length} 筆分攤項目`);
+            applyFiltersAndRender();
+            updateChartsWithFilter();
+        }
+
+        function updateChartsWithFilter() {
+            const chartPayer = document.getElementById('chartPayerFilter').value;
+            const chartSplitter = document.getElementById('chartSplitterFilter').value;
+            let expenses = (appData.expenses||[]).filter(e=>e.ledgerId===currentLedgerId);
+            if(chartPayer) expenses = expenses.filter(e=>e.payer===chartPayer);
+            if(chartSplitter) expenses = expenses.filter(e=>e.splitters.includes(chartSplitter));
+            if(expenses.length===0) return;
+            const payerMap = {}; expenses.forEach(e=>payerMap[e.payer]=(payerMap[e.payer]||0)+e.amount);
+            if(charts.payer) charts.payer.destroy();
+            charts.payer = new Chart(document.getElementById('payerChart'),{type:'doughnut',data:{labels:Object.keys(payerMap),datasets:[{data:Object.values(payerMap),backgroundColor:['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6']}]}});
+            const splitMap = {}; expenses.filter(e=>!e.isTreat).forEach(e=>e.splitters.forEach(s=>splitMap[s]=(splitMap[s]||0)+e.averageAmount));
+            if(charts.splitter) charts.splitter.destroy();
+            charts.splitter = new Chart(document.getElementById('splitterChart'),{type:'bar',data:{labels:Object.keys(splitMap),datasets:[{label:'應付金額',data:Object.values(splitMap),backgroundColor:'#6366f1'}]}});
+            const catMap = {}; expenses.forEach(e=>catMap[e.category.main.name]=(catMap[e.category.main.name]||0)+e.amount);
+            if(charts.category) charts.category.destroy();
+            charts.category = new Chart(document.getElementById('categoryChart'),{type:'doughnut',data:{labels:Object.keys(catMap),datasets:[{data:Object.values(catMap),backgroundColor:['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6']}]}});
+            const cityMap = {}; expenses.forEach(e=>cityMap[e.location.city.name]=(cityMap[e.location.city.name]||0)+e.amount);
+            if(charts.city) charts.city.destroy();
+            charts.city = new Chart(document.getElementById('cityChart'),{type:'doughnut',data:{labels:Object.keys(cityMap),datasets:[{data:Object.values(cityMap),backgroundColor:['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6']}]}});
+        }
+
+        async function exportToPDF() {
+            const element = document.getElementById('pdf-export-area');
+            try {
+                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                const imgData = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgWidth = 210;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                let heightLeft = imgHeight, position = 0;
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= (pdf.internal.pageSize.height - 10);
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pdf.internal.pageSize.height;
+                }
+                pdf.save(`travel_report_${new Date().toISOString().slice(0,19)}.pdf`);
+                showToast('PDF 匯出成功');
+            } catch(err) { showToast('PDF 匯出失敗'); }
+        }
+
+        function setupEvents(ledger) {
+            document.getElementById('queryBtn').onclick = () => applyFiltersAndRender();
+            document.getElementById('resetBtn').onclick = () => { document.getElementById('queryPayer').value=''; document.getElementById('querySplitter').value=''; applyFiltersAndRender(); };
+            document.getElementById('updateChartsBtn').onclick = () => updateChartsWithFilter();
+            document.getElementById('batchSettleBtn').onclick = () => batchSettle();
+            document.getElementById('exportPdfBtn').onclick = () => exportToPDF();
+            document.getElementById('backToMainBtn').onclick = () => window.location.href = 'index.html';
+            // 頁籤切換
+            const tabChartBtn = document.getElementById('tabChartBtn');
+            const tabSettlementBtn = document.getElementById('tabSettlementBtn');
+            const tabChartContent = document.getElementById('tabChartContent');
+            const tabSettlementContent = document.getElementById('tabSettlementContent');
+            tabChartBtn.onclick = () => {
+                tabChartBtn.classList.add('tab-active');
+                tabSettlementBtn.classList.remove('tab-active');
+                tabChartContent.classList.remove('hidden');
+                tabSettlementContent.classList.add('hidden');
+            };
+            tabSettlementBtn.onclick = () => {
+                tabSettlementBtn.classList.add('tab-active');
+                tabChartBtn.classList.remove('tab-active');
+                tabSettlementContent.classList.remove('hidden');
+                tabChartContent.classList.add('hidden');
+            };
+            updateChartsWithFilter();
+        }
+
+        init();
+    </script>
+</body>
+</html>
