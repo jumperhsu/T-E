@@ -16,7 +16,6 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .receipt-preview { max-width: 100px; max-height: 100px; cursor: pointer; border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; }
         .card-hover { transition: all 0.2s ease; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
@@ -39,7 +38,6 @@
         .stat-item .label { font-size: 0.7rem; color: #64748b; font-weight: 700; }
         .stat-item .value { font-size: 1.1rem; font-weight: 700; }
         .treat-badge { background-color: #fce7f3; color: #db2777; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
-        .settle-checkbox { width: 18px; height: 18px; cursor: pointer; margin-left: 8px; }
         .voice-textarea { width: 100%; border-radius: 12px; border: 1px solid #cbd5e1; padding: 12px; font-size: 1rem; min-height: 60px; height: 60px; font-family: inherit; resize: vertical; }
         .voice-hint { font-size: 0.75rem; color: #6b7280; margin-top: 8px; padding: 8px; background: #f3f4f6; border-radius: 8px; line-height: 1.4; }
         .voice-hint i { margin-right: 4px; }
@@ -47,6 +45,46 @@
         .voice-quick-btn:hover { transform: translateY(-1px); }
         .voice-helper-btn { background-color: #e2e8f0; color: #1e293b; }
         .voice-helper-btn:hover { background-color: #cbd5e1; }
+        .splitters-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .splitter-item {
+            flex: 1 1 calc(33% - 12px);
+            min-width: 160px;
+            background: white;
+            border-radius: 12px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        @media (max-width: 640px) {
+            .splitter-item { flex: 1 1 calc(50% - 12px); }
+        }
+        .settle-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background-color: #f1f5f9;
+            transition: all 0.2s;
+            font-size: 1rem;
+        }
+        .settle-btn.settled {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .settle-btn:not(.settled) {
+            background-color: #e2e8f0;
+            color: #64748b;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
@@ -110,7 +148,7 @@
                 <button id="closeVoiceModalBtn" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
             </div>
             <div id="voiceQuickButtons" class="flex flex-wrap gap-2 mb-3 min-h-[44px]"></div>
-            <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北火車站50嵐&#10;新增交通紀錄高鐵由台北車站往台中高鐵站"></textarea>
+            <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北火車站50嵐&#10;新增活動紀錄旅拍南京牛首山漢服"></textarea>
             <div class="flex flex-wrap gap-2 my-3">
                 <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加城市 "><i class="fas fa-city mr-1"></i>+城市</button>
                 <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加區域 "><i class="fas fa-map-marker-alt mr-1"></i>+區域</button>
@@ -124,7 +162,7 @@
                 • 增加主科目<strong>主科目名</strong><br>
                 • 增加次要科目<strong>主科目次要科目</strong><br>
                 • 新增交通紀錄<strong>交通工具由起點往終點</strong><br>
-                • 新增飲食/購物/景點紀錄<strong>類別地點備註</strong> (類別與地點間可無空格，會自動識別)<br>
+                • 新增[主科目名稱]紀錄<strong>次科目地點備註</strong> (會自動匹配您帳冊中的主科目)<br>
                 <span class="text-xs text-gray-500">⭐ 點擊上方快捷按鈕立即填入標準指令，再補上詳細內容即可</span>
             </div>
             <div class="flex justify-end gap-3 mt-4">
@@ -210,15 +248,16 @@
                     </div>
                     <select id="expensePayer" required class="w-full border rounded p-2 mb-4"></select>
                     <div class="mb-4 p-3 bg-slate-50 rounded-lg">
-                        <div class="font-medium text-sm mb-2">分攤人員與付款狀態</div>
-                        <div id="expenseSplitters" class="space-y-2 mb-2"></div>
-                        <div class="text-right text-sm">每人平均：<span id="averageAmount" class="font-bold text-blue-600">0.00</span></div>
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="font-medium text-sm">分攤人員與結清狀態</div>
+                            <button type="button" id="selectAllSplittersBtn" class="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100"><i class="fas fa-check-double"></i> 全選</button>
+                        </div>
+                        <div id="expenseSplitters" class="splitters-grid"></div>
+                        <div class="text-right text-sm mt-2">每人平均：<span id="averageAmount" class="font-bold text-blue-600">0.00</span></div>
                     </div>
                     <div class="flex gap-4 mb-4">
                         <label class="flex items-center gap-1"><input type="checkbox" id="expenseTreat"> 金主請客</label>
                     </div>
-                    <input type="file" id="expenseReceipt" accept="image/*" class="mb-4">
-                    <div id="receiptPreview" class="hidden mb-4"><img id="receiptImagePreview" class="receipt-preview"></div>
                     <div class="flex justify-end gap-3 pt-2">
                         <button type="button" id="cancelExpenseBtn" class="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg">取消</button>
                         <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg shadow-md">儲存記錄</button>
@@ -228,11 +267,10 @@
         </div>
     </div>
     
-    <div id="receiptViewModal" class="modal"><div class="modal-content p-0 bg-black/80 text-center"><img id="receiptViewImage" class="max-w-full max-h-[80vh] mx-auto"><button class="closeModal absolute top-2 right-2 text-white text-2xl">&times;</button></div></div>
     <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50 shadow-lg"></div>
 
     <script>
-        // ==================== 完整功能 ====================
+        // ==================== 完整功能 (全選按鈕支援切換) ====================
         const CURRENT_VERSION = 'v20260609.final';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
@@ -257,49 +295,49 @@
 
         function isTransportByMainCat(mainName) { return mainName && mainName.includes('交通'); }
         
-        // 升級舊紀錄格式
-        function upgradeOldExpense(exp) {
-            if(exp.splitterSettled === undefined && exp.splitters) {
-                const isSettled = exp.isSettled === true;
-                const splitterSettled = {};
-                exp.splitters.forEach(s => { splitterSettled[s] = isSettled; });
-                exp.splitterSettled = splitterSettled;
-                delete exp.isSettled;
-            }
+        function upgradeOldExpense(exp, currentLedger) {
+            if (!currentLedger) return exp;
             if (exp.category) {
-                if (exp.category.main && !exp.category.mainId) {
-                    exp.category.mainId = exp.category.main.id;
-                    exp.category.mainName = exp.category.main.name;
-                    if (exp.category.sub) {
-                        exp.category.subId = exp.category.sub.id;
-                        exp.category.subName = exp.category.sub.name;
+                const mainName = exp.category.mainName;
+                const subName = exp.category.subName;
+                if (mainName) {
+                    const mainCat = currentLedger.categories?.main?.find(m => m.name === mainName);
+                    if (mainCat) {
+                        exp.category.mainId = mainCat.id;
+                        if (subName) {
+                            const subCat = currentLedger.categories?.sub?.[mainCat.id]?.find(s => s.name === subName);
+                            if (subCat) exp.category.subId = subCat.id;
+                        }
                     }
                 }
-                if (!exp.category.mainName && exp.category.main && exp.category.main.name) exp.category.mainName = exp.category.main.name;
-                if (!exp.category.subName && exp.category.sub && exp.category.sub.name) exp.category.subName = exp.category.sub.name;
             }
             if (exp.location) {
-                if (exp.location.city && !exp.location.cityId) {
-                    exp.location.cityId = exp.location.city.id;
-                    exp.location.cityName = exp.location.city.name;
-                    if (exp.location.district) {
-                        exp.location.districtId = exp.location.district.id;
-                        exp.location.districtName = exp.location.district.name;
+                const cityName = exp.location.cityName;
+                const districtName = exp.location.districtName;
+                if (cityName) {
+                    const city = currentLedger.locations?.cities?.find(c => c.name === cityName);
+                    if (city) {
+                        exp.location.cityId = city.id;
+                        if (districtName) {
+                            const district = currentLedger.locations?.districts?.[city.id]?.find(d => d.name === districtName);
+                            if (district) exp.location.districtId = district.id;
+                        }
                     }
                 }
-                if (!exp.location.cityName && exp.location.city && exp.location.city.name) exp.location.cityName = exp.location.city.name;
-                if (!exp.location.districtName && exp.location.district && exp.location.district.name) exp.location.districtName = exp.location.district.name;
             }
             if (exp.destination) {
-                if (exp.destination.city && !exp.destination.cityId) {
-                    exp.destination.cityId = exp.destination.city.id;
-                    exp.destination.cityName = exp.destination.city.name;
-                    if (exp.destination.district) {
-                        exp.destination.districtId = exp.destination.district.id;
-                        exp.destination.districtName = exp.destination.district.name;
+                const cityName = exp.destination.cityName;
+                const districtName = exp.destination.districtName;
+                if (cityName) {
+                    const city = currentLedger.locations?.cities?.find(c => c.name === cityName);
+                    if (city) {
+                        exp.destination.cityId = city.id;
+                        if (districtName) {
+                            const district = currentLedger.locations?.districts?.[city.id]?.find(d => d.name === districtName);
+                            if (district) exp.destination.districtId = district.id;
+                        }
                     }
                 }
-                if (!exp.destination.cityName && exp.destination.city && exp.destination.city.name) exp.destination.cityName = exp.destination.city.name;
             }
             return exp;
         }
@@ -312,11 +350,25 @@
                     appData = {
                         ledgers: Array.isArray(parsed.ledgers) ? parsed.ledgers : [],
                         currentLedgerId: parsed.currentLedgerId || null,
-                        expenses: (Array.isArray(parsed.expenses) ? parsed.expenses : []).map(upgradeOldExpense)
+                        expenses: (Array.isArray(parsed.expenses) ? parsed.expenses : [])
                     };
                 } catch(e) { console.error(e); appData = { ledgers: [], currentLedgerId: null, expenses: [] }; }
             }
             if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) appData.currentLedgerId = null;
+        }
+        
+        function upgradeAllExpenses() {
+            const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            if (currentLedger) {
+                let changed = false;
+                appData.expenses = appData.expenses.map(exp => {
+                    const oldStr = JSON.stringify(exp);
+                    const newExp = upgradeOldExpense(exp, currentLedger);
+                    if (JSON.stringify(newExp) !== oldStr) changed = true;
+                    return newExp;
+                });
+                if (changed) saveData();
+            }
         }
         
         function saveData() {
@@ -346,11 +398,12 @@
                     const newAppData = {
                         ledgers: Array.isArray(remote.ledgers) ? remote.ledgers : [],
                         currentLedgerId: remote.currentLedgerId || null,
-                        expenses: (Array.isArray(remote.expenses) ? remote.expenses : []).map(upgradeOldExpense)
+                        expenses: (Array.isArray(remote.expenses) ? remote.expenses : [])
                     };
                     if(JSON.stringify(appData) !== JSON.stringify(newAppData)) {
                         appData = newAppData;
                         localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
+                        upgradeAllExpenses();
                         updateUI();
                         showToast('雲端資料已同步');
                     }
@@ -428,7 +481,6 @@
             }
         }
 
-        // ==================== 語音快捷按鈕動態生成 ====================
         function renderVoiceQuickButtons() {
             const container = document.getElementById('voiceQuickButtons');
             if (!container) return;
@@ -494,8 +546,7 @@
         function closeVoiceModal() { 
             document.getElementById('voiceModal').style.display = 'none';
         }
-        
-        // ==================== 帳冊設定完整 ====================
+
         function openLedgerModal(ledgerId = null) {
             const modal = document.getElementById('ledgerModal');
             const form = document.getElementById('ledgerForm');
@@ -534,6 +585,7 @@
             form.dataset.mode = ledgerId ? 'edit' : 'add';
             form.dataset.id = ledgerId || '';
         }
+        
         function renderLedgerConfigUI() {
             const container = document.getElementById('configArea');
             container.innerHTML = `
@@ -574,6 +626,7 @@
             }
             renderMembers();
         }
+        
         function renderList(containerId, items, selectedId, onSelect, onDelete, onEdit, onMoveUp, onMoveDown) {
             const container = document.getElementById(containerId);
             if(!container) return;
@@ -590,6 +643,7 @@
                 container.appendChild(el);
             });
         }
+        
         function renderMembers() {
             const container = document.getElementById('memberTagsList');
             if(!container) return;
@@ -605,6 +659,7 @@
                 container.appendChild(div);
             });
         }
+        
         function addMainCat() { let val = document.getElementById('newMainCatInput')?.value.trim(); if(!val) return; let id=Date.now().toString(); tempLedger.mainCats.push({id,name:val}); tempLedger.subCats[id]=[]; document.getElementById('newMainCatInput').value=''; renderLedgerConfigUI(); selectedMainCatId=id; renderLedgerConfigUI(); }
         function deleteMainCat(id) { tempLedger.mainCats=tempLedger.mainCats.filter(c=>c.id!==id); delete tempLedger.subCats[id]; if(selectedMainCatId===id) selectedMainCatId=null; renderLedgerConfigUI(); }
         function addSubCat() { if(!selectedMainCatId) return; let val=document.getElementById('newSubCatInput')?.value.trim(); if(!val) return; if(!tempLedger.subCats[selectedMainCatId]) tempLedger.subCats[selectedMainCatId]=[]; tempLedger.subCats[selectedMainCatId].push({id:Date.now().toString(), name:val}); document.getElementById('newSubCatInput').value=''; renderLedgerConfigUI(); }
@@ -634,19 +689,20 @@
             showToast('帳冊已儲存');
         }
 
-        // ==================== 支出功能完整（修復編輯及儲存時地點/科目遺失） ====================
+        // 支出功能核心
         function openExpenseModal(expenseId = null) {
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
             const members = ledger.members || [];
             const isMember = members.some(m => m.email === currentUser?.email) || currentUser?.email === APP_ADMIN_EMAIL;
             if (!isMember) return showToast('您不是此帳冊的成員，無法新增支出');
+            
+            upgradeAllExpenses();
+            
             const modal = document.getElementById('expenseModal');
             const form = document.getElementById('expenseForm');
             form.reset();
             currentEditingExpenseId = expenseId;
-            document.getElementById('receiptPreview').classList.add('hidden');
-            document.getElementById('destinationWrapper').classList.add('hidden');
             const fieldset = document.getElementById('expenseFieldset');
             const lockedMsg = document.getElementById('lockedMessage');
             const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
@@ -678,6 +734,7 @@
                     catSelect.appendChild(subOpt);
                 });
             });
+            
             const loadLocationOptions = (selectEl) => {
                 selectEl.innerHTML = '<option value="" disabled selected>請選擇地點</option>';
                 const cities = ledger.locations?.cities || [];
@@ -705,8 +762,11 @@
                     });
                 });
             };
-            loadLocationOptions(document.getElementById('expenseLocation'));
-            loadLocationOptions(document.getElementById('expenseDestination'));
+            const locSelect = document.getElementById('expenseLocation');
+            const destSelect = document.getElementById('expenseDestination');
+            loadLocationOptions(locSelect);
+            loadLocationOptions(destSelect);
+            
             const payerSelect = document.getElementById('expensePayer');
             const splittersDiv = document.getElementById('expenseSplitters');
             payerSelect.innerHTML = '';
@@ -714,10 +774,73 @@
             members.forEach(m => {
                 payerSelect.add(new Option(m.name, m.name));
                 const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-2 bg-white rounded border';
-                div.innerHTML = `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="${escapeHtml(m.name)}" class="splitter-chk"><span>${escapeHtml(m.name)}</span></label><label class="flex items-center gap-1 text-sm text-slate-500"><input type="checkbox" class="settle-checkbox" data-splitter="${escapeHtml(m.name)}" disabled style="transform:scale(0.9);">已付款給金主</label>`;
+                div.className = 'splitter-item';
+                div.setAttribute('data-splitter-name', m.name);
+                div.innerHTML = `
+                    <label class="flex items-center gap-2 cursor-pointer flex-1">
+                        <input type="checkbox" value="${escapeHtml(m.name)}" class="splitter-chk"> 
+                        <span>${escapeHtml(m.name)}</span>
+                    </label>
+                    <div class="settle-btn" data-splitter="${escapeHtml(m.name)}">
+                        <i class="fas fa-check"></i>
+                    </div>
+                `;
                 splittersDiv.appendChild(div);
             });
+            
+            function updateSettleButtonsEnable() {
+                splittersDiv.querySelectorAll('.splitter-item').forEach(item => {
+                    const chk = item.querySelector('.splitter-chk');
+                    const settleBtn = item.querySelector('.settle-btn');
+                    if (settleBtn) {
+                        if (!chk.checked) {
+                            settleBtn.classList.remove('settled');
+                            settleBtn.style.opacity = '0.4';
+                        } else {
+                            settleBtn.style.opacity = '1';
+                        }
+                    }
+                });
+                calcAverage();
+            }
+            function calcAverage() {
+                const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
+                const isTreat = document.getElementById('expenseTreat').checked;
+                const cnt = splittersDiv.querySelectorAll('.splitter-chk:checked').length;
+                const avg = (cnt>0 && !isTreat) ? (amt / cnt).toFixed(2) : (isTreat ? 0 : amt).toFixed(2);
+                const avgSpan = document.getElementById('averageAmount');
+                avgSpan.innerText = avg;
+                if(isTreat) avgSpan.classList.add('line-through', 'text-slate-400');
+                else avgSpan.classList.remove('line-through', 'text-slate-400');
+            }
+            
+            splittersDiv.querySelectorAll('.settle-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const item = btn.closest('.splitter-item');
+                    const chk = item.querySelector('.splitter-chk');
+                    if (!chk.checked) return;
+                    btn.classList.toggle('settled');
+                    calcAverage();
+                });
+            });
+            
+            // 全選按鈕：支援切換（全選 / 取消全選）
+            const selectAllBtn = document.getElementById('selectAllSplittersBtn');
+            if (selectAllBtn) {
+                selectAllBtn.onclick = () => {
+                    const allChks = splittersDiv.querySelectorAll('.splitter-chk');
+                    const someUnchecked = Array.from(allChks).some(chk => !chk.checked);
+                    if (someUnchecked) {
+                        allChks.forEach(chk => { chk.checked = true; });
+                    } else {
+                        allChks.forEach(chk => { chk.checked = false; });
+                    }
+                    updateSettleButtonsEnable();
+                    calcAverage();
+                };
+            }
+            
             if (expenseId) {
                 const exp = (appData.expenses || []).find(e => e.id === expenseId);
                 if (exp) {
@@ -728,53 +851,75 @@
                     document.getElementById('expensePayer').value = exp.payer || '';
                     document.getElementById('expenseTreat').checked = exp.isTreat || false;
                     
-                    if (exp.category) {
-                        if (exp.category.subId && exp.category.mainId) {
-                            const targetVal = `sub_${exp.category.mainId}_${exp.category.subId}`;
-                            if (catSelect.querySelector(`option[value="${targetVal}"]`)) catSelect.value = targetVal;
-                            else if (exp.category.mainId) {
-                                const mainVal = `main_${exp.category.mainId}`;
-                                if (catSelect.querySelector(`option[value="${mainVal}"]`)) catSelect.value = mainVal;
-                            }
-                        } else if (exp.category.mainId) {
+                    let targetCatValue = null;
+                    if (exp.category && exp.category.mainId) {
+                        if (exp.category.subId) {
+                            const subVal = `sub_${exp.category.mainId}_${exp.category.subId}`;
+                            if (catSelect.querySelector(`option[value="${subVal}"]`)) targetCatValue = subVal;
+                        }
+                        if (!targetCatValue) {
                             const mainVal = `main_${exp.category.mainId}`;
-                            if (catSelect.querySelector(`option[value="${mainVal}"]`)) catSelect.value = mainVal;
+                            if (catSelect.querySelector(`option[value="${mainVal}"]`)) targetCatValue = mainVal;
+                        }
+                    }
+                    if (!targetCatValue && exp.category && exp.category.mainName) {
+                        const mainCat = mainCats.find(m => m.name === exp.category.mainName);
+                        if (mainCat) {
+                            if (exp.category.subName) {
+                                const subCat = subCats[mainCat.id]?.find(s => s.name === exp.category.subName);
+                                if (subCat) targetCatValue = `sub_${mainCat.id}_${subCat.id}`;
+                            }
+                            if (!targetCatValue) targetCatValue = `main_${mainCat.id}`;
+                        }
+                    }
+                    if (targetCatValue) {
+                        catSelect.value = targetCatValue;
+                    } else {
+                        for (let i = 0; i < catSelect.options.length; i++) {
+                            if (!catSelect.options[i].disabled && catSelect.options[i].value) {
+                                catSelect.value = catSelect.options[i].value;
+                                break;
+                            }
                         }
                     }
                     
-                    if (exp.location) {
-                        const locSelect = document.getElementById('expenseLocation');
-                        if (exp.location.districtId && exp.location.cityId) {
-                            const targetVal = `district_${exp.location.cityId}_${exp.location.districtId}`;
-                            if (locSelect.querySelector(`option[value="${targetVal}"]`)) locSelect.value = targetVal;
-                            else if (exp.location.cityId) {
-                                const cityVal = `city_${exp.location.cityId}`;
-                                if (locSelect.querySelector(`option[value="${cityVal}"]`)) locSelect.value = cityVal;
-                            }
-                        } else if (exp.location.cityId) {
-                            const cityVal = `city_${exp.location.cityId}`;
-                            if (locSelect.querySelector(`option[value="${cityVal}"]`)) locSelect.value = cityVal;
+                    const setLocationSelect = (selectEl, locationObj) => {
+                        if (!locationObj) return;
+                        let targetVal = null;
+                        if (locationObj.districtId && locationObj.cityId) {
+                            targetVal = `district_${locationObj.cityId}_${locationObj.districtId}`;
+                            if (!selectEl.querySelector(`option[value="${targetVal}"]`)) targetVal = null;
                         }
-                    }
+                        if (!targetVal && locationObj.cityId) {
+                            targetVal = `city_${locationObj.cityId}`;
+                            if (!selectEl.querySelector(`option[value="${targetVal}"]`)) targetVal = null;
+                        }
+                        if (!targetVal && locationObj.cityName) {
+                            const city = ledger.locations?.cities?.find(c => c.name === locationObj.cityName);
+                            if (city) {
+                                if (locationObj.districtName) {
+                                    const district = ledger.locations?.districts?.[city.id]?.find(d => d.name === locationObj.districtName);
+                                    if (district) targetVal = `district_${city.id}_${district.id}`;
+                                }
+                                if (!targetVal) targetVal = `city_${city.id}`;
+                            }
+                        }
+                        if (targetVal && selectEl.querySelector(`option[value="${targetVal}"]`)) selectEl.value = targetVal;
+                    };
+                    setLocationSelect(locSelect, exp.location);
+                    setLocationSelect(destSelect, exp.destination);
                     
                     exp.splitters.forEach(s => {
                         const chk = splittersDiv.querySelector(`.splitter-chk[value="${s.replace(/"/g, '\\"')}"]`);
                         if(chk) chk.checked = true;
-                        const settleChk = splittersDiv.querySelector(`.settle-checkbox[data-splitter="${s.replace(/"/g, '\\"')}"]`);
-                        if(settleChk && exp.splitterSettled && exp.splitterSettled[s] === true) settleChk.checked = true;
-                    });
-                    if(exp.receipt) { document.getElementById('receiptImagePreview').src = exp.receipt; document.getElementById('receiptPreview').classList.remove('hidden'); }
-                    
-                    if(exp.destination) {
-                        const destSelect = document.getElementById('expenseDestination');
-                        if (exp.destination.districtId && exp.destination.cityId) {
-                            const targetVal = `district_${exp.destination.cityId}_${exp.destination.districtId}`;
-                            if (destSelect.querySelector(`option[value="${targetVal}"]`)) destSelect.value = targetVal;
-                        } else if (exp.destination.cityId) {
-                            const cityVal = `city_${exp.destination.cityId}`;
-                            if (destSelect.querySelector(`option[value="${cityVal}"]`)) destSelect.value = cityVal;
+                        const settleBtn = splittersDiv.querySelector(`.settle-btn[data-splitter="${s.replace(/"/g, '\\"')}"]`);
+                        if(settleBtn && exp.splitterSettled && exp.splitterSettled[s] === true) {
+                            settleBtn.classList.add('settled');
+                        } else if(settleBtn) {
+                            settleBtn.classList.remove('settled');
                         }
-                    }
+                    });
+                    updateSettleButtonsEnable();
                     skipAutoSummary = true;
                 }
             } else {
@@ -786,29 +931,14 @@
                     const matched = members.find(m => m.email === currentUser.email);
                     if(matched) payerSelect.value = matched.name;
                 }
+                updateSettleButtonsEnable();
                 skipAutoSummary = false;
             }
-            const updateSettleCheckboxes = () => {
-                splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => {
-                    const settleChk = chk.closest('.flex').querySelector('.settle-checkbox');
-                    if(settleChk) settleChk.disabled = !chk.checked;
-                });
-                calcAverage();
-            };
-            splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.addEventListener('change', updateSettleCheckboxes));
-            const calcAverage = () => {
-                const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
-                const isTreat = document.getElementById('expenseTreat').checked;
-                const cnt = splittersDiv.querySelectorAll('.splitter-chk:checked').length;
-                const avg = (cnt>0 && !isTreat) ? (amt / cnt).toFixed(2) : (isTreat ? 0 : amt).toFixed(2);
-                const avgSpan = document.getElementById('averageAmount');
-                avgSpan.innerText = avg;
-                if(isTreat) avgSpan.classList.add('line-through', 'text-slate-400');
-                else avgSpan.classList.remove('line-through', 'text-slate-400');
-            };
+            
+            splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.addEventListener('change', updateSettleButtonsEnable));
             document.getElementById('expenseAmount').addEventListener('input', calcAverage);
             document.getElementById('expenseTreat').addEventListener('change', calcAverage);
-            updateSettleCheckboxes(); calcAverage();
+            
             const getSelectedMainName = () => {
                 const selected = catSelect.options[catSelect.selectedIndex];
                 return selected ? selected.getAttribute('data-main-name') : '';
@@ -820,10 +950,10 @@
             const refreshSummary = () => {
                 const mainName = getSelectedMainName();
                 const isTransport = isTransportByMainCat(mainName);
-                const locFull = getSelectedLocationFull(document.getElementById('expenseLocation'));
+                const locFull = getSelectedLocationFull(locSelect);
                 const descField = document.getElementById('expenseDescription');
                 if(isTransport) {
-                    const destFull = getSelectedLocationFull(document.getElementById('expenseDestination'));
+                    const destFull = getSelectedLocationFull(destSelect);
                     if(locFull && destFull) descField.value = `${locFull} 往 ${destFull}`;
                     else if(locFull) descField.value = `${locFull} 出發`;
                     else descField.value = '';
@@ -842,8 +972,8 @@
                 if(!skipAutoSummary) updateTransportUI();
                 else { const isTransport = isTransportByMainCat(getSelectedMainName()); document.getElementById('destinationWrapper').classList.toggle('hidden', !isTransport); }
             };
-            document.getElementById('expenseLocation').onchange = () => { if(!skipAutoSummary) refreshSummary(); };
-            document.getElementById('expenseDestination').onchange = () => { if(!skipAutoSummary) refreshSummary(); };
+            locSelect.onchange = () => { if(!skipAutoSummary) refreshSummary(); };
+            destSelect.onchange = () => { if(!skipAutoSummary) refreshSummary(); };
             updateTransportUI();
             if(!skipAutoSummary) refreshSummary();
             skipAutoSummary = false;
@@ -862,10 +992,13 @@
             const splitters = Array.from(splittersDiv.querySelectorAll('.splitter-chk:checked')).map(c => c.value);
             if(splitters.length===0) return showToast('至少需有一位分攤人員');
             const splitterSettled = {};
-            splittersDiv.querySelectorAll('.splitter-chk:checked').forEach(chk => {
-                const splitter = chk.value;
-                const settleChk = chk.closest('.flex').querySelector('.settle-checkbox');
-                splitterSettled[splitter] = settleChk ? settleChk.checked : false;
+            splittersDiv.querySelectorAll('.splitter-item').forEach(item => {
+                const chk = item.querySelector('.splitter-chk');
+                if (chk && chk.checked) {
+                    const splitter = chk.value;
+                    const settleBtn = item.querySelector('.settle-btn');
+                    splitterSettled[splitter] = settleBtn ? settleBtn.classList.contains('settled') : false;
+                }
             });
             let categoryMainId = '', categoryMainName = '', categorySubId = '', categorySubName = '';
             const catOption = document.getElementById('expenseCategory').options[document.getElementById('expenseCategory').selectedIndex];
@@ -949,8 +1082,7 @@
                     districtId: locationDistrictId,
                     districtName: locationDistrictName
                 },
-                destination: destinationObj,
-                receipt: document.getElementById('receiptImagePreview').src || null
+                destination: destinationObj
             };
             if(!appData.expenses) appData.expenses = [];
             if(currentEditingExpenseId) {
@@ -977,7 +1109,7 @@
                 const totalSplitters = e.splitters.length;
                 const settledCount = e.splitterSettled ? Object.values(e.splitterSettled).filter(v=>v===true).length : 0;
                 const progressBadge = !e.isTreat ? `<span class="text-xs ml-2 ${settledCount===totalSplitters ? 'text-green-600' : 'text-amber-500'}">(${settledCount}/${totalSplitters} 人已付款)</span>` : '';
-                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover"><div class="flex justify-between"><div><div class="font-bold">${escapeHtml(e.description || '')}</div><div class="text-xs text-slate-500">${e.date || ''} | ${escapeHtml(locationName)} | ${escapeHtml(displayCat)}</div></div><div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div></div><div class="flex justify-between items-center mt-2"><div class="text-xs"><span class="font-bold">${escapeHtml(e.payer)}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div><div class="flex gap-2">${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-image"></i></button>` : ''}<button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i> 編輯</button><button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button></div></div></div>`;
+                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover"><div class="flex justify-between"><div><div class="font-bold">${escapeHtml(e.description || '')}</div><div class="text-xs text-slate-500">${e.date || ''} | ${escapeHtml(locationName)} | ${escapeHtml(displayCat)}</div></div><div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div></div><div class="flex justify-between items-center mt-2"><div class="text-xs"><span class="font-bold">${escapeHtml(e.payer)}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div><div class="flex gap-2"><button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i> 編輯</button><button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button></div></div></div>`;
             }).join('');
         }
         function deleteExpense(id) {
@@ -985,10 +1117,7 @@
             if(ledger.locked && currentUser?.email!==APP_ADMIN_EMAIL) return showToast('帳冊已鎖定，無法刪除');
             if(confirm('確定刪除此筆記錄?')){ appData.expenses = appData.expenses.filter(e=>e.id!==id); saveData(); renderExpenseList(); updateLedgerInfoPanel(); showToast('已刪除'); }
         }
-        function viewReceipt(id){
-            const exp = appData.expenses.find(e=>e.id===id);
-            if(exp?.receipt){ document.getElementById('receiptViewImage').src = exp.receipt; document.getElementById('receiptViewModal').style.display = 'block'; }
-        }
+        
         function updateLedgerInfoPanel() {
             const l = appData.ledgers.find(x=>x.id===appData.currentLedgerId);
             if(!l) return;
@@ -1027,6 +1156,7 @@
             visibleLedgers.forEach(l=>select.add(new Option(`${l.name}${l.locked?' (已鎖定)':''}`, l.id)));
             if(appData.currentLedgerId && visibleLedgers.some(l=>l.id===appData.currentLedgerId)){
                 select.value = appData.currentLedgerId;
+                upgradeAllExpenses();
                 updateLedgerInfoPanel();
                 renderExpenseList();
                 document.getElementById('ledgerCollapsible').style.maxHeight = '0px';
@@ -1058,7 +1188,7 @@
         }
         function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
-        // ==================== 語音輸入功能（含成功/失敗提示視窗） ====================
+        // 語音核心
         function getCurrentLedger() { return appData.ledgers.find(l => l.id === appData.currentLedgerId); }
         function canModifyLedger() {
             const ledger = getCurrentLedger();
@@ -1080,14 +1210,13 @@
             return `city_${city.id}`;
         }
         function findMainCatIdByName(name, ledger) { return (ledger.categories?.main || []).find(m => m.name === name)?.id || null; }
-        
-        function parseCityAndDistrict(inputStr, ledger) { if (!inputStr) return null; inputStr = inputStr.trim(); const spaceParts = inputStr.split(/\s+/); if (spaceParts.length >= 2) { const cityCandidate = spaceParts[0]; const cityId = findCityIdByName(cityCandidate, ledger); if (cityId) { const districtCandidate = spaceParts[1]; const districts = ledger.locations?.districts?.[cityId] || []; if (districts.some(d => d.name === districtCandidate)) { const remainder = spaceParts.slice(2).join(' '); return { city: cityCandidate, district: districtCandidate, remainder }; } } } const cities = ledger.locations?.cities || []; const sortedCities = [...cities].sort((a,b) => b.name.length - a.name.length); for (let city of sortedCities) { if (inputStr.startsWith(city.name)) { const afterCity = inputStr.substring(city.name.length); if (afterCity === "") return { city: city.name, district: null, remainder: "" }; const districts = ledger.locations?.districts?.[city.id] || []; for (let district of districts) { if (afterCity.startsWith(district.name)) { const remainder = afterCity.substring(district.name.length); return { city: city.name, district: district.name, remainder }; } } return { city: city.name, district: null, remainder: afterCity }; } } return null; }
-        
+        function parseCityAndDistrict(inputStr, ledger) {
+            if (!inputStr) return null; inputStr = inputStr.trim(); const spaceParts = inputStr.split(/\s+/); if (spaceParts.length >= 2) { const cityCandidate = spaceParts[0]; const cityId = findCityIdByName(cityCandidate, ledger); if (cityId) { const districtCandidate = spaceParts[1]; const districts = ledger.locations?.districts?.[cityId] || []; if (districts.some(d => d.name === districtCandidate)) { const remainder = spaceParts.slice(2).join(' '); return { city: cityCandidate, district: districtCandidate, remainder }; } } } const cities = ledger.locations?.cities || []; const sortedCities = [...cities].sort((a,b) => b.name.length - a.name.length); for (let city of sortedCities) { if (inputStr.startsWith(city.name)) { const afterCity = inputStr.substring(city.name.length); if (afterCity === "") return { city: city.name, district: null, remainder: "" }; const districts = ledger.locations?.districts?.[city.id] || []; for (let district of districts) { if (afterCity.startsWith(district.name)) { const remainder = afterCity.substring(district.name.length); return { city: city.name, district: district.name, remainder }; } } return { city: city.name, district: null, remainder: afterCity }; } } return null;
+        }
         function addCityByVoice(cityName) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); if((ledger.locations?.cities || []).some(c => c.name === cityName)) { alert(`⚠️ 城市「${cityName}」已存在`); return false; } const newId = Date.now().toString(); if(!ledger.locations) ledger.locations = { cities: [], districts: {} }; ledger.locations.cities.push({ id: newId, name: cityName }); if(!ledger.locations.districts) ledger.locations.districts = {}; ledger.locations.districts[newId] = []; saveData(); updateUI(); alert(`✅ 已新增城市「${cityName}」`); return true; }
         function addRegionByVoice(rawInput) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); if (!ledger.locations) ledger.locations = { cities: [], districts: {} }; let cityName = null, districtName = null; const trimmed = rawInput.trim(); const parts = trimmed.split(/\s+/); if (parts.length >= 2 && findCityIdByName(parts[0], ledger)) { cityName = parts[0]; districtName = parts.slice(1).join(''); } if (!cityName) { const cities = ledger.locations.cities || []; const sortedCities = [...cities].sort((a,b) => b.name.length - a.name.length); for (let city of sortedCities) { if (trimmed.startsWith(city.name)) { cityName = city.name; districtName = trimmed.slice(city.name.length); break; } } } if (!cityName || !districtName) { alert(`❌ 無法從「${rawInput}」解析城市與區域`); return false; } const cityId = findCityIdByName(cityName, ledger); if (!cityId) { alert(`❌ 城市「${cityName}」不存在，請先「增加城市 ${cityName}」`); return false; } if (!ledger.locations.districts[cityId]) ledger.locations.districts[cityId] = []; if (ledger.locations.districts[cityId].some(d => d.name === districtName)) { alert(`⚠️ 區域「${districtName}」已在城市「${cityName}」中`); return false; } ledger.locations.districts[cityId].push({ id: Date.now().toString(), name: districtName }); saveData(); updateUI(); alert(`✅ 已新增區域「${cityName} / ${districtName}」`); return true; }
         function addMainCatByVoice(mainName) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); if((ledger.categories?.main || []).some(m => m.name === mainName)) { alert(`⚠️ 主科目「${mainName}」已存在`); return false; } const newId = Date.now().toString(); if(!ledger.categories) ledger.categories = { main: [], sub: {} }; ledger.categories.main.push({ id: newId, name: mainName }); if(!ledger.categories.sub) ledger.categories.sub = {}; ledger.categories.sub[newId] = []; saveData(); updateUI(); alert(`✅ 已新增主科目「${mainName}」`); return true; }
         function addSubCatByVoice(rawInput) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); let mainName, subName; const parts = rawInput.split(/\s+/); if (parts.length >= 2) { mainName = parts[0]; subName = parts.slice(1).join(''); } else { const mains = ledger.categories?.main || []; const sortedMains = [...mains].sort((a,b)=>b.name.length - a.name.length); for(let m of sortedMains) { if(rawInput.startsWith(m.name)) { mainName = m.name; subName = rawInput.substring(m.name.length); break; } } if(!mainName) { alert(`❌ 無法解析主科目`); return false; } } if(!mainName || !subName) { alert(`❌ 格式錯誤，請輸入「增加次要科目主科目次要科目」`); return false; } const mainId = findMainCatIdByName(mainName, ledger); if(!mainId) { alert(`❌ 主科目「${mainName}」不存在`); return false; } const subs = ledger.categories.sub?.[mainId] || []; if(subs.some(s => s.name === subName)) { alert(`⚠️ 次要科目「${subName}」已存在`); return false; } if(!ledger.categories.sub) ledger.categories.sub = {}; if(!ledger.categories.sub[mainId]) ledger.categories.sub[mainId] = []; ledger.categories.sub[mainId].push({ id: Date.now().toString(), name: subName }); saveData(); updateUI(); alert(`✅ 已新增次要科目「${mainName} -> ${subName}」`); return true; }
-        
         function openExpenseWithPrefill(prefill) {
             if(!appData.currentLedgerId) { alert('❌ 請先選擇帳冊'); return; }
             const ledger = getCurrentLedger();
@@ -1104,71 +1233,104 @@
                 } catch(e) { console.warn(e); alert('預填表單時出錯，請手動選擇'); }
             }, 300);
         }
-        
         function parseTransportCommand(cmdText) { let rest = cmdText.replace(/^新增交通紀錄/, '').trim(); const youIndex = rest.indexOf('由'); const wangIndex = rest.indexOf('往'); if (youIndex === -1 || wangIndex === -1 || youIndex > wangIndex) return null; const transport = rest.substring(0, youIndex).trim(); const fromPart = rest.substring(youIndex + 1, wangIndex).trim(); const toPart = rest.substring(wangIndex + 1).trim(); if (!transport || !fromPart || !toPart) return null; return { transport, from: fromPart, to: toPart }; }
-        
         function parseAndExecuteVoiceCommand(cmdText) {
             const ledger = getCurrentLedger();
-            if(!ledger && !cmdText.match(/增加城市|增加區域|增加主科目|增加次要科目/)) { alert('❌ 請先選擇或建立帳冊'); return false; }
+            if (!ledger && !cmdText.match(/增加城市|增加區域|增加主科目|增加次要科目/)) {
+                alert('❌ 請先選擇或建立帳冊');
+                return false;
+            }
             cmdText = cmdText.trim();
-            let m = cmdText.match(/^增加城市(.+)$/); if(m) return addCityByVoice(m[1].trim());
-            m = cmdText.match(/^增加區域(.+)$/); if(m) return addRegionByVoice(m[1].trim());
-            m = cmdText.match(/^增加主科目(.+)$/); if(m) return addMainCatByVoice(m[1].trim());
-            m = cmdText.match(/^增加次要科目(.+)$/); if(m) return addSubCatByVoice(m[1].trim());
-            
+            let m = cmdText.match(/^增加城市(.+)$/); if (m) return addCityByVoice(m[1].trim());
+            m = cmdText.match(/^增加區域(.+)$/); if (m) return addRegionByVoice(m[1].trim());
+            m = cmdText.match(/^增加主科目(.+)$/); if (m) return addMainCatByVoice(m[1].trim());
+            m = cmdText.match(/^增加次要科目(.+)$/); if (m) return addSubCatByVoice(m[1].trim());
             if (cmdText.startsWith('新增交通紀錄')) {
                 const parsed = parseTransportCommand(cmdText);
                 if (!parsed) { alert('❌ 無法解析交通指令，格式範例：新增交通紀錄高鐵由台北車站往台中高鐵站'); return false; }
                 const ledgerNow = getCurrentLedger();
                 const mainTrans = ledgerNow.categories?.main?.find(c => c.name === '交通');
-                if(!mainTrans) { alert('❌ 帳冊尚未建立「交通」主科目'); return false; }
-                if(!ledgerNow.categories?.sub?.[mainTrans.id]?.some(s => s.name === parsed.transport)) { alert(`❌ 交通方式「${parsed.transport}」尚未建立，請先增加次要科目`); return false; }
+                if (!mainTrans) { alert('❌ 帳冊尚未建立「交通」主科目'); return false; }
+                if (!ledgerNow.categories?.sub?.[mainTrans.id]?.some(s => s.name === parsed.transport)) { alert(`❌ 交通方式「${parsed.transport}」尚未建立，請先增加次要科目`); return false; }
                 const fromInfo = parseCityAndDistrict(parsed.from, ledgerNow);
                 const toInfo = parseCityAndDistrict(parsed.to, ledgerNow);
-                if(!fromInfo || !fromInfo.city) { alert(`❌ 起點「${parsed.from}」無法解析城市/區域`); return false; }
-                if(!toInfo || !toInfo.city) { alert(`❌ 迄點「${parsed.to}」無法解析城市/區域`); return false; }
+                if (!fromInfo || !fromInfo.city) { alert(`❌ 起點「${parsed.from}」無法解析城市/區域`); return false; }
+                if (!toInfo || !toInfo.city) { alert(`❌ 迄點「${parsed.to}」無法解析城市/區域`); return false; }
                 const fromVal = getLocationValue(fromInfo.city, fromInfo.district, ledgerNow);
                 const toVal = getLocationValue(toInfo.city, toInfo.district, ledgerNow);
-                if(!fromVal || !toVal) { alert(`❌ 起點或終點設定錯誤，請確認城市/區域存在`); return false; }
+                if (!fromVal || !toVal) { alert(`❌ 起點或終點設定錯誤，請確認城市/區域存在`); return false; }
                 const subId = ledgerNow.categories.sub[mainTrans.id].find(s => s.name === parsed.transport).id;
                 const catVal = `sub_${mainTrans.id}_${subId}`;
                 openExpenseWithPrefill({ categoryVal: catVal, locationVal: fromVal, destinationVal: toVal, description: `${parsed.from} 往 ${parsed.to}` });
                 return true;
             }
-            
-            const typeMap = { '飲食': '飲食', '購物': '購物', '景點': '景點' };
-            for (let [typeName, mainName] of Object.entries(typeMap)) {
-                const regex = new RegExp(`^新增${typeName}紀錄(.+)$`);
-                m = cmdText.match(regex);
-                if (m) {
-                    const rest = m[1].trim();
-                    if (!rest) { alert(`❌ 缺少內容`); return false; }
-                    const mainCat = ledger.categories?.main?.find(c => c.name === mainName);
-                    if (!mainCat) { alert(`❌ 帳冊尚未建立「${mainName}」主科目`); return false; }
-                    const subCatsList = ledger.categories?.sub?.[mainCat.id] || [];
-                    let subtype = null, remaining = rest;
-                    const sortedSubs = [...subCatsList].sort((a,b) => b.name.length - a.name.length);
-                    for (let sub of sortedSubs) { if (rest.startsWith(sub.name)) { subtype = sub.name; remaining = rest.substring(sub.name.length).trim(); break; } }
-                    if (!subtype) { const spaceIdx = rest.indexOf(' '); if (spaceIdx > 0) { subtype = rest.substring(0, spaceIdx); remaining = rest.substring(spaceIdx + 1).trim(); } else { alert(`❌ 無法識別類別，請確認次要科目「${mainName}」下是否有「${rest}」或使用空格區隔`); return false; } }
-                    if (!subCatsList.some(s => s.name === subtype)) { alert(`❌ 類別「${subtype}」不存在於「${mainName}」之下，請先增加次要科目`); return false; }
-                    if (!remaining) { alert(`❌ 缺少地點資訊，請輸入城市或區域`); return false; }
-                    const placeInfo = parseCityAndDistrict(remaining, ledger);
-                    if (!placeInfo || !placeInfo.city) { alert(`❌ 無法從「${remaining}」解析城市/區域，請確認城市/區域已設定`); return false; }
-                    const locationVal = getLocationValue(placeInfo.city, placeInfo.district, ledger);
-                    if (!locationVal) { alert(`❌ 地點組合無效，請確認城市「${placeInfo.city}」存在`); return false; }
-                    const subId = subCatsList.find(s => s.name === subtype).id;
-                    const catVal = `sub_${mainCat.id}_${subId}`;
-                    const placeDisplay = placeInfo.district ? `${placeInfo.city}${placeInfo.district}` : placeInfo.city;
-                    const note = placeInfo.remainder || '';
-                    const summary = note ? `${placeDisplay}${subtype} - ${note}` : `${placeDisplay}${subtype}`;
-                    openExpenseWithPrefill({ categoryVal: catVal, locationVal: locationVal, description: summary });
-                    return true;
+            const generalMatch = cmdText.match(/^新增(.+?)紀錄(.*)$/);
+            if (!generalMatch) {
+                alert('❌ 無法辨識指令，請使用「新增[主科目名稱]紀錄 類別地點備註」格式，例如「新增活動紀錄 旅拍南京牛首山漢服」');
+                return false;
+            }
+            const mainCatName = generalMatch[1].trim();
+            const restRaw = generalMatch[2].trim();
+            if (!restRaw) {
+                alert(`❌ 缺少內容，請在「新增${mainCatName}紀錄」後輸入類別與地點`);
+                return false;
+            }
+            const mainCat = ledger.categories?.main?.find(c => c.name === mainCatName);
+            if (!mainCat) {
+                alert(`❌ 帳冊中沒有「${mainCatName}」這個主科目，請先「增加主科目 ${mainCatName}」或在帳冊設定中新增`);
+                return false;
+            }
+            const subCatsList = ledger.categories?.sub?.[mainCat.id] || [];
+            if (subCatsList.length === 0) {
+                alert(`⚠️ 主科目「${mainCatName}」下沒有任何次要科目，請先增加次要科目後再使用語音。`);
+                return false;
+            }
+            let subtype = null;
+            let remaining = restRaw;
+            const sortedSubs = [...subCatsList].sort((a, b) => b.name.length - a.name.length);
+            for (let sub of sortedSubs) {
+                if (restRaw.startsWith(sub.name)) {
+                    subtype = sub.name;
+                    remaining = restRaw.substring(sub.name.length).trim();
+                    break;
                 }
             }
-            alert('❌ 無法辨識指令，請參考範例');
-            return false;
+            if (!subtype) {
+                const spaceIdx = restRaw.indexOf(' ');
+                if (spaceIdx > 0) {
+                    subtype = restRaw.substring(0, spaceIdx);
+                    remaining = restRaw.substring(spaceIdx + 1).trim();
+                } else {
+                    alert(`❌ 無法識別類別，請確認「${mainCatName}」下的次要科目包含「${restRaw}」或使用空格分隔類別與地點`);
+                    return false;
+                }
+                if (!subCatsList.some(s => s.name === subtype)) {
+                    alert(`❌ 類別「${subtype}」不存在於「${mainCatName}」之下，請先增加次要科目或檢查名稱`);
+                    return false;
+                }
+            }
+            if (!remaining) {
+                alert(`❌ 缺少地點資訊，請在類別後輸入城市或區域（例如：南京牛首山）`);
+                return false;
+            }
+            const placeInfo = parseCityAndDistrict(remaining, ledger);
+            if (!placeInfo || !placeInfo.city) {
+                alert(`❌ 無法從「${remaining}」解析城市/區域，請確認城市/區域已設定在帳冊中`);
+                return false;
+            }
+            const locationVal = getLocationValue(placeInfo.city, placeInfo.district, ledger);
+            if (!locationVal) {
+                alert(`❌ 地點組合無效，請確認城市「${placeInfo.city}」存在`);
+                return false;
+            }
+            const subId = subCatsList.find(s => s.name === subtype).id;
+            const catVal = `sub_${mainCat.id}_${subId}`;
+            const placeDisplay = placeInfo.district ? `${placeInfo.city}${placeInfo.district}` : placeInfo.city;
+            const note = placeInfo.remainder || '';
+            const summary = note ? `${placeDisplay}${subtype} - ${note}` : `${placeDisplay}${subtype}`;
+            openExpenseWithPrefill({ categoryVal: catVal, locationVal: locationVal, description: summary });
+            return true;
         }
-        
         function setupVoiceEvents() {
             const confirmBtn = document.getElementById('voiceConfirmBtn');
             const cancelBtn = document.getElementById('voiceCancelBtn');
@@ -1189,7 +1351,6 @@
             cancelBtn.onclick = () => { closeVoiceModal(); textarea.value = ''; };
             closeBtn.onclick = () => { closeVoiceModal(); textarea.value = ''; };
         }
-        
         function setupEvents() {
             document.getElementById('userForm').onsubmit = handleUserLogin;
             document.getElementById('switchUserBtn').onclick = () => { localStorage.removeItem('travelAccountingUser'); currentUser = null; appData.currentLedgerId = null; updateUI(); showUserModal(); showToast('已切換使用者'); };
@@ -1204,7 +1365,6 @@
             document.getElementById('deleteLedgerBtn').onclick = () => { if(confirm('刪除帳冊？所有相關支出將一併刪除')){ appData.ledgers = appData.ledgers.filter(l=>l.id!==appData.currentLedgerId); appData.expenses = appData.expenses.filter(e=>e.ledgerId!==appData.currentLedgerId); appData.currentLedgerId=null; saveData(); updateUI(); } };
             document.getElementById('toggleLockLedgerBtn').onclick = () => { const l=appData.ledgers.find(l=>l.id===appData.currentLedgerId); if(l){ l.locked=!l.locked; saveData(); updateUI(); showToast(l.locked?'帳冊已鎖定':'帳冊已解鎖'); } };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
-            document.getElementById('expenseReceipt').onchange = (e) => { const f=e.target.files[0]; if(f){ const r=new FileReader(); r.onload=(ev)=>{ document.getElementById('receiptImagePreview').src=ev.target.result; document.getElementById('receiptPreview').classList.remove('hidden'); }; r.readAsDataURL(f); } };
             document.getElementById('ledgerToggleHeader').onclick = () => { const el=document.getElementById('ledgerCollapsible'); const chevron=document.getElementById('ledgerChevron'); if(el.style.maxHeight==='0px' || !el.style.maxHeight){ el.style.maxHeight='800px'; el.style.opacity='1'; chevron.classList.add('rotate-180'); updateLedgerInfoPanel(); } else { el.style.maxHeight='0px'; el.style.opacity='0'; chevron.classList.remove('rotate-180'); } };
             document.querySelectorAll('.closeModal').forEach(btn => btn.onclick = (e) => { e.target.closest('.modal').style.display = 'none'; });
             window.onclick = (e) => { if(e.target.classList.contains('modal') && e.target.id !== 'expenseModal') e.target.style.display = 'none'; };
