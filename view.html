@@ -30,7 +30,7 @@
         </div>
     </nav>
     <main class="container mx-auto px-4 py-6 max-w-7xl" id="pdf-export-area">
-        <!-- 篩選條件區塊（固定） -->
+        <!-- 篩選條件區塊 -->
         <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
             <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-filter text-blue-500"></i> 篩選條件</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -40,7 +40,7 @@
             </div>
         </div>
 
-        <!-- 統計卡片區塊（固定） -->
+        <!-- 統計卡片區塊 -->
         <div id="queryResults">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-white p-5 rounded-xl"><div class="text-slate-500 text-sm">總支出</div><div id="totalAmount" class="text-2xl font-bold">0</div></div>
@@ -49,13 +49,13 @@
                 <div class="bg-white p-5 rounded-xl"><div class="text-slate-500 text-sm">符合筆數</div><div id="totalCount" class="text-2xl font-bold text-blue-600">0</div></div>
             </div>
 
-            <!-- 科目與城市統計（固定） -->
+            <!-- 科目與城市統計 -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white p-5 rounded-xl"><h4 class="font-bold mb-3"><i class="fas fa-tag text-blue-500"></i> 科目支出統計</h4><div id="categoryStats" class="flex flex-wrap gap-2"></div></div>
                 <div class="bg-white p-5 rounded-xl"><h4 class="font-bold mb-3"><i class="fas fa-map-marker-alt text-red-500"></i> 城市支出統計</h4><div id="cityStats" class="flex flex-wrap gap-2"></div></div>
             </div>
 
-            <!-- 分攤明細（固定） -->
+            <!-- 分攤明細 -->
             <div class="bg-white rounded-xl border p-5 mb-6"><h3 class="font-bold mb-3"><i class="fas fa-users text-cyan-600"></i> 分攤明細 (不含請客)</h3><div id="splitterDetails" class="max-h-80 overflow-y-auto"></div></div>
 
             <!-- 頁籤區域 -->
@@ -65,7 +65,6 @@
                     <button id="tabSettlementBtn" class="tab-btn flex-1 py-3 text-center font-medium text-sm flex items-center justify-center gap-2"><i class="fas fa-hand-holding-usd"></i> 分攤者結算</button>
                 </div>
                 <div id="tabChartContent" class="p-5">
-                    <!-- 圖表分析內容 -->
                     <div class="flex justify-between items-center flex-wrap gap-4 mb-4">
                         <h3 class="font-bold text-slate-700"><i class="fas fa-chart-pie text-indigo-500"></i> 圖表分析</h3>
                         <div class="flex gap-3">
@@ -82,14 +81,13 @@
                     </div>
                 </div>
                 <div id="tabSettlementContent" class="p-5 hidden">
-                    <!-- 分攤者結算內容 -->
                     <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-hand-holding-usd text-green-600"></i> 分攤者結算（未結清部分）</h3>
                     <div id="settlementContainer" class="space-y-4 mb-4"></div>
                     <div class="flex justify-end"><button id="batchSettleBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg"><i class="fas fa-check-double"></i> 一鍵結帳（勾選的金主）</button></div>
                 </div>
             </div>
 
-            <!-- 支出明細列表（固定） -->
+            <!-- 支出明細列表 -->
             <div class="bg-white rounded-xl shadow-sm p-5"><h3 class="font-bold text-lg mb-4">支出明細（可勾選未結項目批次結帳）</h3><div id="expenseDetailList" class="space-y-3 max-h-[500px] overflow-y-auto"></div></div>
         </div>
     </main>
@@ -111,7 +109,9 @@
         let appData = { ledgers: [], expenses: [] };
         let currentLedgerId = null, currentUser = null, charts = {};
 
+        // 強化升級函數：確保舊資料能轉換為標準結構（補齊 category.main / location.city 等物件）
         function upgradeOldExpense(exp) {
+            // 1. splitterSettled 格式轉換
             if(exp.splitterSettled === undefined && exp.splitters) {
                 const isSettled = exp.isSettled === true;
                 const splitterSettled = {};
@@ -119,6 +119,77 @@
                 exp.splitterSettled = splitterSettled;
                 delete exp.isSettled;
             }
+            
+            // 2. 確保 category.main 與 category.sub 物件存在（相容新舊格式）
+            if (!exp.category) exp.category = {};
+            // 如果已經有 mainName / mainId，但缺少 main 物件，則建立 main 物件
+            if (exp.category.mainName && !exp.category.main) {
+                exp.category.main = { id: exp.category.mainId || 'unknown', name: exp.category.mainName };
+            }
+            // 如果只有舊的 main 物件但沒有 mainName，則從 main 補齊
+            if (exp.category.main && !exp.category.mainName) {
+                exp.category.mainName = exp.category.main.name;
+                exp.category.mainId = exp.category.main.id;
+            }
+            // 確保 main 物件總是有 name
+            if (exp.category.main && !exp.category.main.name && exp.category.mainName) {
+                exp.category.main.name = exp.category.mainName;
+            }
+            // 如果完全沒有 main，給一個預設
+            if (!exp.category.main) {
+                exp.category.main = { id: 'unknown', name: exp.category.mainName || '未分類' };
+                if (!exp.category.mainName) exp.category.mainName = exp.category.main.name;
+            }
+            
+            // 次要科目（sub）
+            if (exp.category.subName && !exp.category.sub) {
+                exp.category.sub = { id: exp.category.subId || 'unknown', name: exp.category.subName };
+            }
+            if (exp.category.sub && !exp.category.subName) {
+                exp.category.subName = exp.category.sub.name;
+                exp.category.subId = exp.category.sub.id;
+            }
+            
+            // 3. 確保 location.city 與 location.district 物件存在
+            if (!exp.location) exp.location = {};
+            if (exp.location.cityName && !exp.location.city) {
+                exp.location.city = { id: exp.location.cityId || 'unknown', name: exp.location.cityName };
+            }
+            if (exp.location.city && !exp.location.cityName) {
+                exp.location.cityName = exp.location.city.name;
+                exp.location.cityId = exp.location.city.id;
+            }
+            if (!exp.location.city) {
+                exp.location.city = { id: 'unknown', name: exp.location.cityName || '未知地點' };
+                if (!exp.location.cityName) exp.location.cityName = exp.location.city.name;
+            }
+            
+            if (exp.location.districtName && !exp.location.district) {
+                exp.location.district = { id: exp.location.districtId || 'unknown', name: exp.location.districtName };
+            }
+            if (exp.location.district && !exp.location.districtName) {
+                exp.location.districtName = exp.location.district.name;
+                exp.location.districtId = exp.location.district.id;
+            }
+            
+            // 4. 目的地 destination 結構
+            if (exp.destination) {
+                if (exp.destination.cityName && !exp.destination.city) {
+                    exp.destination.city = { id: exp.destination.cityId || 'unknown', name: exp.destination.cityName };
+                }
+                if (exp.destination.city && !exp.destination.cityName) {
+                    exp.destination.cityName = exp.destination.city.name;
+                    exp.destination.cityId = exp.destination.city.id;
+                }
+                if (exp.destination.districtName && !exp.destination.district) {
+                    exp.destination.district = { id: exp.destination.districtId || 'unknown', name: exp.destination.districtName };
+                }
+                if (exp.destination.district && !exp.destination.districtName) {
+                    exp.destination.districtName = exp.destination.district.name;
+                    exp.destination.districtId = exp.destination.district.id;
+                }
+            }
+            
             return exp;
         }
 
@@ -169,7 +240,7 @@
             if(sFilter) expenses = expenses.filter(e=>e.splitters.includes(sFilter));
             renderStatistics(expenses, sFilter);
             renderSplitterDetails(expenses, sFilter);
-            renderSettlement();  // 結算不受篩選影響（基於所有未結清）
+            renderSettlement();
             renderExpenseListWithCheckbox(expenses);
         }
 
@@ -182,9 +253,21 @@
             document.getElementById('treatAmount').innerText = treatTotal.toFixed(2);
             document.getElementById('splitterAmount').innerHTML = sFilter ? splitterTotal.toFixed(2) : '-';
             document.getElementById('totalCount').innerText = expenses.length;
-            const catMap = {}; expenses.forEach(e=>catMap[e.category.main.name]=(catMap[e.category.main.name]||0)+e.amount);
+            
+            // 科目統計 - 安全讀取 main.name
+            const catMap = {};
+            expenses.forEach(e => {
+                const catName = e.category?.main?.name || e.category?.mainName || '未分類';
+                catMap[catName] = (catMap[catName] || 0) + e.amount;
+            });
             document.getElementById('categoryStats').innerHTML = Object.entries(catMap).map(([n,a])=>`<div class="bg-white px-3 py-2 rounded-lg border"><span class="font-medium">${n}</span><span class="font-bold ml-2 text-blue-600">$${a.toFixed(0)}</span></div>`).join('');
-            const cityMap = {}; expenses.forEach(e=>cityMap[e.location.city.name]=(cityMap[e.location.city.name]||0)+e.amount);
+            
+            // 城市統計 - 安全讀取 city.name
+            const cityMap = {};
+            expenses.forEach(e => {
+                const cityName = e.location?.city?.name || e.location?.cityName || '未知城市';
+                cityMap[cityName] = (cityMap[cityName] || 0) + e.amount;
+            });
             document.getElementById('cityStats').innerHTML = Object.entries(cityMap).map(([n,a])=>`<div class="bg-white px-3 py-2 rounded-lg border"><span class="font-medium">${n}</span><span class="font-bold ml-2 text-blue-600">$${a.toFixed(0)}</span></div>`).join('');
         }
 
@@ -259,6 +342,9 @@
             let html = '';
             expenses.forEach(e => {
                 const isTreat = e.isTreat;
+                const catMainName = e.category?.main?.name || e.category?.mainName || '未分類';
+                const catSubName = e.category?.sub?.name || e.category?.subName || '';
+                const catDisplay = catSubName ? `${catMainName}·${catSubName}` : catMainName;
                 const splitterRows = e.splitters.map(splitter => {
                     const isSettled = e.splitterSettled ? e.splitterSettled[splitter] === true : false;
                     const canSettle = !isTreat && !isSettled;
@@ -266,7 +352,7 @@
                     const statusText = isTreat ? '請客' : (isSettled ? '已付款' : '未付款');
                     return `<div class="flex justify-between items-center border-b py-2"><div class="flex items-center">${checkboxHtml}<span class="font-medium w-24">${splitter}</span><span class="text-sm">${statusText}</span></div><div class="text-sm">分攤 ${e.averageAmount.toFixed(2)} 元</div></div>`;
                 }).join('');
-                html += `<div class="border rounded-lg p-3 mb-2"><div class="font-bold">${e.description}</div><div class="text-xs text-slate-500">${e.date} | ${e.category.main.name}${e.category.sub?`·${e.category.sub.name}`:''} | 金主:${e.payer} | 總額:${e.amount.toFixed(0)}</div><div class="mt-2 space-y-1">${splitterRows}</div></div>`;
+                html += `<div class="border rounded-lg p-3 mb-2"><div class="font-bold">${e.description}</div><div class="text-xs text-slate-500">${e.date} | ${catDisplay} | 金主:${e.payer} | 總額:${e.amount.toFixed(0)}</div><div class="mt-2 space-y-1">${splitterRows}</div></div>`;
             });
             container.innerHTML = html;
             document.querySelectorAll('.expense-row-checkbox').forEach(chk => {
@@ -313,16 +399,20 @@
             if(chartPayer) expenses = expenses.filter(e=>e.payer===chartPayer);
             if(chartSplitter) expenses = expenses.filter(e=>e.splitters.includes(chartSplitter));
             if(expenses.length===0) return;
+            
             const payerMap = {}; expenses.forEach(e=>payerMap[e.payer]=(payerMap[e.payer]||0)+e.amount);
             if(charts.payer) charts.payer.destroy();
             charts.payer = new Chart(document.getElementById('payerChart'),{type:'doughnut',data:{labels:Object.keys(payerMap),datasets:[{data:Object.values(payerMap),backgroundColor:['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6']}]}});
+            
             const splitMap = {}; expenses.filter(e=>!e.isTreat).forEach(e=>e.splitters.forEach(s=>splitMap[s]=(splitMap[s]||0)+e.averageAmount));
             if(charts.splitter) charts.splitter.destroy();
             charts.splitter = new Chart(document.getElementById('splitterChart'),{type:'bar',data:{labels:Object.keys(splitMap),datasets:[{label:'應付金額',data:Object.values(splitMap),backgroundColor:'#6366f1'}]}});
-            const catMap = {}; expenses.forEach(e=>catMap[e.category.main.name]=(catMap[e.category.main.name]||0)+e.amount);
+            
+            const catMap = {}; expenses.forEach(e=>{ const cn=e.category?.main?.name||e.category?.mainName||'未分類'; catMap[cn]=(catMap[cn]||0)+e.amount; });
             if(charts.category) charts.category.destroy();
             charts.category = new Chart(document.getElementById('categoryChart'),{type:'doughnut',data:{labels:Object.keys(catMap),datasets:[{data:Object.values(catMap),backgroundColor:['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6']}]}});
-            const cityMap = {}; expenses.forEach(e=>cityMap[e.location.city.name]=(cityMap[e.location.city.name]||0)+e.amount);
+            
+            const cityMap = {}; expenses.forEach(e=>{ const cn=e.location?.city?.name||e.location?.cityName||'未知城市'; cityMap[cn]=(cityMap[cn]||0)+e.amount; });
             if(charts.city) charts.city.destroy();
             charts.city = new Chart(document.getElementById('cityChart'),{type:'doughnut',data:{labels:Object.keys(cityMap),datasets:[{data:Object.values(cityMap),backgroundColor:['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6']}]}});
         }
@@ -356,8 +446,8 @@
             document.getElementById('updateChartsBtn').onclick = () => updateChartsWithFilter();
             document.getElementById('batchSettleBtn').onclick = () => batchSettle();
             document.getElementById('exportPdfBtn').onclick = () => exportToPDF();
-            document.getElementById('backToMainBtn').onclick = () => window.location.href = 'index.html';
-            // 頁籤切換
+            document.getElementById('backToMainBtn').onclick = () => { window.location.href = `index.html?ledgerId=${currentLedgerId}`; };
+            
             const tabChartBtn = document.getElementById('tabChartBtn');
             const tabSettlementBtn = document.getElementById('tabSettlementBtn');
             const tabChartContent = document.getElementById('tabChartContent');
