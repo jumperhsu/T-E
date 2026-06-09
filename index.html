@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>旅遊收支記帳管家 - 主程式</title>
-    <!-- 正式環境建議改用 PostCSS，此處為開發測試用 CDN -->
+    <title>旅遊收支記帳管家 - 完整語音版</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -40,9 +39,14 @@
         .stat-item .label { font-size: 0.7rem; color: #64748b; font-weight: 700; }
         .stat-item .value { font-size: 1.1rem; font-weight: 700; }
         .treat-badge { background-color: #fce7f3; color: #db2777; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
-        #expenseModal .modal-header-close { display: none; }
-        option:disabled { color: #64748b; background-color: #f1f5f9; font-weight: bold; }
         .settle-checkbox { width: 18px; height: 18px; cursor: pointer; margin-left: 8px; }
+        .voice-textarea { width: 100%; border-radius: 12px; border: 1px solid #cbd5e1; padding: 12px; font-size: 1rem; min-height: 60px; height: 60px; font-family: inherit; resize: vertical; }
+        .voice-hint { font-size: 0.75rem; color: #6b7280; margin-top: 8px; padding: 8px; background: #f3f4f6; border-radius: 8px; line-height: 1.4; }
+        .voice-hint i { margin-right: 4px; }
+        .voice-quick-btn { transition: all 0.2s ease; }
+        .voice-quick-btn:hover { transform: translateY(-1px); }
+        .voice-helper-btn { background-color: #e2e8f0; color: #1e293b; }
+        .voice-helper-btn:hover { background-color: #cbd5e1; }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
@@ -87,14 +91,51 @@
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <div class="flex justify-between items-center mb-6"><h3 class="font-bold text-lg">支出明細</h3><button id="addExpenseBtn" class="bg-green-600 text-white px-5 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 記一筆</button></div>
+            <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
+                <h3 class="font-bold text-lg">支出明細</h3>
+                <div class="flex gap-2">
+                    <button id="voiceInputBtn" class="bg-purple-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-purple-700 transition"><i class="fas fa-microphone"></i> 語音輸入</button>
+                    <button id="addExpenseBtn" class="bg-green-600 text-white px-5 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 記一筆</button>
+                </div>
+            </div>
             <div id="expenseList" class="space-y-4 max-h-[600px] overflow-y-auto"></div>
         </div>
     </main>
 
+    <!-- 語音輸入模態框 -->
+    <div id="voiceModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-xl font-bold text-slate-800"><i class="fas fa-microphone-alt text-purple-500 mr-2"></i>語音指令輸入</h3>
+                <button id="closeVoiceModalBtn" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div id="voiceQuickButtons" class="flex flex-wrap gap-2 mb-3 min-h-[44px]"></div>
+            <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北火車站50嵐&#10;新增交通紀錄高鐵由台北車站往台中高鐵站"></textarea>
+            <div class="flex flex-wrap gap-2 my-3">
+                <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加城市 "><i class="fas fa-city mr-1"></i>+城市</button>
+                <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加區域 "><i class="fas fa-map-marker-alt mr-1"></i>+區域</button>
+                <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加主科目 "><i class="fas fa-tag mr-1"></i>+主科目</button>
+                <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加次要科目 "><i class="fas fa-tags mr-1"></i>+次要科目</button>
+            </div>
+            <div class="voice-hint">
+                <i class="fas fa-lightbulb text-yellow-500"></i> 支援格式（城市/區域名稱需與帳冊內完全一致）：<br>
+                • 增加城市<strong>城市名</strong><br>
+                • 增加區域<strong>城市區域</strong>（可無空格）<br>
+                • 增加主科目<strong>主科目名</strong><br>
+                • 增加次要科目<strong>主科目次要科目</strong><br>
+                • 新增交通紀錄<strong>交通工具由起點往終點</strong><br>
+                • 新增飲食/購物/景點紀錄<strong>類別地點備註</strong> (類別與地點間可無空格，會自動識別)<br>
+                <span class="text-xs text-gray-500">⭐ 點擊上方快捷按鈕立即填入標準指令，再補上詳細內容即可</span>
+            </div>
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="voiceCancelBtn" class="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg">取消</button>
+                <button id="voiceConfirmBtn" class="bg-purple-600 text-white px-6 py-2 rounded-lg shadow-md">確定</button>
+            </div>
+        </div>
+    </div>
+
     <div id="aboutModal" class="modal"><div class="modal-content"><div class="flex justify-between"><h3 class="text-xl font-bold">關於</h3><button class="closeModal"><i class="fas fa-times"></i></button></div><div id="qrcodeContainer" class="flex justify-center my-4"></div><p class="text-center text-sm">旅遊收支記帳管家 Pro<br>版本 <span id="aboutVersion"></span></p></div></div>
     
-    <!-- 使用者設定 Modal - 改良顯示目前登入者 -->
     <div id="userProfileModal" class="modal">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-4">
@@ -188,10 +229,11 @@
     </div>
     
     <div id="receiptViewModal" class="modal"><div class="modal-content p-0 bg-black/80 text-center"><img id="receiptViewImage" class="max-w-full max-h-[80vh] mx-auto"><button class="closeModal absolute top-2 right-2 text-white text-2xl">&times;</button></div></div>
-    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50"></div>
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50 shadow-lg"></div>
 
     <script>
-        const CURRENT_VERSION = 'v20260602.001';
+        // ==================== 完整功能 ====================
+        const CURRENT_VERSION = 'v20260609.final';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -213,10 +255,9 @@
         let selectedMainCatId = null, selectedCityId = null;
         let isFirebaseConnected = false;
 
-        function isTransportByMainCat(mainName) {
-            return mainName && mainName.includes('交通');
-        }
-
+        function isTransportByMainCat(mainName) { return mainName && mainName.includes('交通'); }
+        
+        // 升級舊紀錄格式
         function upgradeOldExpense(exp) {
             if(exp.splitterSettled === undefined && exp.splitters) {
                 const isSettled = exp.isSettled === true;
@@ -225,9 +266,44 @@
                 exp.splitterSettled = splitterSettled;
                 delete exp.isSettled;
             }
+            if (exp.category) {
+                if (exp.category.main && !exp.category.mainId) {
+                    exp.category.mainId = exp.category.main.id;
+                    exp.category.mainName = exp.category.main.name;
+                    if (exp.category.sub) {
+                        exp.category.subId = exp.category.sub.id;
+                        exp.category.subName = exp.category.sub.name;
+                    }
+                }
+                if (!exp.category.mainName && exp.category.main && exp.category.main.name) exp.category.mainName = exp.category.main.name;
+                if (!exp.category.subName && exp.category.sub && exp.category.sub.name) exp.category.subName = exp.category.sub.name;
+            }
+            if (exp.location) {
+                if (exp.location.city && !exp.location.cityId) {
+                    exp.location.cityId = exp.location.city.id;
+                    exp.location.cityName = exp.location.city.name;
+                    if (exp.location.district) {
+                        exp.location.districtId = exp.location.district.id;
+                        exp.location.districtName = exp.location.district.name;
+                    }
+                }
+                if (!exp.location.cityName && exp.location.city && exp.location.city.name) exp.location.cityName = exp.location.city.name;
+                if (!exp.location.districtName && exp.location.district && exp.location.district.name) exp.location.districtName = exp.location.district.name;
+            }
+            if (exp.destination) {
+                if (exp.destination.city && !exp.destination.cityId) {
+                    exp.destination.cityId = exp.destination.city.id;
+                    exp.destination.cityName = exp.destination.city.name;
+                    if (exp.destination.district) {
+                        exp.destination.districtId = exp.destination.district.id;
+                        exp.destination.districtName = exp.destination.district.name;
+                    }
+                }
+                if (!exp.destination.cityName && exp.destination.city && exp.destination.city.name) exp.destination.cityName = exp.destination.city.name;
+            }
             return exp;
         }
-
+        
         function loadLocalData() {
             const saved = localStorage.getItem('travelAccountingApp');
             if (saved) {
@@ -238,38 +314,32 @@
                         currentLedgerId: parsed.currentLedgerId || null,
                         expenses: (Array.isArray(parsed.expenses) ? parsed.expenses : []).map(upgradeOldExpense)
                     };
-                } catch(e) {
-                    console.error("JSON parse error", e);
-                    appData = { ledgers: [], currentLedgerId: null, expenses: [] };
-                }
+                } catch(e) { console.error(e); appData = { ledgers: [], currentLedgerId: null, expenses: [] }; }
             }
-            if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) {
-                appData.currentLedgerId = null;
-            }
+            if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) appData.currentLedgerId = null;
         }
+        
         function saveData() {
             localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
-            if(isFirebaseConnected) {
-                db.ref('travel_data').set(appData).catch(e => console.error("Firebase save error", e));
-            }
+            if(isFirebaseConnected) db.ref('travel_data').set(appData).catch(e => console.error(e));
         }
+        
         function setupFirebaseSync() {
             const statusEl = document.getElementById('firebaseStatus');
             db.ref('.info/connected').on('value', (snap) => {
                 if (snap.val() === true) {
                     isFirebaseConnected = true;
                     statusEl.innerHTML = '<i class="fas fa-check-circle"></i> <span>已連線</span>';
-                    statusEl.classList.remove('bg-red-100', 'text-red-600');
-                    statusEl.classList.add('bg-green-100', 'text-green-600');
+                    statusEl.classList.remove('bg-red-100','text-red-600');
+                    statusEl.classList.add('bg-green-100','text-green-600');
                 } else {
                     isFirebaseConnected = false;
                     statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> <span>離線模式</span>';
-                    statusEl.classList.remove('bg-green-100', 'text-green-600');
-                    statusEl.classList.add('bg-yellow-100', 'text-yellow-600');
+                    statusEl.classList.remove('bg-green-100','text-green-600');
+                    statusEl.classList.add('bg-yellow-100','text-yellow-600');
                     showToast('Firebase 連線失敗，資料僅儲存於本機');
                 }
             });
-
             db.ref('travel_data').on('value', (snap) => {
                 if (snap.val()) {
                     const remote = snap.val();
@@ -284,22 +354,16 @@
                         updateUI();
                         showToast('雲端資料已同步');
                     }
-                } else {
-                    if(appData.ledgers.length > 0) saveData();
-                }
+                } else if(appData.ledgers.length > 0) saveData();
             });
         }
 
         function initUserSystem() {
             const savedUser = localStorage.getItem('travelAccountingUser');
             if (savedUser) {
-                try {
-                    currentUser = JSON.parse(savedUser);
-                    updateUserUI();
-                } catch(e) { currentUser = null; showUserModal(); }
-            } else {
-                showUserModal();
-            }
+                try { currentUser = JSON.parse(savedUser); updateUserUI(); }
+                catch(e) { currentUser = null; showUserModal(); }
+            } else showUserModal();
         }
         function showUserModal() {
             const modal = document.getElementById('userProfileModal');
@@ -310,7 +374,6 @@
             const inputEmail = document.getElementById('inputUserEmail');
             const adminBadge = document.getElementById('adminBadgeContainer');
             const title = document.getElementById('userModalTitle');
-            
             if (currentUser) {
                 currentInfoDiv.classList.remove('hidden');
                 userNameSpan.innerText = currentUser.name;
@@ -318,15 +381,11 @@
                 inputName.value = currentUser.name;
                 inputEmail.value = currentUser.email;
                 title.innerText = '編輯個人資料';
-                if (currentUser.email === APP_ADMIN_EMAIL) {
-                    adminBadge.classList.remove('hidden');
-                } else {
-                    adminBadge.classList.add('hidden');
-                }
+                if (currentUser.email === APP_ADMIN_EMAIL) adminBadge.classList.remove('hidden');
+                else adminBadge.classList.add('hidden');
             } else {
                 currentInfoDiv.classList.add('hidden');
-                inputName.value = '';
-                inputEmail.value = '';
+                inputName.value = ''; inputEmail.value = '';
                 title.innerText = '登入 / 註冊';
                 adminBadge.classList.add('hidden');
             }
@@ -342,26 +401,20 @@
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
             document.getElementById('userProfileModal').style.display = 'none';
             updateUserUI();
-            if (!previousUser || previousUser.email !== email) {
-                // 切換使用者時重設當前選擇的帳冊，避免權限問題
-                appData.currentLedgerId = null;
-                updateUI();
-            } else {
-                updateUI();
-            }
+            if (!previousUser || previousUser.email !== email) appData.currentLedgerId = null;
+            updateUI();
             showToast(`歡迎, ${name}`);
         }
         function updateUserUI() {
             const dot = document.getElementById('userStatusDot');
-            if (currentUser) dot.classList.replace('bg-red-400', 'bg-green-500');
-            else dot.classList.replace('bg-green-500', 'bg-red-400');
+            if (currentUser) dot.classList.replace('bg-red-400','bg-green-500');
+            else dot.classList.replace('bg-green-500','bg-red-400');
             updateAdminControls();
         }
         function updateAdminControls() {
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
             document.getElementById('adminControls').classList.toggle('hidden', !isAdmin);
         }
-
         function checkUrlParams() {
             const urlParams = new URLSearchParams(window.location.search);
             const action = urlParams.get('action');
@@ -375,21 +428,83 @@
             }
         }
 
-        // ==================== 帳冊設定（完整功能）====================
+        // ==================== 語音快捷按鈕動態生成 ====================
+        function renderVoiceQuickButtons() {
+            const container = document.getElementById('voiceQuickButtons');
+            if (!container) return;
+            const ledger = getCurrentLedger();
+            if (!ledger || !ledger.categories || !ledger.categories.main || ledger.categories.main.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-400 w-full">📒 請先選擇帳冊，即可使用快捷按鈕</div>';
+                return;
+            }
+            const mainCats = ledger.categories.main;
+            if (mainCats.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-400 w-full">✨ 目前帳冊無主科目，請至帳冊設定新增</div>';
+                return;
+            }
+            container.innerHTML = '';
+            mainCats.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'voice-quick-btn bg-purple-100 hover:bg-purple-200 text-purple-800 font-medium py-1.5 px-4 rounded-full text-sm shadow-sm transition flex items-center gap-1';
+                btn.innerHTML = `<i class="fas fa-plus-circle text-xs"></i> ${escapeHtml(cat.name)}`;
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    const textarea = document.getElementById('voiceCommandText');
+                    if (textarea) {
+                        const command = `新增${cat.name}紀錄 `;
+                        textarea.value = command;
+                        textarea.focus();
+                        textarea.setSelectionRange(command.length, command.length);
+                        showToast(`✨ 已填入「${command}」，請補上詳細內容 (地點/類別/備註)`);
+                    }
+                };
+                container.appendChild(btn);
+            });
+        }
+        
+        function setupHelperButtons() {
+            const helperBtns = document.querySelectorAll('.voice-helper-btn');
+            helperBtns.forEach(btn => {
+                btn.removeEventListener('click', helperClickHandler);
+                btn.addEventListener('click', helperClickHandler);
+            });
+        }
+        function helperClickHandler(e) {
+            const cmd = this.getAttribute('data-cmd');
+            if (!cmd) return;
+            const textarea = document.getElementById('voiceCommandText');
+            if (textarea) {
+                textarea.value = cmd;
+                textarea.focus();
+                textarea.setSelectionRange(cmd.length, cmd.length);
+                showToast(`✨ 已清空並填入「${cmd.trim()}」，請繼續輸入內容`);
+            }
+        }
+
+        function showVoiceModal() {
+            renderVoiceQuickButtons();
+            setupHelperButtons();
+            const modal = document.getElementById('voiceModal');
+            if (modal) modal.style.display = 'block';
+            const textarea = document.getElementById('voiceCommandText');
+            if (textarea) textarea.focus();
+        }
+        
+        function closeVoiceModal() { 
+            document.getElementById('voiceModal').style.display = 'none';
+        }
+        
+        // ==================== 帳冊設定完整 ====================
         function openLedgerModal(ledgerId = null) {
             const modal = document.getElementById('ledgerModal');
             const form = document.getElementById('ledgerForm');
             form.reset();
-            selectedMainCatId = null;
-            selectedCityId = null;
-            
+            selectedMainCatId = null; selectedCityId = null;
             if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
                 if (ledger) {
-                    if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) {
-                        showToast('此帳冊已鎖定，無法修改設定');
-                        return;
-                    }
+                    if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) { showToast('此帳冊已鎖定，無法修改設定'); return; }
                     document.getElementById('ledgerModalTitle').innerText = '編輯帳冊設定';
                     document.getElementById('ledgerName').value = ledger.name || '';
                     tempLedger.mainCats = Array.isArray(ledger.categories?.main) ? JSON.parse(JSON.stringify(ledger.categories.main)) : [];
@@ -397,20 +512,15 @@
                     tempLedger.cities = Array.isArray(ledger.locations?.cities) ? JSON.parse(JSON.stringify(ledger.locations.cities)) : [];
                     tempLedger.districts = ledger.locations?.districts ? JSON.parse(JSON.stringify(ledger.locations.districts)) : {};
                     tempLedger.members = Array.isArray(ledger.members) ? JSON.parse(JSON.stringify(ledger.members)) : [];
-                } else {
-                    ledgerId = null;
-                }
+                } else ledgerId = null;
             }
             if (!ledgerId) {
                 document.getElementById('ledgerModalTitle').innerText = '建立新帳冊';
                 const now = Date.now();
                 const defaultMainCats = [
-                    { id: `${now}_1`, name: '交通' },
-                    { id: `${now}_2`, name: '飲食' },
-                    { id: `${now}_3`, name: '景點' },
-                    { id: `${now}_4`, name: '活動' },
-                    { id: `${now}_5`, name: '購物' },
-                    { id: `${now}_6`, name: '其他' }
+                    { id: `${now}_1`, name: '交通' }, { id: `${now}_2`, name: '飲食' },
+                    { id: `${now}_3`, name: '景點' }, { id: `${now}_4`, name: '活動' },
+                    { id: `${now}_5`, name: '購物' }, { id: `${now}_6`, name: '其他' }
                 ];
                 tempLedger.mainCats = defaultMainCats;
                 tempLedger.subCats = {};
@@ -471,7 +581,7 @@
             items.forEach((item, idx) => {
                 const el = document.createElement('div');
                 el.className = `tag-editable ${selectedId === item.id ? 'selected' : ''}`;
-                el.innerHTML = `<span class="flex-1 truncate">${item.name}</span><div class="tag-actions">${onEdit?`<div class="tag-btn-icon tag-btn-edit"><i class="fas fa-pen"></i></div>`:''}${onMoveUp?`<div class="tag-btn-icon tag-btn-up"><i class="fas fa-arrow-up"></i></div>`:''}${onMoveDown?`<div class="tag-btn-icon tag-btn-down"><i class="fas fa-arrow-down"></i></div>`:''}<div class="tag-btn-icon tag-btn-delete"><i class="fas fa-times"></i></div></div>`;
+                el.innerHTML = `<span class="flex-1 truncate">${escapeHtml(item.name)}</span><div class="tag-actions">${onEdit?`<div class="tag-btn-icon tag-btn-edit"><i class="fas fa-pen"></i></div>`:''}${onMoveUp?`<div class="tag-btn-icon tag-btn-up"><i class="fas fa-arrow-up"></i></div>`:''}${onMoveDown?`<div class="tag-btn-icon tag-btn-down"><i class="fas fa-arrow-down"></i></div>`:''}<div class="tag-btn-icon tag-btn-delete"><i class="fas fa-times"></i></div></div>`;
                 if(onSelect) el.addEventListener('click', (e) => { if(!e.target.closest('.tag-actions')) onSelect(item.id); });
                 if(onEdit) el.querySelector('.tag-btn-edit')?.addEventListener('click', (e) => { e.stopPropagation(); let newVal = prompt('請輸入新名稱', item.name); if(newVal?.trim()) onEdit(item.id, newVal.trim()); });
                 if(onMoveUp) el.querySelector('.tag-btn-up')?.addEventListener('click', (e) => { e.stopPropagation(); onMoveUp(idx); });
@@ -487,7 +597,7 @@
             tempLedger.members.forEach((m, idx) => {
                 const div = document.createElement('div');
                 div.className = 'bg-slate-100 rounded px-2 py-1 mb-1 flex justify-between items-center';
-                div.innerHTML = `<span>${m.name}${m.email?` (${m.email})`:''}</span><div><i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i><i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i><i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i><i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i></div>`;
+                div.innerHTML = `<span>${escapeHtml(m.name)}${m.email?` (${escapeHtml(m.email)})`:''}</span><div><i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i><i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i><i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i><i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i></div>`;
                 div.querySelector('.move-up').onclick = () => { if(idx>0){ [tempLedger.members[idx-1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx-1]]; renderMembers(); } };
                 div.querySelector('.move-down').onclick = () => { if(idx<tempLedger.members.length-1){ [tempLedger.members[idx+1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx+1]]; renderMembers(); } };
                 div.querySelector('.edit').onclick = () => { let newName = prompt('新名稱', m.name); if(newName) m.name = newName; renderMembers(); };
@@ -519,13 +629,12 @@
                 appData.ledgers.push(newLedger);
                 appData.currentLedgerId = newLedger.id;
             }
-            saveData();
-            updateUI();
+            saveData(); updateUI();
             document.getElementById('ledgerModal').style.display='none';
             showToast('帳冊已儲存');
         }
 
-        // ==================== 支出功能（修正名稱儲存與顯示） ====================
+        // ==================== 支出功能完整（修復編輯及儲存時地點/科目遺失） ====================
         function openExpenseModal(expenseId = null) {
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
@@ -554,6 +663,7 @@
                 const mainOpt = document.createElement('option');
                 mainOpt.value = `main_${main.id}`;
                 mainOpt.textContent = main.name;
+                mainOpt.setAttribute('data-main-name', main.name);
                 mainOpt.disabled = true;
                 mainOpt.className = 'font-bold bg-slate-100';
                 catSelect.appendChild(mainOpt);
@@ -563,6 +673,8 @@
                     subOpt.textContent = `　↳ ${sub.name}`;
                     subOpt.setAttribute('data-main-name', main.name);
                     subOpt.setAttribute('data-sub-name', sub.name);
+                    subOpt.setAttribute('data-main-id', main.id);
+                    subOpt.setAttribute('data-sub-id', sub.id);
                     catSelect.appendChild(subOpt);
                 });
             });
@@ -576,6 +688,8 @@
                     cOpt.textContent = c.name;
                     cOpt.className = 'font-bold';
                     cOpt.setAttribute('data-location-full', c.name);
+                    cOpt.setAttribute('data-city-id', c.id);
+                    cOpt.setAttribute('data-city-name', c.name);
                     selectEl.appendChild(cOpt);
                     const distList = districts[c.id] || [];
                     distList.forEach(d => {
@@ -583,6 +697,10 @@
                         dOpt.value = `district_${c.id}_${d.id}`;
                         dOpt.textContent = `　↳ ${d.name}`;
                         dOpt.setAttribute('data-location-full', `${c.name}${d.name}`);
+                        dOpt.setAttribute('data-city-id', c.id);
+                        dOpt.setAttribute('data-city-name', c.name);
+                        dOpt.setAttribute('data-district-id', d.id);
+                        dOpt.setAttribute('data-district-name', d.name);
                         selectEl.appendChild(dOpt);
                     });
                 });
@@ -597,16 +715,7 @@
                 payerSelect.add(new Option(m.name, m.name));
                 const div = document.createElement('div');
                 div.className = 'flex items-center justify-between p-2 bg-white rounded border';
-                div.innerHTML = `
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" value="${m.name}" class="splitter-chk">
-                        <span>${m.name}</span>
-                    </label>
-                    <label class="flex items-center gap-1 text-sm text-slate-500">
-                        <input type="checkbox" class="settle-checkbox" data-splitter="${m.name}" disabled style="transform:scale(0.9);">
-                        已付款給金主
-                    </label>
-                `;
+                div.innerHTML = `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="${escapeHtml(m.name)}" class="splitter-chk"><span>${escapeHtml(m.name)}</span></label><label class="flex items-center gap-1 text-sm text-slate-500"><input type="checkbox" class="settle-checkbox" data-splitter="${escapeHtml(m.name)}" disabled style="transform:scale(0.9);">已付款給金主</label>`;
                 splittersDiv.appendChild(div);
             });
             if (expenseId) {
@@ -618,22 +727,53 @@
                     document.getElementById('expenseAmount').value = exp.amount || 0;
                     document.getElementById('expensePayer').value = exp.payer || '';
                     document.getElementById('expenseTreat').checked = exp.isTreat || false;
-                    if(exp.category?.sub) catSelect.value = `sub_${exp.category.main.id}_${exp.category.sub.id}`;
-                    else if(exp.category?.main) catSelect.value = `main_${exp.category.main.id}`;
-                    if(exp.location?.district) document.getElementById('expenseLocation').value = `district_${exp.location.city.id}_${exp.location.district.id}`;
-                    else if(exp.location?.city) document.getElementById('expenseLocation').value = `city_${exp.location.city.id}`;
-                    exp.splitters.forEach(s => {
-                        const chk = splittersDiv.querySelector(`.splitter-chk[value="${s}"]`);
-                        if(chk) chk.checked = true;
-                        const settleChk = splittersDiv.querySelector(`.settle-checkbox[data-splitter="${s}"]`);
-                        if(settleChk && exp.splitterSettled && exp.splitterSettled[s] === true) {
-                            settleChk.checked = true;
+                    
+                    if (exp.category) {
+                        if (exp.category.subId && exp.category.mainId) {
+                            const targetVal = `sub_${exp.category.mainId}_${exp.category.subId}`;
+                            if (catSelect.querySelector(`option[value="${targetVal}"]`)) catSelect.value = targetVal;
+                            else if (exp.category.mainId) {
+                                const mainVal = `main_${exp.category.mainId}`;
+                                if (catSelect.querySelector(`option[value="${mainVal}"]`)) catSelect.value = mainVal;
+                            }
+                        } else if (exp.category.mainId) {
+                            const mainVal = `main_${exp.category.mainId}`;
+                            if (catSelect.querySelector(`option[value="${mainVal}"]`)) catSelect.value = mainVal;
                         }
+                    }
+                    
+                    if (exp.location) {
+                        const locSelect = document.getElementById('expenseLocation');
+                        if (exp.location.districtId && exp.location.cityId) {
+                            const targetVal = `district_${exp.location.cityId}_${exp.location.districtId}`;
+                            if (locSelect.querySelector(`option[value="${targetVal}"]`)) locSelect.value = targetVal;
+                            else if (exp.location.cityId) {
+                                const cityVal = `city_${exp.location.cityId}`;
+                                if (locSelect.querySelector(`option[value="${cityVal}"]`)) locSelect.value = cityVal;
+                            }
+                        } else if (exp.location.cityId) {
+                            const cityVal = `city_${exp.location.cityId}`;
+                            if (locSelect.querySelector(`option[value="${cityVal}"]`)) locSelect.value = cityVal;
+                        }
+                    }
+                    
+                    exp.splitters.forEach(s => {
+                        const chk = splittersDiv.querySelector(`.splitter-chk[value="${s.replace(/"/g, '\\"')}"]`);
+                        if(chk) chk.checked = true;
+                        const settleChk = splittersDiv.querySelector(`.settle-checkbox[data-splitter="${s.replace(/"/g, '\\"')}"]`);
+                        if(settleChk && exp.splitterSettled && exp.splitterSettled[s] === true) settleChk.checked = true;
                     });
                     if(exp.receipt) { document.getElementById('receiptImagePreview').src = exp.receipt; document.getElementById('receiptPreview').classList.remove('hidden'); }
+                    
                     if(exp.destination) {
-                        if(exp.destination.district) document.getElementById('expenseDestination').value = `district_${exp.destination.city.id}_${exp.destination.district.id}`;
-                        else if(exp.destination.city) document.getElementById('expenseDestination').value = `city_${exp.destination.city.id}`;
+                        const destSelect = document.getElementById('expenseDestination');
+                        if (exp.destination.districtId && exp.destination.cityId) {
+                            const targetVal = `district_${exp.destination.cityId}_${exp.destination.districtId}`;
+                            if (destSelect.querySelector(`option[value="${targetVal}"]`)) destSelect.value = targetVal;
+                        } else if (exp.destination.cityId) {
+                            const cityVal = `city_${exp.destination.cityId}`;
+                            if (destSelect.querySelector(`option[value="${cityVal}"]`)) destSelect.value = cityVal;
+                        }
                     }
                     skipAutoSummary = true;
                 }
@@ -655,9 +795,7 @@
                 });
                 calcAverage();
             };
-            splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => {
-                chk.addEventListener('change', updateSettleCheckboxes);
-            });
+            splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.addEventListener('change', updateSettleCheckboxes));
             const calcAverage = () => {
                 const amt = parseFloat(document.getElementById('expenseAmount').value) || 0;
                 const isTreat = document.getElementById('expenseTreat').checked;
@@ -670,8 +808,7 @@
             };
             document.getElementById('expenseAmount').addEventListener('input', calcAverage);
             document.getElementById('expenseTreat').addEventListener('change', calcAverage);
-            updateSettleCheckboxes();
-            calcAverage();
+            updateSettleCheckboxes(); calcAverage();
             const getSelectedMainName = () => {
                 const selected = catSelect.options[catSelect.selectedIndex];
                 return selected ? selected.getAttribute('data-main-name') : '';
@@ -703,10 +840,7 @@
             };
             catSelect.onchange = () => {
                 if(!skipAutoSummary) updateTransportUI();
-                else {
-                    const isTransport = isTransportByMainCat(getSelectedMainName());
-                    document.getElementById('destinationWrapper').classList.toggle('hidden', !isTransport);
-                }
+                else { const isTransport = isTransportByMainCat(getSelectedMainName()); document.getElementById('destinationWrapper').classList.toggle('hidden', !isTransport); }
             };
             document.getElementById('expenseLocation').onchange = () => { if(!skipAutoSummary) refreshSummary(); };
             document.getElementById('expenseDestination').onchange = () => { if(!skipAutoSummary) refreshSummary(); };
@@ -715,6 +849,7 @@
             skipAutoSummary = false;
             modal.style.display = 'block';
         }
+        
         function handleExpenseSubmit(e) {
             e.preventDefault();
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
@@ -732,42 +867,59 @@
                 const settleChk = chk.closest('.flex').querySelector('.settle-checkbox');
                 splitterSettled[splitter] = settleChk ? settleChk.checked : false;
             });
-            // 直接從選項中獲取科目名稱（不依賴 ledger 查找，避免因 ID 遺漏導致未知）
-            let categoryName = '', subName = '';
+            let categoryMainId = '', categoryMainName = '', categorySubId = '', categorySubName = '';
             const catOption = document.getElementById('expenseCategory').options[document.getElementById('expenseCategory').selectedIndex];
             if(catOption && catVal !== '') {
                 if(catVal.startsWith('main_')) {
-                    categoryName = catOption.textContent;
+                    categoryMainId = catVal.substring(5);
+                    categoryMainName = catOption.getAttribute('data-main-name') || catOption.textContent;
                 } else if(catVal.startsWith('sub_')) {
-                    categoryName = catOption.getAttribute('data-main-name') || '';
-                    subName = catOption.getAttribute('data-sub-name') || '';
+                    const parts = catVal.split('_');
+                    if(parts.length >= 3) {
+                        categoryMainId = parts[1];
+                        categorySubId = parts[2];
+                    }
+                    categoryMainName = catOption.getAttribute('data-main-name') || '';
+                    categorySubName = catOption.getAttribute('data-sub-name') || '';
                 }
             }
-            // 解析出發地名稱
-            let cityName = '', districtName = '';
+            let locationCityId = '', locationCityName = '', locationDistrictId = '', locationDistrictName = '';
             const locOption = document.getElementById('expenseLocation').options[document.getElementById('expenseLocation').selectedIndex];
             if(locOption && locVal !== '') {
                 if(locVal.startsWith('city_')) {
-                    cityName = locOption.textContent;
+                    locationCityId = locVal.substring(5);
+                    locationCityName = locOption.getAttribute('data-city-name') || locOption.textContent;
                 } else if(locVal.startsWith('district_')) {
-                    cityName = locOption.textContent.replace(/^[　↳\s]+/, '');
+                    const parts = locVal.split('_');
+                    if(parts.length >= 3) {
+                        locationCityId = parts[1];
+                        locationDistrictId = parts[2];
+                    }
+                    locationCityName = locOption.getAttribute('data-city-name') || '';
+                    locationDistrictName = locOption.getAttribute('data-district-name') || locOption.textContent.replace(/^[　↳\s]+/, '');
                 }
             }
-            // 目的地
             let destinationObj = null;
-            const isTransport = categoryName.includes('交通');
+            const isTransport = categoryMainName.includes('交通');
             if(isTransport) {
                 const destVal = document.getElementById('expenseDestination').value;
                 if(destVal) {
                     const destOption = document.getElementById('expenseDestination').options[document.getElementById('expenseDestination').selectedIndex];
                     if(destOption) {
-                        let destCityName = '', destDistrictName = '';
+                        let destCityId = '', destDistrictId = '', destCityName = '', destDistrictName = '';
                         if(destVal.startsWith('city_')) {
-                            destCityName = destOption.textContent;
+                            destCityId = destVal.substring(5);
+                            destCityName = destOption.getAttribute('data-city-name') || destOption.textContent;
                         } else if(destVal.startsWith('district_')) {
-                            destCityName = destOption.textContent.replace(/^[　↳\s]+/, '');
+                            const parts = destVal.split('_');
+                            if(parts.length >= 3) {
+                                destCityId = parts[1];
+                                destDistrictId = parts[2];
+                            }
+                            destCityName = destOption.getAttribute('data-city-name') || '';
+                            destDistrictName = destOption.getAttribute('data-district-name') || destOption.textContent.replace(/^[　↳\s]+/, '');
                         }
-                        destinationObj = { city: { id: 'temp', name: destCityName }, district: destDistrictName ? { id: 'temp', name: destDistrictName } : null };
+                        destinationObj = { cityId: destCityId, cityName: destCityName, districtId: destDistrictId, districtName: destDistrictName };
                     }
                 }
             }
@@ -786,80 +938,57 @@
                 isTreat: isTreat,
                 splitterSettled: splitterSettled,
                 category: {
-                    main: { id: catVal, name: categoryName || '未分類' },
-                    sub: subName ? { id: 'sub', name: subName } : null
+                    mainId: categoryMainId,
+                    mainName: categoryMainName,
+                    subId: categorySubId,
+                    subName: categorySubName
                 },
                 location: {
-                    city: { id: locVal, name: cityName || '未知地點' },
-                    district: districtName ? { id: 'dist', name: districtName } : null
+                    cityId: locationCityId,
+                    cityName: locationCityName,
+                    districtId: locationDistrictId,
+                    districtName: locationDistrictName
                 },
                 destination: destinationObj,
                 receipt: document.getElementById('receiptImagePreview').src || null
             };
             if(!appData.expenses) appData.expenses = [];
-            if(currentEditingExpenseId){
+            if(currentEditingExpenseId) {
                 const idx = appData.expenses.findIndex(e=>e.id===currentEditingExpenseId);
                 if(idx>=0) appData.expenses[idx] = expense;
-            } else {
-                appData.expenses.push(expense);
-            }
+            } else appData.expenses.push(expense);
             saveData();
             renderExpenseList();
             updateLedgerInfoPanel();
             document.getElementById('expenseModal').style.display = 'none';
             showToast('記錄已儲存');
         }
+        
         function renderExpenseList() {
             const list = document.getElementById('expenseList');
             const exps = (appData.expenses||[]).filter(e=>e.ledgerId===appData.currentLedgerId);
             if(!exps.length) { list.innerHTML='<div class="text-center py-12 text-slate-400">尚無支出記錄</div>'; return; }
             exps.sort((a,b)=>new Date(`${b.date} ${b.time}`)-new Date(`${a.date} ${a.time}`));
             list.innerHTML = exps.map(e => {
-                const categoryName = e.category?.main?.name || '未知';
-                const subName = e.category?.sub?.name || '';
+                const categoryName = e.category?.mainName || '未知';
+                const subName = e.category?.subName || '';
                 const displayCat = subName ? `${categoryName} · ${subName}` : categoryName;
-                const locationName = e.location?.city?.name || '未知';
+                const locationName = e.location?.cityName || '未知';
                 const totalSplitters = e.splitters.length;
                 const settledCount = e.splitterSettled ? Object.values(e.splitterSettled).filter(v=>v===true).length : 0;
                 const progressBadge = !e.isTreat ? `<span class="text-xs ml-2 ${settledCount===totalSplitters ? 'text-green-600' : 'text-amber-500'}">(${settledCount}/${totalSplitters} 人已付款)</span>` : '';
-                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover">
-                    <div class="flex justify-between">
-                        <div>
-                            <div class="font-bold">${e.description || ''}</div>
-                            <div class="text-xs text-slate-500">${e.date || ''} | ${locationName} | ${displayCat}</div>
-                        </div>
-                        <div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div>
-                    </div>
-                    <div class="flex justify-between items-center mt-2">
-                        <div class="text-xs"><span class="font-bold">${e.payer}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div>
-                        <div class="flex gap-2">
-                            ${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-image"></i></button>` : ''}
-                            <button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i> 編輯</button>
-                            <button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
-                </div>`;
+                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover"><div class="flex justify-between"><div><div class="font-bold">${escapeHtml(e.description || '')}</div><div class="text-xs text-slate-500">${e.date || ''} | ${escapeHtml(locationName)} | ${escapeHtml(displayCat)}</div></div><div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div></div><div class="flex justify-between items-center mt-2"><div class="text-xs"><span class="font-bold">${escapeHtml(e.payer)}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div><div class="flex gap-2">${e.receipt ? `<button onclick="viewReceipt('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-image"></i></button>` : ''}<button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i> 編輯</button><button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button></div></div></div>`;
             }).join('');
         }
         function deleteExpense(id) {
             const ledger = appData.ledgers.find(l=>l.id===appData.currentLedgerId);
             if(ledger.locked && currentUser?.email!==APP_ADMIN_EMAIL) return showToast('帳冊已鎖定，無法刪除');
-            if(confirm('確定刪除此筆記錄?')){
-                appData.expenses = appData.expenses.filter(e=>e.id!==id);
-                saveData();
-                renderExpenseList();
-                updateLedgerInfoPanel();
-                showToast('已刪除');
-            }
+            if(confirm('確定刪除此筆記錄?')){ appData.expenses = appData.expenses.filter(e=>e.id!==id); saveData(); renderExpenseList(); updateLedgerInfoPanel(); showToast('已刪除'); }
         }
         function viewReceipt(id){
             const exp = appData.expenses.find(e=>e.id===id);
-            if(exp?.receipt){
-                document.getElementById('receiptViewImage').src = exp.receipt;
-                document.getElementById('receiptViewModal').style.display = 'block';
-            }
+            if(exp?.receipt){ document.getElementById('receiptViewImage').src = exp.receipt; document.getElementById('receiptViewModal').style.display = 'block'; }
         }
-
         function updateLedgerInfoPanel() {
             const l = appData.ledgers.find(x=>x.id===appData.currentLedgerId);
             if(!l) return;
@@ -876,15 +1005,11 @@
             let waived=0, settledSum=0, outstandingSum=0;
             exps.forEach(e=>{
                 if(e.isTreat) waived+=e.amount;
-                else {
-                    if(e.splitterSettled) {
-                        const allSettled = Object.values(e.splitterSettled).every(v=>v===true);
-                        if(allSettled) settledSum += e.amount;
-                        else outstandingSum += e.amount;
-                    } else {
-                        outstandingSum += e.amount;
-                    }
-                }
+                else if(e.splitterSettled) {
+                    const allSettled = Object.values(e.splitterSettled).every(v=>v===true);
+                    if(allSettled) settledSum += e.amount;
+                    else outstandingSum += e.amount;
+                } else outstandingSum += e.amount;
             });
             document.getElementById('statWaived').innerText = waived.toFixed(0);
             document.getElementById('statSettled').innerText = settledSum.toFixed(0);
@@ -923,29 +1048,153 @@
             }
             updateAdminControls();
         }
-        function showToast(msg){
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.remove('hidden');
-            setTimeout(()=>t.classList.add('hidden'),2500);
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.innerText = msg;
+            toast.classList.remove('hidden');
+            toast.style.opacity = '1';
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
+        function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
+        // ==================== 語音輸入功能（含成功/失敗提示視窗） ====================
+        function getCurrentLedger() { return appData.ledgers.find(l => l.id === appData.currentLedgerId); }
+        function canModifyLedger() {
+            const ledger = getCurrentLedger();
+            if(!ledger) { alert('❌ 請先選擇帳冊'); return false; }
+            const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
+            if(ledger.locked && !isAdmin) { alert('🔒 帳冊已鎖定，無法修改'); return false; }
+            const isMember = (ledger.members || []).some(m => m.email === currentUser?.email);
+            if(!isAdmin && !isMember) { alert('👤 您不是此帳冊的成員，無權修改'); return false; }
+            return true;
+        }
+        function findCityIdByName(cityName, ledger) { return (ledger.locations?.cities || []).find(c => c.name === cityName)?.id || null; }
+        function getLocationValue(cityName, districtName, ledger) {
+            const city = (ledger.locations?.cities || []).find(c => c.name === cityName);
+            if(!city) return null;
+            if(districtName) {
+                const district = (ledger.locations?.districts?.[city.id] || []).find(d => d.name === districtName);
+                return district ? `district_${city.id}_${district.id}` : null;
+            }
+            return `city_${city.id}`;
+        }
+        function findMainCatIdByName(name, ledger) { return (ledger.categories?.main || []).find(m => m.name === name)?.id || null; }
+        
+        function parseCityAndDistrict(inputStr, ledger) { if (!inputStr) return null; inputStr = inputStr.trim(); const spaceParts = inputStr.split(/\s+/); if (spaceParts.length >= 2) { const cityCandidate = spaceParts[0]; const cityId = findCityIdByName(cityCandidate, ledger); if (cityId) { const districtCandidate = spaceParts[1]; const districts = ledger.locations?.districts?.[cityId] || []; if (districts.some(d => d.name === districtCandidate)) { const remainder = spaceParts.slice(2).join(' '); return { city: cityCandidate, district: districtCandidate, remainder }; } } } const cities = ledger.locations?.cities || []; const sortedCities = [...cities].sort((a,b) => b.name.length - a.name.length); for (let city of sortedCities) { if (inputStr.startsWith(city.name)) { const afterCity = inputStr.substring(city.name.length); if (afterCity === "") return { city: city.name, district: null, remainder: "" }; const districts = ledger.locations?.districts?.[city.id] || []; for (let district of districts) { if (afterCity.startsWith(district.name)) { const remainder = afterCity.substring(district.name.length); return { city: city.name, district: district.name, remainder }; } } return { city: city.name, district: null, remainder: afterCity }; } } return null; }
+        
+        function addCityByVoice(cityName) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); if((ledger.locations?.cities || []).some(c => c.name === cityName)) { alert(`⚠️ 城市「${cityName}」已存在`); return false; } const newId = Date.now().toString(); if(!ledger.locations) ledger.locations = { cities: [], districts: {} }; ledger.locations.cities.push({ id: newId, name: cityName }); if(!ledger.locations.districts) ledger.locations.districts = {}; ledger.locations.districts[newId] = []; saveData(); updateUI(); alert(`✅ 已新增城市「${cityName}」`); return true; }
+        function addRegionByVoice(rawInput) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); if (!ledger.locations) ledger.locations = { cities: [], districts: {} }; let cityName = null, districtName = null; const trimmed = rawInput.trim(); const parts = trimmed.split(/\s+/); if (parts.length >= 2 && findCityIdByName(parts[0], ledger)) { cityName = parts[0]; districtName = parts.slice(1).join(''); } if (!cityName) { const cities = ledger.locations.cities || []; const sortedCities = [...cities].sort((a,b) => b.name.length - a.name.length); for (let city of sortedCities) { if (trimmed.startsWith(city.name)) { cityName = city.name; districtName = trimmed.slice(city.name.length); break; } } } if (!cityName || !districtName) { alert(`❌ 無法從「${rawInput}」解析城市與區域`); return false; } const cityId = findCityIdByName(cityName, ledger); if (!cityId) { alert(`❌ 城市「${cityName}」不存在，請先「增加城市 ${cityName}」`); return false; } if (!ledger.locations.districts[cityId]) ledger.locations.districts[cityId] = []; if (ledger.locations.districts[cityId].some(d => d.name === districtName)) { alert(`⚠️ 區域「${districtName}」已在城市「${cityName}」中`); return false; } ledger.locations.districts[cityId].push({ id: Date.now().toString(), name: districtName }); saveData(); updateUI(); alert(`✅ 已新增區域「${cityName} / ${districtName}」`); return true; }
+        function addMainCatByVoice(mainName) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); if((ledger.categories?.main || []).some(m => m.name === mainName)) { alert(`⚠️ 主科目「${mainName}」已存在`); return false; } const newId = Date.now().toString(); if(!ledger.categories) ledger.categories = { main: [], sub: {} }; ledger.categories.main.push({ id: newId, name: mainName }); if(!ledger.categories.sub) ledger.categories.sub = {}; ledger.categories.sub[newId] = []; saveData(); updateUI(); alert(`✅ 已新增主科目「${mainName}」`); return true; }
+        function addSubCatByVoice(rawInput) { if(!canModifyLedger()) return false; const ledger = getCurrentLedger(); let mainName, subName; const parts = rawInput.split(/\s+/); if (parts.length >= 2) { mainName = parts[0]; subName = parts.slice(1).join(''); } else { const mains = ledger.categories?.main || []; const sortedMains = [...mains].sort((a,b)=>b.name.length - a.name.length); for(let m of sortedMains) { if(rawInput.startsWith(m.name)) { mainName = m.name; subName = rawInput.substring(m.name.length); break; } } if(!mainName) { alert(`❌ 無法解析主科目`); return false; } } if(!mainName || !subName) { alert(`❌ 格式錯誤，請輸入「增加次要科目主科目次要科目」`); return false; } const mainId = findMainCatIdByName(mainName, ledger); if(!mainId) { alert(`❌ 主科目「${mainName}」不存在`); return false; } const subs = ledger.categories.sub?.[mainId] || []; if(subs.some(s => s.name === subName)) { alert(`⚠️ 次要科目「${subName}」已存在`); return false; } if(!ledger.categories.sub) ledger.categories.sub = {}; if(!ledger.categories.sub[mainId]) ledger.categories.sub[mainId] = []; ledger.categories.sub[mainId].push({ id: Date.now().toString(), name: subName }); saveData(); updateUI(); alert(`✅ 已新增次要科目「${mainName} -> ${subName}」`); return true; }
+        
+        function openExpenseWithPrefill(prefill) {
+            if(!appData.currentLedgerId) { alert('❌ 請先選擇帳冊'); return; }
+            const ledger = getCurrentLedger();
+            if(ledger.locked && currentUser?.email !== APP_ADMIN_EMAIL) { alert('🔒 帳冊已鎖定，無法新增'); return; }
+            openExpenseModal();
+            setTimeout(() => {
+                try {
+                    if(prefill.categoryVal) document.getElementById('expenseCategory').value = prefill.categoryVal;
+                    if(prefill.locationVal) document.getElementById('expenseLocation').value = prefill.locationVal;
+                    if(prefill.destinationVal) { document.getElementById('expenseDestination').value = prefill.destinationVal; document.getElementById('destinationWrapper').classList.remove('hidden'); }
+                    if(prefill.description) document.getElementById('expenseDescription').value = prefill.description;
+                    document.getElementById('expenseAmount').dispatchEvent(new Event('input'));
+                    alert(`📝 已開啟記帳表單，請填寫金額後儲存`);
+                } catch(e) { console.warn(e); alert('預填表單時出錯，請手動選擇'); }
+            }, 300);
+        }
+        
+        function parseTransportCommand(cmdText) { let rest = cmdText.replace(/^新增交通紀錄/, '').trim(); const youIndex = rest.indexOf('由'); const wangIndex = rest.indexOf('往'); if (youIndex === -1 || wangIndex === -1 || youIndex > wangIndex) return null; const transport = rest.substring(0, youIndex).trim(); const fromPart = rest.substring(youIndex + 1, wangIndex).trim(); const toPart = rest.substring(wangIndex + 1).trim(); if (!transport || !fromPart || !toPart) return null; return { transport, from: fromPart, to: toPart }; }
+        
+        function parseAndExecuteVoiceCommand(cmdText) {
+            const ledger = getCurrentLedger();
+            if(!ledger && !cmdText.match(/增加城市|增加區域|增加主科目|增加次要科目/)) { alert('❌ 請先選擇或建立帳冊'); return false; }
+            cmdText = cmdText.trim();
+            let m = cmdText.match(/^增加城市(.+)$/); if(m) return addCityByVoice(m[1].trim());
+            m = cmdText.match(/^增加區域(.+)$/); if(m) return addRegionByVoice(m[1].trim());
+            m = cmdText.match(/^增加主科目(.+)$/); if(m) return addMainCatByVoice(m[1].trim());
+            m = cmdText.match(/^增加次要科目(.+)$/); if(m) return addSubCatByVoice(m[1].trim());
+            
+            if (cmdText.startsWith('新增交通紀錄')) {
+                const parsed = parseTransportCommand(cmdText);
+                if (!parsed) { alert('❌ 無法解析交通指令，格式範例：新增交通紀錄高鐵由台北車站往台中高鐵站'); return false; }
+                const ledgerNow = getCurrentLedger();
+                const mainTrans = ledgerNow.categories?.main?.find(c => c.name === '交通');
+                if(!mainTrans) { alert('❌ 帳冊尚未建立「交通」主科目'); return false; }
+                if(!ledgerNow.categories?.sub?.[mainTrans.id]?.some(s => s.name === parsed.transport)) { alert(`❌ 交通方式「${parsed.transport}」尚未建立，請先增加次要科目`); return false; }
+                const fromInfo = parseCityAndDistrict(parsed.from, ledgerNow);
+                const toInfo = parseCityAndDistrict(parsed.to, ledgerNow);
+                if(!fromInfo || !fromInfo.city) { alert(`❌ 起點「${parsed.from}」無法解析城市/區域`); return false; }
+                if(!toInfo || !toInfo.city) { alert(`❌ 迄點「${parsed.to}」無法解析城市/區域`); return false; }
+                const fromVal = getLocationValue(fromInfo.city, fromInfo.district, ledgerNow);
+                const toVal = getLocationValue(toInfo.city, toInfo.district, ledgerNow);
+                if(!fromVal || !toVal) { alert(`❌ 起點或終點設定錯誤，請確認城市/區域存在`); return false; }
+                const subId = ledgerNow.categories.sub[mainTrans.id].find(s => s.name === parsed.transport).id;
+                const catVal = `sub_${mainTrans.id}_${subId}`;
+                openExpenseWithPrefill({ categoryVal: catVal, locationVal: fromVal, destinationVal: toVal, description: `${parsed.from} 往 ${parsed.to}` });
+                return true;
+            }
+            
+            const typeMap = { '飲食': '飲食', '購物': '購物', '景點': '景點' };
+            for (let [typeName, mainName] of Object.entries(typeMap)) {
+                const regex = new RegExp(`^新增${typeName}紀錄(.+)$`);
+                m = cmdText.match(regex);
+                if (m) {
+                    const rest = m[1].trim();
+                    if (!rest) { alert(`❌ 缺少內容`); return false; }
+                    const mainCat = ledger.categories?.main?.find(c => c.name === mainName);
+                    if (!mainCat) { alert(`❌ 帳冊尚未建立「${mainName}」主科目`); return false; }
+                    const subCatsList = ledger.categories?.sub?.[mainCat.id] || [];
+                    let subtype = null, remaining = rest;
+                    const sortedSubs = [...subCatsList].sort((a,b) => b.name.length - a.name.length);
+                    for (let sub of sortedSubs) { if (rest.startsWith(sub.name)) { subtype = sub.name; remaining = rest.substring(sub.name.length).trim(); break; } }
+                    if (!subtype) { const spaceIdx = rest.indexOf(' '); if (spaceIdx > 0) { subtype = rest.substring(0, spaceIdx); remaining = rest.substring(spaceIdx + 1).trim(); } else { alert(`❌ 無法識別類別，請確認次要科目「${mainName}」下是否有「${rest}」或使用空格區隔`); return false; } }
+                    if (!subCatsList.some(s => s.name === subtype)) { alert(`❌ 類別「${subtype}」不存在於「${mainName}」之下，請先增加次要科目`); return false; }
+                    if (!remaining) { alert(`❌ 缺少地點資訊，請輸入城市或區域`); return false; }
+                    const placeInfo = parseCityAndDistrict(remaining, ledger);
+                    if (!placeInfo || !placeInfo.city) { alert(`❌ 無法從「${remaining}」解析城市/區域，請確認城市/區域已設定`); return false; }
+                    const locationVal = getLocationValue(placeInfo.city, placeInfo.district, ledger);
+                    if (!locationVal) { alert(`❌ 地點組合無效，請確認城市「${placeInfo.city}」存在`); return false; }
+                    const subId = subCatsList.find(s => s.name === subtype).id;
+                    const catVal = `sub_${mainCat.id}_${subId}`;
+                    const placeDisplay = placeInfo.district ? `${placeInfo.city}${placeInfo.district}` : placeInfo.city;
+                    const note = placeInfo.remainder || '';
+                    const summary = note ? `${placeDisplay}${subtype} - ${note}` : `${placeDisplay}${subtype}`;
+                    openExpenseWithPrefill({ categoryVal: catVal, locationVal: locationVal, description: summary });
+                    return true;
+                }
+            }
+            alert('❌ 無法辨識指令，請參考範例');
+            return false;
+        }
+        
+        function setupVoiceEvents() {
+            const confirmBtn = document.getElementById('voiceConfirmBtn');
+            const cancelBtn = document.getElementById('voiceCancelBtn');
+            const closeBtn = document.getElementById('closeVoiceModalBtn');
+            const textarea = document.getElementById('voiceCommandText');
+            confirmBtn.onclick = () => {
+                const cmd = textarea.value.trim();
+                if(cmd) {
+                    const success = parseAndExecuteVoiceCommand(cmd);
+                    const msg = success ? '✅ 指令執行成功！' : '❌ 指令執行失敗，請檢查格式。';
+                    alert(msg);
+                    textarea.value = '';
+                    closeVoiceModal();
+                } else {
+                    alert('請輸入語音指令');
+                }
+            };
+            cancelBtn.onclick = () => { closeVoiceModal(); textarea.value = ''; };
+            closeBtn.onclick = () => { closeVoiceModal(); textarea.value = ''; };
+        }
+        
         function setupEvents() {
             document.getElementById('userForm').onsubmit = handleUserLogin;
-            document.getElementById('switchUserBtn').onclick = () => {
-                localStorage.removeItem('travelAccountingUser');
-                currentUser = null;
-                // 清空當前選擇的帳冊，避免權限問題
-                appData.currentLedgerId = null;
-                updateUI();
-                showUserModal();
-                showToast('已切換使用者');
-            };
+            document.getElementById('switchUserBtn').onclick = () => { localStorage.removeItem('travelAccountingUser'); currentUser = null; appData.currentLedgerId = null; updateUI(); showUserModal(); showToast('已切換使用者'); };
             document.getElementById('userBtn').onclick = () => showUserModal();
-            document.getElementById('viewStatsBtn').onclick = () => {
-                if(!appData.currentLedgerId) return showToast('請先選擇帳冊');
-                window.location.href = `view.html?ledgerId=${appData.currentLedgerId}`;
-            };
+            document.getElementById('viewStatsBtn').onclick = () => { if(!appData.currentLedgerId) return showToast('請先選擇帳冊'); window.location.href = `view.html?ledgerId=${appData.currentLedgerId}`; };
             document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
             document.getElementById('cancelExpenseBtn').onclick = () => document.getElementById('expenseModal').style.display = 'none';
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
@@ -960,8 +1209,10 @@
             document.querySelectorAll('.closeModal').forEach(btn => btn.onclick = (e) => { e.target.closest('.modal').style.display = 'none'; });
             window.onclick = (e) => { if(e.target.classList.contains('modal') && e.target.id !== 'expenseModal') e.target.style.display = 'none'; };
             document.getElementById('aboutBtn').onclick = () => { const modal=document.getElementById('aboutModal'); modal.style.display='block'; const url=window.location.href; const container=document.getElementById('qrcodeContainer'); container.innerHTML=''; try{ const qr=qrcode(0,'M'); qr.addData(url); qr.make(); const canvas=document.createElement('canvas'); const size=qr.getModuleCount()*5; canvas.width=size; canvas.height=size; const ctx=canvas.getContext('2d'); for(let r=0;r<qr.getModuleCount();r++) for(let c=0;c<qr.getModuleCount();c++){ ctx.fillStyle=qr.isDark(r,c)?'#000':'#fff'; ctx.fillRect(c*5,r*5,5,5); } container.appendChild(canvas); }catch(e){ container.innerHTML='QR Code 生成失敗'; } };
+            document.getElementById('voiceInputBtn').onclick = showVoiceModal;
+            setupVoiceEvents();
         }
-
+        
         document.getElementById('versionTag').innerText = CURRENT_VERSION;
         document.getElementById('aboutVersion').innerText = CURRENT_VERSION;
         loadLocalData();
