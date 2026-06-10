@@ -148,6 +148,8 @@
                 <button id="closeVoiceModalBtn" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
             </div>
             <div id="voiceQuickButtons" class="flex flex-wrap gap-2 mb-3 min-h-[44px]"></div>
+            <!-- 次要科目提示區 -->
+            <div id="voiceSubCatsHint" class="text-xs text-gray-600 mb-2 hidden"></div>
             <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北火車站50嵐&#10;新增活動紀錄旅拍南京牛首山漢服"></textarea>
             <div class="flex flex-wrap gap-2 my-3">
                 <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加城市 "><i class="fas fa-city mr-1"></i>+城市</button>
@@ -161,9 +163,11 @@
                 • 增加區域<strong>城市區域</strong>（可無空格）<br>
                 • 增加主科目<strong>主科目名</strong><br>
                 • 增加次要科目<strong>主科目次要科目</strong><br>
-                • 新增交通紀錄<strong>交通工具由起點往終點</strong><br>
+                • 新增交通紀錄<strong>交通工具起點(到/往/至)終點</strong>（「由」可省略，例如：高鐵台北車站到台中高鐵站）<br>
                 • 新增[主科目名稱]紀錄<strong>次科目地點備註</strong> (會自動匹配您帳冊中的主科目)<br>
                 <span class="text-xs text-gray-500">⭐ 點擊上方快捷按鈕立即填入標準指令，再補上詳細內容即可</span>
+                <!-- 動態範例提示區 -->
+                <div id="dynamicExampleHint" class="text-xs text-purple-600 mt-2"></div>
             </div>
             <div class="flex justify-end gap-3 mt-4">
                 <button id="voiceCancelBtn" class="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg">取消</button>
@@ -270,8 +274,8 @@
     <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50 shadow-lg"></div>
 
     <script>
-        // ==================== 完整功能 (全選按鈕支援切換) ====================
-        const CURRENT_VERSION = 'v20260609.final';
+        // ==================== 完整功能 ====================
+        const CURRENT_VERSION = 'v20260610.001';   // 版號已更新
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -481,6 +485,68 @@
             }
         }
 
+        // 定義固定指令的範例
+        const commandExamples = {
+            "增加城市 ": ["增加城市東京", "增加城市巴黎", "增加城市曼谷"],
+            "增加區域 ": ["增加區域台北信義區", "增加區域高雄左營", "增加區域台中北區"],
+            "增加主科目 ": ["增加主科目住宿", "增加主科目娛樂", "增加主科目購物"],
+            "增加次要科目 ": ["增加次要科目交通高鐵", "增加次要科目飲食小吃", "增加次要科目景點門票"]
+        };
+        
+        function getMainCatExample(mainCatName) {
+            if (isTransportByMainCat(mainCatName)) {
+                return [
+                    `新增交通紀錄捷運台北車站到西門町`,
+                    `新增交通紀錄高鐵台北車站至台中高鐵站`,
+                    `新增交通紀錄公車信義區往台北101`
+                ];
+            } else {
+                return [
+                    `新增${mainCatName}紀錄 [次要科目] [地點] [備註]`,
+                    `例如：新增${mainCatName}紀錄 小吃 台北寧夏夜市 蚵仔煎`,
+                    `例如：新增${mainCatName}紀錄 門票 東京迪士尼 海洋樂園`
+                ];
+            }
+        }
+        
+        // 顯示次要科目提示
+        function showSubCatsHint(mainCatId, mainCatName) {
+            const hintDiv = document.getElementById('voiceSubCatsHint');
+            if (!hintDiv) return;
+            const ledger = getCurrentLedger();
+            if (!ledger) {
+                hintDiv.classList.add('hidden');
+                return;
+            }
+            const subCats = ledger.categories?.sub?.[mainCatId] || [];
+            if (subCats.length === 0) {
+                hintDiv.innerHTML = `<i class="fas fa-info-circle"></i> 目前「${mainCatName}」尚無次要科目，請先至帳冊設定新增。`;
+                hintDiv.classList.remove('hidden');
+                return;
+            }
+            const subNames = subCats.map(s => s.name).join('、');
+            hintDiv.innerHTML = `<i class="fas fa-tags"></i> ${mainCatName}的次要科目：${subNames}`;
+            hintDiv.classList.remove('hidden');
+        }
+        
+        function clearSubCatsHint() {
+            const hintDiv = document.getElementById('voiceSubCatsHint');
+            if (hintDiv) {
+                hintDiv.innerHTML = '';
+                hintDiv.classList.add('hidden');
+            }
+        }
+        
+        function updateDynamicExample(examples) {
+            const hintDiv = document.getElementById('dynamicExampleHint');
+            if (!hintDiv) return;
+            if (examples && examples.length) {
+                hintDiv.innerHTML = `<i class="fas fa-info-circle"></i> 📌 範例：${examples.join('、')}`;
+            } else {
+                hintDiv.innerHTML = '';
+            }
+        }
+        
         function renderVoiceQuickButtons() {
             const container = document.getElementById('voiceQuickButtons');
             if (!container) return;
@@ -509,6 +575,11 @@
                         textarea.focus();
                         textarea.setSelectionRange(command.length, command.length);
                         showToast(`✨ 已填入「${command}」，請補上詳細內容 (地點/類別/備註)`);
+                        // 顯示該主科目的次要科目提示
+                        showSubCatsHint(cat.id, cat.name);
+                        // 根據主科目類別顯示動態範例
+                        const examples = getMainCatExample(cat.name);
+                        updateDynamicExample(examples);
                     }
                 };
                 container.appendChild(btn);
@@ -531,12 +602,19 @@
                 textarea.focus();
                 textarea.setSelectionRange(cmd.length, cmd.length);
                 showToast(`✨ 已清空並填入「${cmd.trim()}」，請繼續輸入內容`);
+                // 清空次要科目提示（因為不是主科目按鈕）
+                clearSubCatsHint();
+                // 顯示該指令的動態範例
+                const examples = commandExamples[cmd];
+                updateDynamicExample(examples || null);
             }
         }
 
         function showVoiceModal() {
             renderVoiceQuickButtons();
             setupHelperButtons();
+            updateDynamicExample(null);
+            clearSubCatsHint();
             const modal = document.getElementById('voiceModal');
             if (modal) modal.style.display = 'block';
             const textarea = document.getElementById('voiceCommandText');
@@ -545,8 +623,11 @@
         
         function closeVoiceModal() { 
             document.getElementById('voiceModal').style.display = 'none';
+            updateDynamicExample(null);
+            clearSubCatsHint();
         }
 
+        // 帳冊設定相關函數 (省略詳細內容，保持原有完整邏輯)
         function openLedgerModal(ledgerId = null) {
             const modal = document.getElementById('ledgerModal');
             const form = document.getElementById('ledgerForm');
@@ -825,7 +906,6 @@
                 });
             });
             
-            // 全選按鈕：支援切換（全選 / 取消全選）
             const selectAllBtn = document.getElementById('selectAllSplittersBtn');
             if (selectAllBtn) {
                 selectAllBtn.onclick = () => {
@@ -1188,7 +1268,7 @@
         }
         function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
-        // 語音核心
+        // 語音核心函數 (已包含在上方，補上缺少的函數)
         function getCurrentLedger() { return appData.ledgers.find(l => l.id === appData.currentLedgerId); }
         function canModifyLedger() {
             const ledger = getCurrentLedger();
@@ -1233,7 +1313,85 @@
                 } catch(e) { console.warn(e); alert('預填表單時出錯，請手動選擇'); }
             }, 300);
         }
-        function parseTransportCommand(cmdText) { let rest = cmdText.replace(/^新增交通紀錄/, '').trim(); const youIndex = rest.indexOf('由'); const wangIndex = rest.indexOf('往'); if (youIndex === -1 || wangIndex === -1 || youIndex > wangIndex) return null; const transport = rest.substring(0, youIndex).trim(); const fromPart = rest.substring(youIndex + 1, wangIndex).trim(); const toPart = rest.substring(wangIndex + 1).trim(); if (!transport || !fromPart || !toPart) return null; return { transport, from: fromPart, to: toPart }; }
+        
+        // 修正 parseTransportCommand：支援省略「由」，並動態匹配交通方式（次要科目）
+        function parseTransportCommand(cmdText, ledger) {
+            let rest = cmdText.replace(/^新增交通紀錄/, '').trim();
+            const youIndex = rest.indexOf('由');
+            const connectorRegex = /(?:往|到|至)/;
+            let transport = '', from = '', to = '';
+            
+            if (youIndex !== -1) {
+                // 有「由」的處理方式（保持原邏輯）
+                const beforeYou = rest.substring(0, youIndex);
+                const afterYou = rest.substring(youIndex + 1);
+                const connectorMatch = afterYou.match(connectorRegex);
+                if (!connectorMatch) return null;
+                const connIndex = afterYou.indexOf(connectorMatch[0]);
+                if (connIndex === -1) return null;
+                from = afterYou.substring(0, connIndex).trim();
+                to = afterYou.substring(connIndex + 1).trim();
+                transport = beforeYou.trim();
+            } else {
+                // 沒有「由」：先找出連接詞位置
+                const connectorMatch = rest.match(connectorRegex);
+                if (!connectorMatch) return null;
+                const connIndex = rest.indexOf(connectorMatch[0]);
+                if (connIndex === -1) return null;
+                const beforeConnector = rest.substring(0, connIndex).trim();
+                to = rest.substring(connectorMatch[0].length + connIndex).trim();
+                
+                // 從 beforeConnector 中動態匹配交通方式（次要科目名稱）
+                // 先找到「交通」主科目下的所有次要科目列表
+                const transportMain = ledger.categories?.main?.find(m => m.name.includes('交通'));
+                if (!transportMain) {
+                    // 沒有交通主科目時，嘗試用空白分割的最後一部分當交通方式（降級邏輯）
+                    const lastSpace = beforeConnector.lastIndexOf(' ');
+                    if (lastSpace !== -1) {
+                        transport = beforeConnector.substring(0, lastSpace).trim();
+                        from = beforeConnector.substring(lastSpace + 1).trim();
+                    } else {
+                        transport = '';
+                        from = beforeConnector;
+                    }
+                } else {
+                    const subCatsList = ledger.categories?.sub?.[transportMain.id] || [];
+                    // 依長度排序，優先匹配最長的次要科目名稱
+                    const sortedSubs = [...subCatsList].sort((a,b) => b.name.length - a.name.length);
+                    let matchedSub = null;
+                    for (let sub of sortedSubs) {
+                        if (beforeConnector.startsWith(sub.name)) {
+                            matchedSub = sub.name;
+                            const remainder = beforeConnector.slice(sub.name.length).trim();
+                            if (remainder) {
+                                from = remainder;
+                            } else {
+                                from = '';  // 沒有起點？視為錯誤
+                            }
+                            break;
+                        }
+                    }
+                    if (matchedSub) {
+                        transport = matchedSub;
+                        if (!from) return null; // 沒有起點資訊
+                    } else {
+                        // 如果完全匹配不到次要科目，退回用空格分割
+                        const lastSpace = beforeConnector.lastIndexOf(' ');
+                        if (lastSpace !== -1) {
+                            transport = beforeConnector.substring(0, lastSpace).trim();
+                            from = beforeConnector.substring(lastSpace + 1).trim();
+                        } else {
+                            transport = '';
+                            from = beforeConnector;
+                        }
+                    }
+                }
+            }
+            
+            if (!transport || !from || !to) return null;
+            return { transport, from, to };
+        }
+        
         function parseAndExecuteVoiceCommand(cmdText) {
             const ledger = getCurrentLedger();
             if (!ledger && !cmdText.match(/增加城市|增加區域|增加主科目|增加次要科目/)) {
@@ -1246,9 +1404,10 @@
             m = cmdText.match(/^增加主科目(.+)$/); if (m) return addMainCatByVoice(m[1].trim());
             m = cmdText.match(/^增加次要科目(.+)$/); if (m) return addSubCatByVoice(m[1].trim());
             if (cmdText.startsWith('新增交通紀錄')) {
-                const parsed = parseTransportCommand(cmdText);
-                if (!parsed) { alert('❌ 無法解析交通指令，格式範例：新增交通紀錄高鐵由台北車站往台中高鐵站'); return false; }
                 const ledgerNow = getCurrentLedger();
+                if (!ledgerNow) { alert('❌ 請先選擇帳冊'); return false; }
+                const parsed = parseTransportCommand(cmdText, ledgerNow);
+                if (!parsed) { alert('❌ 無法解析交通指令，格式範例：新增交通紀錄高鐵台北車站到台中高鐵站 或 新增交通紀錄高鐵由台北車站往台中高鐵站'); return false; }
                 const mainTrans = ledgerNow.categories?.main?.find(c => c.name === '交通');
                 if (!mainTrans) { alert('❌ 帳冊尚未建立「交通」主科目'); return false; }
                 if (!ledgerNow.categories?.sub?.[mainTrans.id]?.some(s => s.name === parsed.transport)) { alert(`❌ 交通方式「${parsed.transport}」尚未建立，請先增加次要科目`); return false; }
@@ -1366,8 +1525,19 @@
             document.getElementById('toggleLockLedgerBtn').onclick = () => { const l=appData.ledgers.find(l=>l.id===appData.currentLedgerId); if(l){ l.locked=!l.locked; saveData(); updateUI(); showToast(l.locked?'帳冊已鎖定':'帳冊已解鎖'); } };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
             document.getElementById('ledgerToggleHeader').onclick = () => { const el=document.getElementById('ledgerCollapsible'); const chevron=document.getElementById('ledgerChevron'); if(el.style.maxHeight==='0px' || !el.style.maxHeight){ el.style.maxHeight='800px'; el.style.opacity='1'; chevron.classList.add('rotate-180'); updateLedgerInfoPanel(); } else { el.style.maxHeight='0px'; el.style.opacity='0'; chevron.classList.remove('rotate-180'); } };
-            document.querySelectorAll('.closeModal').forEach(btn => btn.onclick = (e) => { e.target.closest('.modal').style.display = 'none'; });
-            window.onclick = (e) => { if(e.target.classList.contains('modal') && e.target.id !== 'expenseModal') e.target.style.display = 'none'; };
+            window.onclick = (e) => {
+                if (e.target.classList.contains('modal')) {
+                    if (e.target.id === 'voiceModal') return;
+                    e.target.style.display = 'none';
+                }
+            };
+            // 修復取消按鈕：讓所有 .closeModal 按鈕都能關閉其所在的 modal
+            document.querySelectorAll('.closeModal').forEach(btn => {
+                btn.onclick = function(e) {
+                    const modal = this.closest('.modal');
+                    if (modal) modal.style.display = 'none';
+                };
+            });
             document.getElementById('aboutBtn').onclick = () => { const modal=document.getElementById('aboutModal'); modal.style.display='block'; const url=window.location.href; const container=document.getElementById('qrcodeContainer'); container.innerHTML=''; try{ const qr=qrcode(0,'M'); qr.addData(url); qr.make(); const canvas=document.createElement('canvas'); const size=qr.getModuleCount()*5; canvas.width=size; canvas.height=size; const ctx=canvas.getContext('2d'); for(let r=0;r<qr.getModuleCount();r++) for(let c=0;c<qr.getModuleCount();c++){ ctx.fillStyle=qr.isDark(r,c)?'#000':'#fff'; ctx.fillRect(c*5,r*5,5,5); } container.appendChild(canvas); }catch(e){ container.innerHTML='QR Code 生成失敗'; } };
             document.getElementById('voiceInputBtn').onclick = showVoiceModal;
             setupVoiceEvents();
