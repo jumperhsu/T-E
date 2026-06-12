@@ -64,7 +64,6 @@
         }
         @media (max-width: 640px) {
             .splitter-item { flex: 1 1 calc(50% - 12px); }
-            /* 手機模式下帳冊設定的雙欄改為垂直排列，移除固定高度 */
             .config-cols { flex-direction: column; height: auto; gap: 16px; }
             .config-col { height: auto; max-height: 300px; }
         }
@@ -98,6 +97,46 @@
         @media (min-width: 641px) {
             .voice-buttons-mobile { display: none; }
             .voice-buttons-desktop { display: flex; }
+        }
+        
+        /* 唯讀模式下按鈕隱藏 */
+        .readonly-hide { display: none !important; }
+        
+        /* 區域提示區塊 */
+        .location-hint {
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            font-size: 0.8rem;
+        }
+        .location-hint-title {
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .district-tag {
+            display: inline-block;
+            background-color: #dbeafe;
+            color: #1e40af;
+            padding: 2px 8px;
+            border-radius: 16px;
+            margin: 2px 4px 2px 0;
+            font-size: 0.7rem;
+        }
+        .location-warning {
+            color: #b45309;
+            background-color: #fffbeb;
+            border-color: #fde68a;
+        }
+        .location-error {
+            color: #991b1b;
+            background-color: #fef2f2;
+            border-color: #fecaca;
         }
     </style>
 </head>
@@ -145,7 +184,7 @@
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
                 <h3 class="font-bold text-lg">支出明細</h3>
-                <div class="flex gap-2">
+                <div class="flex gap-2" id="expenseActionButtons">
                     <button id="voiceInputBtn" class="bg-purple-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-purple-700 transition"><i class="fas fa-microphone"></i> 語音輸入</button>
                     <button id="addExpenseBtn" class="bg-green-600 text-white px-5 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 記一筆</button>
                 </div>
@@ -154,18 +193,18 @@
         </div>
     </main>
 
-    <!-- 語音輸入模態框 (響應式按鈕佈局) -->
+    <!-- 語音輸入模態框 -->
     <div id="voiceModal" class="modal">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-xl font-bold text-slate-800"><i class="fas fa-microphone-alt text-purple-500 mr-2"></i>語音指令輸入</h3>
-                <button id="closeVoiceModalBtn" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+                <button id="closeVoiceModalBtn" class="close-modal-x text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
             </div>
             <div id="voiceQuickButtons" class="flex flex-wrap gap-2 mb-3 min-h-[44px]"></div>
+            <div id="locationHintContainer" class="location-hint hidden"></div>
             <div id="voiceSubCatsHint" class="text-xs text-gray-600 mb-2 hidden"></div>
             <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北火車站50嵐&#10;新增活動紀錄旅拍南京牛首山漢服"></textarea>
 
-            <!-- 手機版佈局：兩行 -->
             <div class="voice-buttons-mobile mt-4">
                 <div class="flex justify-between items-center gap-2">
                     <div class="flex gap-2">
@@ -183,7 +222,6 @@
                 </div>
             </div>
 
-            <!-- 桌面版佈局：一行 -->
             <div class="voice-buttons-desktop mt-4">
                 <div class="voice-helper-group">
                     <button type="button" class="voice-helper-btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-1.5 px-3 rounded-full text-sm shadow-sm transition" data-cmd="增加城市 "><i class="fas fa-city mr-1"></i>+城市</button>
@@ -213,13 +251,13 @@
         </div>
     </div>
 
-    <div id="aboutModal" class="modal"><div class="modal-content"><div class="flex justify-between"><h3 class="text-xl font-bold">關於</h3><button class="closeModal"><i class="fas fa-times"></i></button></div><div id="qrcodeContainer" class="flex justify-center my-4"></div><p class="text-center text-sm">旅遊收支記帳管家 Pro<br>版本 <span id="aboutVersion"></span></p></div></div>
+    <div id="aboutModal" class="modal"><div class="modal-content"><div class="flex justify-between"><h3 class="text-xl font-bold">關於</h3><button class="close-modal-x"><i class="fas fa-times"></i></button></div><div id="qrcodeContainer" class="flex justify-center my-4"></div><p class="text-center text-sm">旅遊收支記帳管家 Pro<br>版本 <span id="aboutVersion"></span></p></div></div>
     
     <div id="userProfileModal" class="modal">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-4">
                 <h3 id="userModalTitle" class="text-xl font-bold text-slate-800">使用者設定</h3>
-                <button class="closeModal text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+                <button class="close-modal-x text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
             </div>
             <div id="currentUserInfo" class="mb-4 p-3 bg-slate-50 rounded-lg hidden">
                 <div class="flex items-center gap-3">
@@ -252,12 +290,15 @@
     
     <div id="ledgerModal" class="modal">
         <div class="modal-content">
-            <h3 id="ledgerModalTitle" class="text-xl font-bold mb-4">新增帳冊</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="ledgerModalTitle" class="text-xl font-bold">新增帳冊</h3>
+                <button class="close-modal-x text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
             <form id="ledgerForm">
                 <input type="text" id="ledgerName" placeholder="帳冊名稱" required class="w-full border rounded p-2 mb-4">
                 <div id="configArea"></div>
                 <div class="flex justify-end gap-2 mt-4">
-                    <button type="button" class="closeModal bg-white border px-4 py-2 rounded">取消</button>
+                    <button type="button" id="ledgerCancelBtn" class="bg-white border px-4 py-2 rounded">取消</button>
                     <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">儲存</button>
                 </div>
             </form>
@@ -266,7 +307,10 @@
     
     <div id="expenseModal" class="modal" data-backdrop="static">
         <div class="modal-content animate-fade-in">
-            <h3 id="expenseModalTitle" class="text-xl font-bold mb-4">新增支出</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="expenseModalTitle" class="text-xl font-bold">新增支出</h3>
+                <button id="expenseModalCloseX" class="close-modal-x text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
             <div id="lockedMessage" class="hidden mb-4 p-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm"><i class="fas fa-lock"></i> 帳冊已鎖定，您僅有檢視權限。</div>
             <form id="expenseForm">
                 <fieldset id="expenseFieldset">
@@ -312,7 +356,7 @@
 
     <script>
         // ==================== 完整功能 ====================
-        const CURRENT_VERSION = 'v20260610.003';
+        const CURRENT_VERSION = 'v20260612.004';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -333,8 +377,114 @@
         let tempLedger = { mainCats: [], subCats: {}, cities: [], districts: {}, members: [] };
         let selectedMainCatId = null, selectedCityId = null;
         let isFirebaseConnected = false;
+        
+        let cachedDetectedCity = null;
+        let isGeolocationLoading = false;
 
         function isTransportByMainCat(mainName) { return mainName && mainName.includes('交通'); }
+        
+        function normalizeCityName(cityName) {
+            if (!cityName) return '';
+            let normalized = cityName.replace(/[市區縣]$/, '').replace(/[市区县]$/, '');
+            normalized = normalized.replace(/台/g, '臺');
+            return normalized.trim();
+        }
+        
+        function isCityMatch(cityFromAccount, detectedCity) {
+            if (!cityFromAccount || !detectedCity) return false;
+            const normalizedAccount = normalizeCityName(cityFromAccount);
+            const normalizedDetected = normalizeCityName(detectedCity);
+            return normalizedAccount === normalizedDetected || 
+                   normalizedAccount.includes(normalizedDetected) || 
+                   normalizedDetected.includes(normalizedAccount);
+        }
+        
+        async function detectCurrentCity() {
+            if (cachedDetectedCity !== null) return cachedDetectedCity;
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve(null);
+                    return;
+                }
+                isGeolocationLoading = true;
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        const { latitude, longitude } = position.coords;
+                        try {
+                            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&accept-language=zh-TW,zh-CN,en`);
+                            const data = await response.json();
+                            let city = null;
+                            if (data.address) {
+                                city = data.address.city || data.address.town || data.address.village || data.address.county || data.address.state;
+                            }
+                            if (city) {
+                                cachedDetectedCity = city;
+                                resolve(city);
+                            } else {
+                                resolve(null);
+                            }
+                        } catch (error) {
+                            resolve(null);
+                        } finally {
+                            isGeolocationLoading = false;
+                        }
+                    },
+                    (error) => {
+                        isGeolocationLoading = false;
+                        resolve(null);
+                    },
+                    { timeout: 10000, enableHighAccuracy: false }
+                );
+            });
+        }
+        
+        async function updateLocationHintInVoice() {
+            const container = document.getElementById('locationHintContainer');
+            if (!container) return;
+            const ledger = getCurrentLedger();
+            if (!ledger) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.innerHTML = '<div class="location-hint-title"><i class="fas fa-spinner fa-pulse"></i> 正在偵測目前位置...</div>';
+            container.classList.remove('hidden', 'location-warning', 'location-error');
+            const detectedCity = await detectCurrentCity();
+            if (!detectedCity) {
+                container.innerHTML = `
+                    <div class="location-hint-title"><i class="fas fa-map-marker-alt"></i> 📍 無法取得目前位置</div>
+                    <div>請允許定位權限，或點擊「+城市」手動新增城市。</div>
+                `;
+                container.classList.add('location-error');
+                return;
+            }
+            const cities = ledger.locations?.cities || [];
+            let matchedCity = null;
+            for (const city of cities) {
+                if (isCityMatch(city.name, detectedCity)) {
+                    matchedCity = city;
+                    break;
+                }
+            }
+            if (matchedCity) {
+                const districts = ledger.locations?.districts?.[matchedCity.id] || [];
+                const districtsHtml = districts.length > 0 
+                    ? districts.map(d => `<span class="district-tag">${escapeHtml(d.name)}</span>`).join('')
+                    : '<span style="color:#6b7280;">（尚未設定任何區域）</span>';
+                container.innerHTML = `
+                    <div class="location-hint-title"><i class="fas fa-location-dot text-blue-600"></i> 📍 您目前位於 <strong>${escapeHtml(matchedCity.name)}</strong></div>
+                    <div>已設定區域有：${districtsHtml}</div>
+                    <div class="text-xs text-gray-500 mt-1">💡 可直接使用上方區域名稱進行語音輸入</div>
+                `;
+                container.classList.remove('location-warning', 'location-error');
+            } else {
+                container.innerHTML = `
+                    <div class="location-hint-title"><i class="fas fa-map-marker-alt text-amber-600"></i> 📍 您目前位於 <strong>${escapeHtml(detectedCity)}</strong></div>
+                    <div>尚未設定此城市與區域，請點擊「<i class="fas fa-city"></i> +城市」按鈕新增。</div>
+                    <div class="text-xs text-gray-500 mt-1">💡 新增後即可快速選取地點</div>
+                `;
+                container.classList.add('location-warning');
+            }
+        }
         
         function upgradeOldExpense(exp, currentLedger) {
             if (!currentLedger) return exp;
@@ -509,6 +659,17 @@
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
             document.getElementById('adminControls').classList.toggle('hidden', !isAdmin);
         }
+        
+        function canEditCurrentLedger() {
+            const ledger = getCurrentLedger();
+            if (!ledger) return false;
+            const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
+            if (isAdmin) return true;
+            if (ledger.locked) return false;
+            const isMember = (ledger.members || []).some(m => m.email === currentUser?.email);
+            return isMember;
+        }
+        
         function checkUrlParams() {
             const urlParams = new URLSearchParams(window.location.search);
             const action = urlParams.get('action');
@@ -585,6 +746,10 @@
         function renderVoiceQuickButtons() {
             const container = document.getElementById('voiceQuickButtons');
             if (!container) return;
+            if (!canEditCurrentLedger()) {
+                container.innerHTML = '<div class="text-xs text-slate-400 w-full">🔒 帳冊已鎖定，無法使用語音輸入</div>';
+                return;
+            }
             const ledger = getCurrentLedger();
             if (!ledger || !ledger.categories || !ledger.categories.main || ledger.categories.main.length === 0) {
                 container.innerHTML = '<div class="text-xs text-slate-400 w-full">📒 請先選擇帳冊，即可使用快捷按鈕</div>';
@@ -642,10 +807,15 @@
         }
 
         function showVoiceModal() {
+            if (!canEditCurrentLedger()) {
+                showToast('🔒 帳冊已鎖定，無法使用語音輸入');
+                return;
+            }
             renderVoiceQuickButtons();
             setupHelperButtons();
             updateDynamicExample(null);
             clearSubCatsHint();
+            updateLocationHintInVoice();
             const modal = document.getElementById('voiceModal');
             if (modal) modal.style.display = 'block';
             const textarea = document.getElementById('voiceCommandText');
@@ -658,8 +828,14 @@
             clearSubCatsHint();
         }
 
-        // 帳冊設定相關函數（保持原有完整邏輯）
         function openLedgerModal(ledgerId = null) {
+            if (ledgerId) {
+                const ledger = appData.ledgers.find(l => l.id === ledgerId);
+                if (ledger && ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) {
+                    showToast('此帳冊已鎖定，無法修改設定');
+                    return;
+                }
+            }
             const modal = document.getElementById('ledgerModal');
             const form = document.getElementById('ledgerForm');
             form.reset();
@@ -667,7 +843,6 @@
             if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
                 if (ledger) {
-                    if (ledger.locked && (!currentUser || currentUser.email !== APP_ADMIN_EMAIL)) { showToast('此帳冊已鎖定，無法修改設定'); return; }
                     document.getElementById('ledgerModalTitle').innerText = '編輯帳冊設定';
                     document.getElementById('ledgerName').value = ledger.name || '';
                     tempLedger.mainCats = Array.isArray(ledger.categories?.main) ? JSON.parse(JSON.stringify(ledger.categories.main)) : [];
@@ -696,6 +871,10 @@
             modal.style.display = 'block';
             form.dataset.mode = ledgerId ? 'edit' : 'add';
             form.dataset.id = ledgerId || '';
+        }
+        
+        function closeLedgerModal() {
+            document.getElementById('ledgerModal').style.display = 'none';
         }
         
         function renderLedgerConfigUI() {
@@ -797,17 +976,19 @@
                 appData.currentLedgerId = newLedger.id;
             }
             saveData(); updateUI();
-            document.getElementById('ledgerModal').style.display='none';
+            closeLedgerModal();
             showToast('帳冊已儲存');
         }
 
-        // 支出功能核心（保持原有完整邏輯）
         function openExpenseModal(expenseId = null) {
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
             const members = ledger.members || [];
             const isMember = members.some(m => m.email === currentUser?.email) || currentUser?.email === APP_ADMIN_EMAIL;
             if (!isMember) return showToast('您不是此帳冊的成員，無法新增支出');
+            
+            const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
+            const isLocked = ledger.locked && !isAdmin;
             
             upgradeAllExpenses();
             
@@ -817,8 +998,6 @@
             currentEditingExpenseId = expenseId;
             const fieldset = document.getElementById('expenseFieldset');
             const lockedMsg = document.getElementById('lockedMessage');
-            const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
-            const isLocked = ledger.locked && !isAdmin;
             fieldset.disabled = isLocked;
             lockedMsg.classList.toggle('hidden', !isLocked);
             document.getElementById('expenseModalTitle').innerText = isLocked ? '檢視支出 (唯讀)' : (expenseId ? '編輯支出' : '新增支出');
@@ -1091,6 +1270,11 @@
             modal.style.display = 'block';
         }
         
+        function closeExpenseModal() {
+            document.getElementById('expenseModal').style.display = 'none';
+            currentEditingExpenseId = null;
+        }
+        
         function handleExpenseSubmit(e) {
             e.preventDefault();
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
@@ -1203,13 +1387,14 @@
             saveData();
             renderExpenseList();
             updateLedgerInfoPanel();
-            document.getElementById('expenseModal').style.display = 'none';
+            closeExpenseModal();
             showToast('記錄已儲存');
         }
         
         function renderExpenseList() {
             const list = document.getElementById('expenseList');
             const exps = (appData.expenses||[]).filter(e=>e.ledgerId===appData.currentLedgerId);
+            const canEdit = canEditCurrentLedger();
             if(!exps.length) { list.innerHTML='<div class="text-center py-12 text-slate-400">尚無支出記錄</div>'; return; }
             exps.sort((a,b)=>new Date(`${b.date} ${b.time}`)-new Date(`${a.date} ${a.time}`));
             list.innerHTML = exps.map(e => {
@@ -1220,7 +1405,10 @@
                 const totalSplitters = e.splitters.length;
                 const settledCount = e.splitterSettled ? Object.values(e.splitterSettled).filter(v=>v===true).length : 0;
                 const progressBadge = !e.isTreat ? `<span class="text-xs ml-2 ${settledCount===totalSplitters ? 'text-green-600' : 'text-amber-500'}">(${settledCount}/${totalSplitters} 人已付款)</span>` : '';
-                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover"><div class="flex justify-between"><div><div class="font-bold">${escapeHtml(e.description || '')}</div><div class="text-xs text-slate-500">${e.date || ''} | ${escapeHtml(locationName)} | ${escapeHtml(displayCat)}</div></div><div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div></div><div class="flex justify-between items-center mt-2"><div class="text-xs"><span class="font-bold">${escapeHtml(e.payer)}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div><div class="flex gap-2"><button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i> 編輯</button><button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button></div></div></div>`;
+                // 編輯按鈕改為僅顯示筆圖示，刪除按鈕顯示垃圾桶圖示
+                const editButton = canEdit ? `<button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i></button>` : '';
+                const deleteButton = canEdit ? `<button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>` : '';
+                return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover"><div class="flex justify-between"><div><div class="font-bold">${escapeHtml(e.description || '')}</div><div class="text-xs text-slate-500">${e.date || ''} | ${escapeHtml(locationName)} | ${escapeHtml(displayCat)}</div></div><div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div></div><div class="flex justify-between items-center mt-2"><div class="text-xs"><span class="font-bold">${escapeHtml(e.payer)}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div><div class="flex gap-2">${editButton}${deleteButton}</div></div></div>`;
             }).join('');
         }
         function deleteExpense(id) {
@@ -1265,6 +1453,10 @@
                 return (l.members || []).some(m=>m.email===currentUser.email);
             });
             visibleLedgers.forEach(l=>select.add(new Option(`${l.name}${l.locked?' (已鎖定)':''}`, l.id)));
+            
+            const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
+            const canEdit = canEditCurrentLedger();
+            
             if(appData.currentLedgerId && visibleLedgers.some(l=>l.id===appData.currentLedgerId)){
                 select.value = appData.currentLedgerId;
                 upgradeAllExpenses();
@@ -1274,10 +1466,24 @@
                 document.getElementById('ledgerCollapsible').style.opacity = '0';
                 document.getElementById('ledgerChevron').classList.remove('rotate-180');
                 document.getElementById('ledgerMetaSummary').classList.remove('hidden');
-                const ledger = appData.ledgers.find(l=>l.id===appData.currentLedgerId);
-                const isLocked = ledger && ledger.locked;
-                const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
-                document.getElementById('addExpenseBtn').classList.toggle('hidden', isLocked && !isAdmin);
+                
+                const addExpenseBtn = document.getElementById('addExpenseBtn');
+                const voiceInputBtn = document.getElementById('voiceInputBtn');
+                const editLedgerBtn = document.getElementById('editLedgerBtn');
+                
+                if (!canEdit) {
+                    addExpenseBtn.classList.add('hidden');
+                    voiceInputBtn.classList.add('hidden');
+                    if (currentLedger && currentLedger.locked && currentUser?.email !== APP_ADMIN_EMAIL) {
+                        editLedgerBtn.classList.add('hidden');
+                    } else {
+                        editLedgerBtn.classList.remove('hidden');
+                    }
+                } else {
+                    addExpenseBtn.classList.remove('hidden');
+                    voiceInputBtn.classList.remove('hidden');
+                    editLedgerBtn.classList.remove('hidden');
+                }
             } else {
                 appData.currentLedgerId = null;
                 document.getElementById('displayLedgerName').innerText = "請選擇或建立帳冊";
@@ -1285,6 +1491,7 @@
                 document.getElementById('ledgerInfo').classList.add('hidden');
                 document.getElementById('lockBadge').classList.add('hidden');
                 document.getElementById('addExpenseBtn').classList.add('hidden');
+                document.getElementById('voiceInputBtn').classList.add('hidden');
                 document.getElementById('expenseList').innerHTML = '<div class="text-center py-12 text-slate-400">請先選擇帳冊</div>';
             }
             updateAdminControls();
@@ -1299,7 +1506,6 @@
         }
         function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
-        // 語音核心函數
         function getCurrentLedger() { return appData.ledgers.find(l => l.id === appData.currentLedgerId); }
         function canModifyLedger() {
             const ledger = getCurrentLedger();
@@ -1345,7 +1551,6 @@
             }, 300);
         }
         
-        // 修正 parseTransportCommand：支援省略「由」
         function parseTransportCommand(cmdText, ledger) {
             let rest = cmdText.replace(/^新增交通紀錄/, '').trim();
             const youIndex = rest.indexOf('由');
@@ -1538,13 +1743,15 @@
             cancelBtns.forEach(btn => btn.onclick = onCancel);
             closeBtn.onclick = onCancel;
         }
+        
         function setupEvents() {
             document.getElementById('userForm').onsubmit = handleUserLogin;
             document.getElementById('switchUserBtn').onclick = () => { localStorage.removeItem('travelAccountingUser'); currentUser = null; appData.currentLedgerId = null; updateUI(); showUserModal(); showToast('已切換使用者'); };
             document.getElementById('userBtn').onclick = () => showUserModal();
             document.getElementById('viewStatsBtn').onclick = () => { if(!appData.currentLedgerId) return showToast('請先選擇帳冊'); window.location.href = `view.html?ledgerId=${appData.currentLedgerId}`; };
             document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
-            document.getElementById('cancelExpenseBtn').onclick = () => document.getElementById('expenseModal').style.display = 'none';
+            document.getElementById('cancelExpenseBtn').onclick = closeExpenseModal;
+            document.getElementById('expenseModalCloseX').onclick = closeExpenseModal;
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
             document.getElementById('ledgerSelect').onchange = (e) => { appData.currentLedgerId = e.target.value; updateUI(); saveData(); };
             document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
@@ -1552,19 +1759,18 @@
             document.getElementById('deleteLedgerBtn').onclick = () => { if(confirm('刪除帳冊？所有相關支出將一併刪除')){ appData.ledgers = appData.ledgers.filter(l=>l.id!==appData.currentLedgerId); appData.expenses = appData.expenses.filter(e=>e.ledgerId!==appData.currentLedgerId); appData.currentLedgerId=null; saveData(); updateUI(); } };
             document.getElementById('toggleLockLedgerBtn').onclick = () => { const l=appData.ledgers.find(l=>l.id===appData.currentLedgerId); if(l){ l.locked=!l.locked; saveData(); updateUI(); showToast(l.locked?'帳冊已鎖定':'帳冊已解鎖'); } };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
+            document.getElementById('ledgerCancelBtn').onclick = closeLedgerModal;
             document.getElementById('ledgerToggleHeader').onclick = () => { const el=document.getElementById('ledgerCollapsible'); const chevron=document.getElementById('ledgerChevron'); if(el.style.maxHeight==='0px' || !el.style.maxHeight){ el.style.maxHeight='800px'; el.style.opacity='1'; chevron.classList.add('rotate-180'); updateLedgerInfoPanel(); } else { el.style.maxHeight='0px'; el.style.opacity='0'; chevron.classList.remove('rotate-180'); } };
-            window.onclick = (e) => {
-                if (e.target.classList.contains('modal')) {
-                    if (e.target.id === 'voiceModal') return;
-                    e.target.style.display = 'none';
-                }
-            };
-            document.querySelectorAll('.closeModal').forEach(btn => {
+            
+            window.onclick = (e) => {};
+            
+            document.querySelectorAll('.close-modal-x').forEach(btn => {
                 btn.onclick = function(e) {
                     const modal = this.closest('.modal');
                     if (modal) modal.style.display = 'none';
                 };
             });
+            
             document.getElementById('aboutBtn').onclick = () => { const modal=document.getElementById('aboutModal'); modal.style.display='block'; const url=window.location.href; const container=document.getElementById('qrcodeContainer'); container.innerHTML=''; try{ const qr=qrcode(0,'M'); qr.addData(url); qr.make(); const canvas=document.createElement('canvas'); const size=qr.getModuleCount()*5; canvas.width=size; canvas.height=size; const ctx=canvas.getContext('2d'); for(let r=0;r<qr.getModuleCount();r++) for(let c=0;c<qr.getModuleCount();c++){ ctx.fillStyle=qr.isDark(r,c)?'#000':'#fff'; ctx.fillRect(c*5,r*5,5,5); } container.appendChild(canvas); }catch(e){ container.innerHTML='QR Code 生成失敗'; } };
             document.getElementById('voiceInputBtn').onclick = showVoiceModal;
             setupVoiceEvents();
@@ -1578,6 +1784,8 @@
         setupEvents();
         checkUrlParams();
         updateUI();
+        
+        detectCurrentCity();
     </script>
 </body>
 </html>
