@@ -11,6 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
+        /* 樣式保持不變，省略以節省篇幅，實際使用時請保留完整 style */
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
         ::-webkit-scrollbar { width: 6px; }
@@ -87,22 +88,15 @@
             background-color: #e2e8f0;
             color: #64748b;
         }
-
-        /* 響應式語音按鈕佈局：手機兩行，桌面一行 */
         .voice-buttons-mobile { display: flex; flex-direction: column; gap: 12px; }
         .voice-buttons-desktop { display: none; flex-direction: row; justify-content: space-between; align-items: center; gap: 12px; }
         .voice-helper-group { display: flex; flex-wrap: wrap; gap: 8px; }
         .voice-action-group { display: flex; gap: 8px; }
-
         @media (min-width: 641px) {
             .voice-buttons-mobile { display: none; }
             .voice-buttons-desktop { display: flex; }
         }
-        
-        /* 唯讀模式下按鈕隱藏 */
         .readonly-hide { display: none !important; }
-        
-        /* 區域提示區塊 */
         .location-hint {
             background-color: #eff6ff;
             border: 1px solid #bfdbfe;
@@ -168,6 +162,9 @@
                         <select id="ledgerSelect" class="border rounded-lg px-4 py-2.5 w-64"><option value="">請選擇帳冊</option></select>
                         <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 新增</button>
                         <button id="editLedgerBtn" class="bg-white border px-4 py-2.5 rounded-lg"><i class="fas fa-sliders-h"></i> 設定</button>
+                        <!-- 備份與還原按鈕（僅管理者可見） -->
+                        <button id="backupLedgerBtn" class="bg-blue-500 text-white px-4 py-2.5 rounded-lg hidden"><i class="fas fa-download"></i> 備份</button>
+                        <button id="restoreLedgerBtn" class="bg-green-500 text-white px-4 py-2.5 rounded-lg hidden"><i class="fas fa-upload"></i> 還原</button>
                         <div id="adminControls" class="hidden flex gap-2">
                             <button id="toggleLockLedgerBtn" class="text-amber-600"><i class="fas fa-lock"></i></button>
                             <button id="deleteLedgerBtn" class="text-red-600"><i class="fas fa-trash-alt"></i></button>
@@ -192,6 +189,9 @@
             <div id="expenseList" class="space-y-4 max-h-[600px] overflow-y-auto"></div>
         </div>
     </main>
+
+    <!-- 隱藏的檔案選擇器 -->
+    <input type="file" id="restoreFileInput" accept=".json" style="display:none">
 
     <!-- 語音輸入模態框 -->
     <div id="voiceModal" class="modal">
@@ -274,8 +274,8 @@
                     <input type="text" id="inputUserName" required class="w-full border rounded p-2" placeholder="例如：小明">
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Google Email</label>
-                    <input type="email" id="inputUserEmail" required class="w-full border rounded p-2" placeholder="example@gmail.com">
+                    <label class="block text-sm font-bold text-slate-700 mb-1">帳號 (Email 或 手機號碼)</label>
+                    <input type="text" id="inputUserEmail" required class="w-full border rounded p-2" placeholder="example@gmail.com 或 0912345678">
                 </div>
                 <div id="adminBadgeContainer" class="hidden text-center">
                     <span class="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full"><i class="fas fa-shield-alt mr-1"></i> 系統管理員</span>
@@ -356,7 +356,7 @@
 
     <script>
         // ==================== 完整功能 ====================
-        const CURRENT_VERSION = 'v20260612.004';
+        const CURRENT_VERSION = 'v20260612.007';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -380,6 +380,40 @@
         
         let cachedDetectedCity = null;
         let isGeolocationLoading = false;
+
+        // ----- 帳號標準化與比對 -----
+        function normalizeIdentifier(id) {
+            if (!id) return '';
+            id = id.trim();
+            if (/^09/.test(id) || /^\+8869/.test(id)) {
+                let cleaned = id.replace(/\D/g, '');
+                if (cleaned.startsWith('09') && cleaned.length === 10) return cleaned;
+                if (cleaned.startsWith('8869') && cleaned.length === 12) return '0' + cleaned.slice(3);
+                return cleaned;
+            }
+            return id.toLowerCase();
+        }
+
+        function identifiersMatch(a, b) {
+            if (!a || !b) return false;
+            return normalizeIdentifier(a) === normalizeIdentifier(b);
+        }
+
+        function isEmailLike(id) {
+            return id && id.includes('@');
+        }
+
+        function isValidIdentifier(id) {
+            if (!id) return false;
+            id = id.trim();
+            if (id.includes('@') && id.split('@').length === 2 && id.split('@')[1].includes('.')) {
+                return true;
+            }
+            let cleaned = id.replace(/\D/g, '');
+            if (cleaned.startsWith('09') && cleaned.length === 10) return true;
+            if (cleaned.startsWith('8869') && cleaned.length === 12) return true;
+            return false;
+        }
 
         function isTransportByMainCat(mainName) { return mainName && mainName.includes('交通'); }
         
@@ -638,14 +672,19 @@
         function handleUserLogin(e) {
             e.preventDefault();
             const name = document.getElementById('inputUserName').value.trim();
-            const email = document.getElementById('inputUserEmail').value.trim();
-            if (!name || !email) return showToast('請完整輸入名稱與 Email');
+            const identifier = document.getElementById('inputUserEmail').value.trim();
+            if (!name || !identifier) return showToast('請完整輸入名稱與帳號');
+            if (!isValidIdentifier(identifier)) {
+                return showToast('請輸入有效的 Email 或 09 開頭的手機號碼');
+            }
             const previousUser = currentUser;
-            currentUser = { name, email };
+            currentUser = { name, email: identifier };
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
             document.getElementById('userProfileModal').style.display = 'none';
             updateUserUI();
-            if (!previousUser || previousUser.email !== email) appData.currentLedgerId = null;
+            if (!previousUser || !identifiersMatch(previousUser.email, identifier)) {
+                appData.currentLedgerId = null;
+            }
             updateUI();
             showToast(`歡迎, ${name}`);
         }
@@ -666,7 +705,7 @@
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
             if (isAdmin) return true;
             if (ledger.locked) return false;
-            const isMember = (ledger.members || []).some(m => m.email === currentUser?.email);
+            const isMember = (ledger.members || []).some(m => identifiersMatch(m.email, currentUser?.email));
             return isMember;
         }
         
@@ -882,7 +921,7 @@
             container.innerHTML = `
                 <div class="mb-6"><h4 class="font-bold mb-2">科目設定</h4><div class="config-cols"><div class="config-col"><div class="config-col-header">主要科目</div><div id="mainCatList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newMainCatInput" class="border rounded px-2 py-1 flex-1" placeholder="新科目"><button id="btnAddMainCat" class="bg-blue-600 text-white px-3 py-1 rounded">+</button></div></div><div class="config-col"><div class="config-col-header">次要科目</div><div id="subCatList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newSubCatInput" class="border rounded px-2 py-1 flex-1" placeholder="新次要" disabled><button id="btnAddSubCat" class="bg-green-600 text-white px-3 py-1 rounded" disabled>+</button></div></div></div></div>
                 <div class="mb-6"><h4 class="font-bold mb-2">地點設定</h4><div class="config-cols"><div class="config-col"><div class="config-col-header">城市</div><div id="cityList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newCityInput" class="border rounded px-2 py-1 flex-1" placeholder="新城市"><button id="btnAddCity" class="bg-blue-600 text-white px-3 py-1 rounded">+</button></div></div><div class="config-col"><div class="config-col-header">區域</div><div id="districtList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newDistrictInput" class="border rounded px-2 py-1 flex-1" placeholder="新區域" disabled><button id="btnAddDistrict" class="bg-green-600 text-white px-3 py-1 rounded" disabled>+</button></div></div></div></div>
-                <div><h4 class="font-bold mb-2">成員</h4><div id="memberTagsList" class="border rounded p-2 min-h-[60px] mb-2"></div><div class="flex gap-2"><input type="text" id="memberInput" class="border rounded px-2 py-1 flex-1" placeholder="姓名 或 姓名&lt;email&gt;"><button id="addMemberBtn" class="bg-blue-600 text-white px-3 py-1 rounded">新增</button></div></div>
+                <div><h4 class="font-bold mb-2">成員</h4><div id="memberTagsList" class="border rounded p-2 min-h-[60px] mb-2"></div><div class="flex gap-2"><input type="text" id="memberInput" class="border rounded px-2 py-1 flex-1" placeholder="姓名 或 姓名<帳號> (Email/手機)"><button id="addMemberBtn" class="bg-blue-600 text-white px-3 py-1 rounded">新增</button></div></div>
             `;
             document.getElementById('btnAddMainCat').onclick = addMainCat;
             document.getElementById('btnAddSubCat').onclick = addSubCat;
@@ -942,10 +981,18 @@
             tempLedger.members.forEach((m, idx) => {
                 const div = document.createElement('div');
                 div.className = 'bg-slate-100 rounded px-2 py-1 mb-1 flex justify-between items-center';
-                div.innerHTML = `<span>${escapeHtml(m.name)}${m.email?` (${escapeHtml(m.email)})`:''}</span><div><i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i><i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i><i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i><i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i></div>`;
+                const displayId = m.email || '';
+                const idLabel = isEmailLike(displayId) ? displayId : (displayId.startsWith('09') ? '📱 ' + displayId : displayId);
+                div.innerHTML = `<span>${escapeHtml(m.name)}${displayId ? ' <span class="text-xs text-gray-500">(' + escapeHtml(idLabel) + ')</span>' : ''}</span><div><i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i><i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i><i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i><i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i></div>`;
                 div.querySelector('.move-up').onclick = () => { if(idx>0){ [tempLedger.members[idx-1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx-1]]; renderMembers(); } };
                 div.querySelector('.move-down').onclick = () => { if(idx<tempLedger.members.length-1){ [tempLedger.members[idx+1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx+1]]; renderMembers(); } };
-                div.querySelector('.edit').onclick = () => { let newName = prompt('新名稱', m.name); if(newName) m.name = newName; renderMembers(); };
+                div.querySelector('.edit').onclick = () => { 
+                    let newName = prompt('新名稱', m.name); 
+                    if(newName) {
+                        m.name = newName;
+                        renderMembers(); 
+                    } 
+                };
                 div.querySelector('.del').onclick = () => { tempLedger.members.splice(idx,1); renderMembers(); };
                 container.appendChild(div);
             });
@@ -959,7 +1006,27 @@
         function deleteCity(id) { tempLedger.cities=tempLedger.cities.filter(c=>c.id!==id); delete tempLedger.districts[id]; if(selectedCityId===id) selectedCityId=null; renderLedgerConfigUI(); }
         function addDistrict() { if(!selectedCityId) return; let val=document.getElementById('newDistrictInput')?.value.trim(); if(!val) return; if(!tempLedger.districts[selectedCityId]) tempLedger.districts[selectedCityId]=[]; tempLedger.districts[selectedCityId].push({id:Date.now().toString(), name:val}); document.getElementById('newDistrictInput').value=''; renderLedgerConfigUI(); }
         function deleteDistrict(pid,id) { if(tempLedger.districts[pid]) tempLedger.districts[pid]=tempLedger.districts[pid].filter(d=>d.id!==id); renderLedgerConfigUI(); }
-        function addMember() { let val=document.getElementById('memberInput')?.value.trim(); if(!val) return; let name=val, email=''; let match=val.match(/(.*)<(.+)>/); if(match){ name=match[1].trim(); email=match[2].trim(); } if(tempLedger.members.some(m=>m.name===name)) return showToast('成員名稱重複'); tempLedger.members.push({name,email}); document.getElementById('memberInput').value=''; renderMembers(); }
+        function addMember() { 
+            let val = document.getElementById('memberInput')?.value.trim(); 
+            if(!val) return; 
+            let name = val, identifier = ''; 
+            let match = val.match(/(.*)<(.+)>/); 
+            if(match) {
+                name = match[1].trim(); 
+                identifier = match[2].trim(); 
+            }
+            if (identifier && !isValidIdentifier(identifier)) {
+                showToast('無效的帳號格式，請輸入 Email 或 09 開頭手機');
+                return;
+            }
+            if (tempLedger.members.some(m => m.name === name)) {
+                showToast('成員名稱重複');
+                return;
+            }
+            tempLedger.members.push({ name, email: identifier || '' }); 
+            document.getElementById('memberInput').value=''; 
+            renderMembers(); 
+        }
         function handleLedgerSubmit(e) {
             e.preventDefault();
             const mode = e.target.dataset.mode;
@@ -984,7 +1051,7 @@
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
             const members = ledger.members || [];
-            const isMember = members.some(m => m.email === currentUser?.email) || currentUser?.email === APP_ADMIN_EMAIL;
+            const isMember = members.some(m => identifiersMatch(m.email, currentUser?.email)) || currentUser?.email === APP_ADMIN_EMAIL;
             if (!isMember) return showToast('您不是此帳冊的成員，無法新增支出');
             
             const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
@@ -1218,8 +1285,14 @@
                 document.getElementById('expenseTime').value = now.toTimeString().slice(0,5);
                 splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.checked = true);
                 if (currentUser) {
-                    const matched = members.find(m => m.email === currentUser.email);
-                    if(matched) payerSelect.value = matched.name;
+                    let payerCandidate = null;
+                    const matchedMember = members.find(m => identifiersMatch(m.email, currentUser.email));
+                    if (matchedMember) payerCandidate = matchedMember.name;
+                    if (!payerCandidate) {
+                        const nameMatch = members.find(m => m.name === currentUser.name);
+                        if (nameMatch) payerCandidate = nameMatch.name;
+                    }
+                    if (payerCandidate) payerSelect.value = payerCandidate;
                 }
                 updateSettleButtonsEnable();
                 skipAutoSummary = false;
@@ -1405,7 +1478,6 @@
                 const totalSplitters = e.splitters.length;
                 const settledCount = e.splitterSettled ? Object.values(e.splitterSettled).filter(v=>v===true).length : 0;
                 const progressBadge = !e.isTreat ? `<span class="text-xs ml-2 ${settledCount===totalSplitters ? 'text-green-600' : 'text-amber-500'}">(${settledCount}/${totalSplitters} 人已付款)</span>` : '';
-                // 編輯按鈕改為僅顯示筆圖示，刪除按鈕顯示垃圾桶圖示
                 const editButton = canEdit ? `<button onclick="openExpenseModal('${e.id}')" class="text-slate-400 hover:text-blue-500"><i class="fas fa-pen"></i></button>` : '';
                 const deleteButton = canEdit ? `<button onclick="deleteExpense('${e.id}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>` : '';
                 return `<div class="bg-white border rounded-xl p-4 shadow-sm card-hover"><div class="flex justify-between"><div><div class="font-bold">${escapeHtml(e.description || '')}</div><div class="text-xs text-slate-500">${e.date || ''} | ${escapeHtml(locationName)} | ${escapeHtml(displayCat)}</div></div><div class="text-xl font-bold ${e.isTreat?'text-pink-500':'text-slate-800'}">$${e.amount.toFixed(0)}</div></div><div class="flex justify-between items-center mt-2"><div class="text-xs"><span class="font-bold">${escapeHtml(e.payer)}</span> 付款 | ${e.splitters.length}人分攤 ${progressBadge}</div><div class="flex gap-2">${editButton}${deleteButton}</div></div></div>`;
@@ -1444,18 +1516,37 @@
             document.getElementById('statOutstanding').innerText = outstandingSum.toFixed(0);
             document.getElementById('statTotal').innerText = (waived+settledSum+outstandingSum).toFixed(0);
         }
+
+        // ---------- 核心更新：僅管理者可見備份/還原 ----------
         function updateUI() {
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
             const visibleLedgers = appData.ledgers.filter(l => {
                 if(!currentUser) return false;
                 if(currentUser.email===APP_ADMIN_EMAIL) return true;
-                return (l.members || []).some(m=>m.email===currentUser.email);
+                return (l.members || []).some(m=>identifiersMatch(m.email, currentUser.email));
             });
             visibleLedgers.forEach(l=>select.add(new Option(`${l.name}${l.locked?' (已鎖定)':''}`, l.id)));
             
             const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             const canEdit = canEditCurrentLedger();
+            const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
+
+            // 備份與還原按鈕：僅管理者可見
+            const backupBtn = document.getElementById('backupLedgerBtn');
+            const restoreBtn = document.getElementById('restoreLedgerBtn');
+            if (isAdmin) {
+                // 備份按鈕：需選定帳冊
+                if (appData.currentLedgerId && currentLedger) {
+                    backupBtn.classList.remove('hidden');
+                } else {
+                    backupBtn.classList.add('hidden');
+                }
+                restoreBtn.classList.remove('hidden');
+            } else {
+                backupBtn.classList.add('hidden');
+                restoreBtn.classList.add('hidden');
+            }
             
             if(appData.currentLedgerId && visibleLedgers.some(l=>l.id===appData.currentLedgerId)){
                 select.value = appData.currentLedgerId;
@@ -1496,6 +1587,7 @@
             }
             updateAdminControls();
         }
+
         function showToast(msg) {
             const toast = document.getElementById('toast');
             if (!toast) return;
@@ -1512,7 +1604,7 @@
             if(!ledger) { alert('❌ 請先選擇帳冊'); return false; }
             const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
             if(ledger.locked && !isAdmin) { alert('🔒 帳冊已鎖定，無法修改'); return false; }
-            const isMember = (ledger.members || []).some(m => m.email === currentUser?.email);
+            const isMember = (ledger.members || []).some(m => identifiersMatch(m.email, currentUser?.email));
             if(!isAdmin && !isMember) { alert('👤 您不是此帳冊的成員，無權修改'); return false; }
             return true;
         }
@@ -1743,7 +1835,84 @@
             cancelBtns.forEach(btn => btn.onclick = onCancel);
             closeBtn.onclick = onCancel;
         }
-        
+
+        // ---------- 備份功能（僅管理者） ----------
+        function backupCurrentLedger() {
+            if (!currentUser || currentUser.email !== APP_ADMIN_EMAIL) {
+                showToast('僅管理員可執行備份');
+                return;
+            }
+            const ledger = getCurrentLedger();
+            if (!ledger) {
+                showToast('請先選擇要備份的帳冊');
+                return;
+            }
+            const expenses = (appData.expenses || []).filter(e => e.ledgerId === ledger.id);
+            const backupData = {
+                backupDate: new Date().toISOString(),
+                ledger: ledger,
+                expenses: expenses
+            };
+            const jsonStr = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const fileName = `${ledger.name}_備份_${new Date().toISOString().slice(0,10)}.json`;
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`✅ 帳冊「${ledger.name}」備份已下載 (${expenses.length} 筆記錄)`);
+        }
+
+        // ---------- 還原功能（僅管理者） ----------
+        function restoreLedgerFromFile(file) {
+            if (!currentUser || currentUser.email !== APP_ADMIN_EMAIL) {
+                showToast('僅管理員可執行還原');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    if (!backup.ledger || !backup.expenses || !Array.isArray(backup.expenses)) {
+                        showToast('❌ 無效的備份檔案格式');
+                        return;
+                    }
+                    const ledger = backup.ledger;
+                    const expenses = backup.expenses;
+                    const existingIndex = appData.ledgers.findIndex(l => l.id === ledger.id);
+                    let confirmOverwrite = true;
+                    if (existingIndex !== -1) {
+                        if (!confirm(`帳冊「${ledger.name}」已存在，是否覆蓋？\n（選「取消」將以新帳冊匯入）`)) {
+                            ledger.id = Date.now().toString() + '_restored';
+                            expenses.forEach(exp => exp.ledgerId = ledger.id);
+                            appData.ledgers.push(ledger);
+                            appData.expenses.push(...expenses);
+                            showToast(`✅ 已新增還原帳冊「${ledger.name}」 (${expenses.length} 筆記錄)`);
+                        } else {
+                            appData.ledgers[existingIndex] = ledger;
+                            appData.expenses = appData.expenses.filter(e => e.ledgerId !== ledger.id);
+                            appData.expenses.push(...expenses);
+                            showToast(`✅ 已覆蓋帳冊「${ledger.name}」 (${expenses.length} 筆記錄)`);
+                        }
+                    } else {
+                        appData.ledgers.push(ledger);
+                        appData.expenses.push(...expenses);
+                        showToast(`✅ 已新增還原帳冊「${ledger.name}」 (${expenses.length} 筆記錄)`);
+                    }
+                    appData.currentLedgerId = ledger.id;
+                    saveData();
+                    updateUI();
+                } catch(err) {
+                    showToast('❌ 解析備份檔案失敗: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
         function setupEvents() {
             document.getElementById('userForm').onsubmit = handleUserLogin;
             document.getElementById('switchUserBtn').onclick = () => { localStorage.removeItem('travelAccountingUser'); currentUser = null; appData.currentLedgerId = null; updateUI(); showUserModal(); showToast('已切換使用者'); };
@@ -1756,6 +1925,20 @@
             document.getElementById('ledgerSelect').onchange = (e) => { appData.currentLedgerId = e.target.value; updateUI(); saveData(); };
             document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
             document.getElementById('editLedgerBtn').onclick = () => { if(appData.currentLedgerId) openLedgerModal(appData.currentLedgerId); else showToast('請先選擇帳冊'); };
+            document.getElementById('backupLedgerBtn').addEventListener('click', backupCurrentLedger);
+            document.getElementById('restoreLedgerBtn').addEventListener('click', function() {
+                if (!currentUser || currentUser.email !== APP_ADMIN_EMAIL) {
+                    showToast('僅管理員可執行還原');
+                    return;
+                }
+                document.getElementById('restoreFileInput').click();
+            });
+            document.getElementById('restoreFileInput').addEventListener('change', function(e) {
+                if (this.files && this.files.length > 0) {
+                    restoreLedgerFromFile(this.files[0]);
+                    this.value = '';
+                }
+            });
             document.getElementById('deleteLedgerBtn').onclick = () => { if(confirm('刪除帳冊？所有相關支出將一併刪除')){ appData.ledgers = appData.ledgers.filter(l=>l.id!==appData.currentLedgerId); appData.expenses = appData.expenses.filter(e=>e.ledgerId!==appData.currentLedgerId); appData.currentLedgerId=null; saveData(); updateUI(); } };
             document.getElementById('toggleLockLedgerBtn').onclick = () => { const l=appData.ledgers.find(l=>l.id===appData.currentLedgerId); if(l){ l.locked=!l.locked; saveData(); updateUI(); showToast(l.locked?'帳冊已鎖定':'帳冊已解鎖'); } };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
