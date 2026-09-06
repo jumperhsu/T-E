@@ -11,7 +11,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
-        /* 樣式保持不變，省略以節省篇幅，實際使用時請保留完整 style */
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
         ::-webkit-scrollbar { width: 6px; }
@@ -132,6 +131,33 @@
             background-color: #fef2f2;
             border-color: #fecaca;
         }
+        .member-edit-input {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        .member-edit-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+        }
+        .member-edit-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 4px 0;
+        }
+        .member-edit-row label {
+            font-size: 0.75rem;
+            color: #64748b;
+            min-width: 36px;
+            font-weight: 500;
+        }
+        .member-edit-row input {
+            flex: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
@@ -162,7 +188,6 @@
                         <select id="ledgerSelect" class="border rounded-lg px-4 py-2.5 w-64"><option value="">請選擇帳冊</option></select>
                         <button id="addLedgerBtn" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg"><i class="fas fa-plus"></i> 新增</button>
                         <button id="editLedgerBtn" class="bg-white border px-4 py-2.5 rounded-lg"><i class="fas fa-sliders-h"></i> 設定</button>
-                        <!-- 備份與還原按鈕（僅管理者可見） -->
                         <button id="backupLedgerBtn" class="bg-blue-500 text-white px-4 py-2.5 rounded-lg hidden"><i class="fas fa-download"></i> 備份</button>
                         <button id="restoreLedgerBtn" class="bg-green-500 text-white px-4 py-2.5 rounded-lg hidden"><i class="fas fa-upload"></i> 還原</button>
                         <div id="adminControls" class="hidden flex gap-2">
@@ -190,7 +215,6 @@
         </div>
     </main>
 
-    <!-- 隱藏的檔案選擇器 -->
     <input type="file" id="restoreFileInput" accept=".json" style="display:none">
 
     <!-- 語音輸入模態框 -->
@@ -203,7 +227,7 @@
             <div id="voiceQuickButtons" class="flex flex-wrap gap-2 mb-3 min-h-[44px]"></div>
             <div id="locationHintContainer" class="location-hint hidden"></div>
             <div id="voiceSubCatsHint" class="text-xs text-gray-600 mb-2 hidden"></div>
-            <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北火車站50嵐&#10;新增活動紀錄旅拍南京牛首山漢服"></textarea>
+            <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北車站50嵐&#10;新增活動紀錄旅拍南京牛首山漢服"></textarea>
 
             <div class="voice-buttons-mobile mt-4">
                 <div class="flex justify-between items-center gap-2">
@@ -276,6 +300,7 @@
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-1">帳號 (Email 或 手機號碼)</label>
                     <input type="text" id="inputUserEmail" required class="w-full border rounded p-2" placeholder="example@gmail.com 或 0912345678">
+                    <p class="text-xs text-slate-400 mt-1">💡 手機號碼比對時會忽略 - ( ) 等符號，僅比對數字</p>
                 </div>
                 <div id="adminBadgeContainer" class="hidden text-center">
                     <span class="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full"><i class="fas fa-shield-alt mr-1"></i> 系統管理員</span>
@@ -355,8 +380,8 @@
     <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg hidden z-50 shadow-lg"></div>
 
     <script>
-        // ==================== 完整功能 ====================
-        const CURRENT_VERSION = 'v20260612.007';
+        // ==================== 核心功能 ====================
+        const CURRENT_VERSION = 'v20260906.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -381,38 +406,87 @@
         let cachedDetectedCity = null;
         let isGeolocationLoading = false;
 
-        // ----- 帳號標準化與比對 -----
+        // ----- 手機號碼標準化（僅保留數字） -----
+        function normalizePhone(phone) {
+            if (!phone) return '';
+            return phone.replace(/\D/g, '');
+        }
+
+        // ----- 帳號標準化與比對（手機只比數字，Email 比對小寫） -----
         function normalizeIdentifier(id) {
             if (!id) return '';
             id = id.trim();
-            if (/^09/.test(id) || /^\+8869/.test(id)) {
-                let cleaned = id.replace(/\D/g, '');
-                if (cleaned.startsWith('09') && cleaned.length === 10) return cleaned;
-                if (cleaned.startsWith('8869') && cleaned.length === 12) return '0' + cleaned.slice(3);
-                return cleaned;
+            // 檢查是否為手機號碼（包含 +886 或 09 開頭）
+            const phoneDigits = normalizePhone(id);
+            if (phoneDigits.length >= 9 && (phoneDigits.startsWith('09') || phoneDigits.startsWith('8869'))) {
+                // 統一轉為 09 開頭 10 碼
+                if (phoneDigits.startsWith('8869') && phoneDigits.length === 12) {
+                    return '0' + phoneDigits.slice(3);
+                }
+                if (phoneDigits.startsWith('09') && phoneDigits.length === 10) {
+                    return phoneDigits;
+                }
+                // 其他情況回傳純數字
+                return phoneDigits;
             }
+            // 非手機號碼視為 Email，轉小寫
             return id.toLowerCase();
         }
 
         function identifiersMatch(a, b) {
             if (!a || !b) return false;
-            return normalizeIdentifier(a) === normalizeIdentifier(b);
+            const normA = normalizeIdentifier(a);
+            const normB = normalizeIdentifier(b);
+            return normA === normB;
         }
 
         function isEmailLike(id) {
-            return id && id.includes('@');
+            if (!id) return false;
+            return id.includes('@');
         }
 
         function isValidIdentifier(id) {
             if (!id) return false;
             id = id.trim();
+            // Email 格式
             if (id.includes('@') && id.split('@').length === 2 && id.split('@')[1].includes('.')) {
                 return true;
             }
-            let cleaned = id.replace(/\D/g, '');
-            if (cleaned.startsWith('09') && cleaned.length === 10) return true;
-            if (cleaned.startsWith('8869') && cleaned.length === 12) return true;
+            // 手機號碼格式（包含 +886 或 09）
+            const digits = normalizePhone(id);
+            if (digits.length >= 9 && (digits.startsWith('09') || digits.startsWith('8869'))) {
+                return true;
+            }
             return false;
+        }
+
+        // ----- 顯示手機號碼（格式化） -----
+        function formatPhoneDisplay(phone) {
+            if (!phone) return '';
+            const digits = normalizePhone(phone);
+            if (digits.startsWith('09') && digits.length === 10) {
+                return digits.slice(0,4) + '-' + digits.slice(4,7) + '-' + digits.slice(7);
+            }
+            return phone;
+        }
+
+        // ----- 顯示成員識別資訊 -----
+        function getMemberDisplayId(member) {
+            if (!member) return '';
+            const parts = [];
+            if (member.email) {
+                if (isEmailLike(member.email)) {
+                    parts.push('📧 ' + member.email);
+                } else {
+                    const formatted = formatPhoneDisplay(member.email);
+                    parts.push('📱 ' + formatted);
+                }
+            }
+            if (member.phone && member.phone !== member.email) {
+                const formatted = formatPhoneDisplay(member.phone);
+                parts.push('📱 ' + formatted);
+            }
+            return parts.join(' | ');
         }
 
         function isTransportByMainCat(mainName) { return mainName && mainName.includes('交通'); }
@@ -655,7 +729,8 @@
             if (currentUser) {
                 currentInfoDiv.classList.remove('hidden');
                 userNameSpan.innerText = currentUser.name;
-                userEmailSpan.innerText = currentUser.email;
+                const displayId = isEmailLike(currentUser.email) ? currentUser.email : formatPhoneDisplay(currentUser.email);
+                userEmailSpan.innerText = displayId;
                 inputName.value = currentUser.name;
                 inputEmail.value = currentUser.email;
                 title.innerText = '編輯個人資料';
@@ -675,7 +750,7 @@
             const identifier = document.getElementById('inputUserEmail').value.trim();
             if (!name || !identifier) return showToast('請完整輸入名稱與帳號');
             if (!isValidIdentifier(identifier)) {
-                return showToast('請輸入有效的 Email 或 09 開頭的手機號碼');
+                return showToast('請輸入有效的 Email 或 09 開頭的手機號碼（可包含 - ( ) 符號）');
             }
             const previousUser = currentUser;
             currentUser = { name, email: identifier };
@@ -705,7 +780,14 @@
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
             if (isAdmin) return true;
             if (ledger.locked) return false;
-            const isMember = (ledger.members || []).some(m => identifiersMatch(m.email, currentUser?.email));
+            const isMember = (ledger.members || []).some(m => {
+                if (!currentUser) return false;
+                // 比對 name 或 email/phone
+                if (m.name === currentUser.name) return true;
+                if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
+                if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
+                return false;
+            });
             return isMember;
         }
         
@@ -867,6 +949,96 @@
             clearSubCatsHint();
         }
 
+        // ----- 成員編輯模態框（用於編輯單一成員） -----
+        let editingMemberIndex = -1;
+
+        function openMemberEditModal(index) {
+            const member = tempLedger.members[index];
+            if (!member) return;
+            editingMemberIndex = index;
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.id = 'memberEditModal';
+            modal.style.display = 'block';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold">編輯成員</h3>
+                        <button class="close-member-edit text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">姓名 *</label>
+                            <input type="text" id="editMemberName" class="w-full border rounded p-2" value="${escapeHtml(member.name)}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                            <input type="text" id="editMemberEmail" class="w-full border rounded p-2" placeholder="example@gmail.com" value="${escapeHtml(member.email || '')}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">手機號碼</label>
+                            <input type="text" id="editMemberPhone" class="w-full border rounded p-2" placeholder="0912345678" value="${escapeHtml(member.phone || '')}">
+                            <p class="text-xs text-slate-400 mt-1">💡 至少填寫 Email 或手機其中一項</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" class="close-member-edit bg-white border border-slate-300 px-4 py-2 rounded">取消</button>
+                            <button type="button" id="saveMemberEditBtn" class="bg-blue-600 text-white px-4 py-2 rounded">儲存</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const closeModal = () => {
+                modal.remove();
+                editingMemberIndex = -1;
+            };
+
+            modal.querySelectorAll('.close-member-edit').forEach(btn => btn.onclick = closeModal);
+            modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+            document.getElementById('saveMemberEditBtn').onclick = () => {
+                const name = document.getElementById('editMemberName').value.trim();
+                const email = document.getElementById('editMemberEmail').value.trim();
+                const phone = document.getElementById('editMemberPhone').value.trim();
+                if (!name) { showToast('請輸入姓名'); return; }
+                if (!email && !phone) { showToast('請至少填寫 Email 或手機號碼'); return; }
+                if (email && !isValidIdentifier(email) && !isEmailLike(email)) {
+                    showToast('請輸入有效的 Email 格式');
+                    return;
+                }
+                if (phone && !isValidIdentifier(phone) && normalizePhone(phone).length < 9) {
+                    showToast('請輸入有效的手機號碼（09 開頭，10 碼）');
+                    return;
+                }
+                const updatedMember = { name };
+                if (email) updatedMember.email = email;
+                if (phone) updatedMember.phone = phone;
+                // 檢查重複（排除自己）
+                const duplicate = tempLedger.members.some((m, i) => {
+                    if (i === index) return false;
+                    if (m.name === name) return true;
+                    if (email && m.email && identifiersMatch(m.email, email)) return true;
+                    if (phone && m.phone && identifiersMatch(m.phone, phone)) return true;
+                    return false;
+                });
+                if (duplicate) { showToast('成員名稱或識別資訊重複'); return; }
+                tempLedger.members[index] = updatedMember;
+                closeModal();
+                renderLedgerConfigUI();
+                showToast('成員已更新');
+            };
+
+            // Enter 鍵觸發儲存
+            modal.querySelectorAll('input').forEach(input => {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        document.getElementById('saveMemberEditBtn').click();
+                    }
+                });
+            });
+        }
+
         function openLedgerModal(ledgerId = null) {
             if (ledgerId) {
                 const ledger = appData.ledgers.find(l => l.id === ledgerId);
@@ -921,14 +1093,14 @@
             container.innerHTML = `
                 <div class="mb-6"><h4 class="font-bold mb-2">科目設定</h4><div class="config-cols"><div class="config-col"><div class="config-col-header">主要科目</div><div id="mainCatList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newMainCatInput" class="border rounded px-2 py-1 flex-1" placeholder="新科目"><button id="btnAddMainCat" class="bg-blue-600 text-white px-3 py-1 rounded">+</button></div></div><div class="config-col"><div class="config-col-header">次要科目</div><div id="subCatList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newSubCatInput" class="border rounded px-2 py-1 flex-1" placeholder="新次要" disabled><button id="btnAddSubCat" class="bg-green-600 text-white px-3 py-1 rounded" disabled>+</button></div></div></div></div>
                 <div class="mb-6"><h4 class="font-bold mb-2">地點設定</h4><div class="config-cols"><div class="config-col"><div class="config-col-header">城市</div><div id="cityList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newCityInput" class="border rounded px-2 py-1 flex-1" placeholder="新城市"><button id="btnAddCity" class="bg-blue-600 text-white px-3 py-1 rounded">+</button></div></div><div class="config-col"><div class="config-col-header">區域</div><div id="districtList" class="config-col-body"></div><div class="config-col-footer flex gap-1"><input type="text" id="newDistrictInput" class="border rounded px-2 py-1 flex-1" placeholder="新區域" disabled><button id="btnAddDistrict" class="bg-green-600 text-white px-3 py-1 rounded" disabled>+</button></div></div></div></div>
-                <div><h4 class="font-bold mb-2">成員</h4><div id="memberTagsList" class="border rounded p-2 min-h-[60px] mb-2"></div><div class="flex gap-2"><input type="text" id="memberInput" class="border rounded px-2 py-1 flex-1" placeholder="姓名 或 姓名<帳號> (Email/手機)"><button id="addMemberBtn" class="bg-blue-600 text-white px-3 py-1 rounded">新增</button></div></div>
+                <div><h4 class="font-bold mb-2">成員</h4><div id="memberTagsList" class="border rounded p-2 min-h-[60px] mb-2"></div><div class="flex flex-wrap gap-2"><input type="text" id="memberInput" class="border rounded px-2 py-1 flex-1 min-w-[200px]" placeholder="姓名"><input type="text" id="memberEmailInput" class="border rounded px-2 py-1 flex-1 min-w-[180px]" placeholder="Email (選填)"><input type="text" id="memberPhoneInput" class="border rounded px-2 py-1 flex-1 min-w-[180px]" placeholder="手機 (選填)"><button id="addMemberBtn" class="bg-blue-600 text-white px-3 py-1 rounded whitespace-nowrap">新增</button></div><p class="text-xs text-slate-400 mt-1">💡 至少填寫 Email 或手機其中一項，比對時手機僅比對數字</p></div>
             `;
             document.getElementById('btnAddMainCat').onclick = addMainCat;
             document.getElementById('btnAddSubCat').onclick = addSubCat;
             document.getElementById('btnAddCity').onclick = addCity;
             document.getElementById('btnAddDistrict').onclick = addDistrict;
             document.getElementById('addMemberBtn').onclick = addMember;
-            ['newMainCatInput','newSubCatInput','newCityInput','newDistrictInput','memberInput'].forEach(id => {
+            ['newMainCatInput','newSubCatInput','newCityInput','newDistrictInput','memberInput','memberEmailInput','memberPhoneInput'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.addEventListener('keypress', (e) => { if(e.key==='Enter') e.preventDefault(); });
             });
@@ -981,19 +1153,23 @@
             tempLedger.members.forEach((m, idx) => {
                 const div = document.createElement('div');
                 div.className = 'bg-slate-100 rounded px-2 py-1 mb-1 flex justify-between items-center';
-                const displayId = m.email || '';
-                const idLabel = isEmailLike(displayId) ? displayId : (displayId.startsWith('09') ? '📱 ' + displayId : displayId);
-                div.innerHTML = `<span>${escapeHtml(m.name)}${displayId ? ' <span class="text-xs text-gray-500">(' + escapeHtml(idLabel) + ')</span>' : ''}</span><div><i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i><i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i><i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i><i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i></div>`;
+                const displayId = getMemberDisplayId(m);
+                div.innerHTML = `
+                    <span>
+                        ${escapeHtml(m.name)}
+                        ${displayId ? ' <span class="text-xs text-gray-500">(' + escapeHtml(displayId) + ')</span>' : ''}
+                    </span>
+                    <div>
+                        <i class="fas fa-arrow-up text-xs cursor-pointer mx-1 move-up"></i>
+                        <i class="fas fa-arrow-down text-xs cursor-pointer mx-1 move-down"></i>
+                        <i class="fas fa-pen text-xs cursor-pointer mx-1 edit"></i>
+                        <i class="fas fa-trash text-xs cursor-pointer mx-1 del"></i>
+                    </div>
+                `;
                 div.querySelector('.move-up').onclick = () => { if(idx>0){ [tempLedger.members[idx-1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx-1]]; renderMembers(); } };
                 div.querySelector('.move-down').onclick = () => { if(idx<tempLedger.members.length-1){ [tempLedger.members[idx+1],tempLedger.members[idx]]=[tempLedger.members[idx],tempLedger.members[idx+1]]; renderMembers(); } };
-                div.querySelector('.edit').onclick = () => { 
-                    let newName = prompt('新名稱', m.name); 
-                    if(newName) {
-                        m.name = newName;
-                        renderMembers(); 
-                    } 
-                };
-                div.querySelector('.del').onclick = () => { tempLedger.members.splice(idx,1); renderMembers(); };
+                div.querySelector('.edit').onclick = () => { openMemberEditModal(idx); };
+                div.querySelector('.del').onclick = () => { if(confirm(`確定刪除成員「${m.name}」？`)) { tempLedger.members.splice(idx,1); renderMembers(); } };
                 container.appendChild(div);
             });
         }
@@ -1006,26 +1182,37 @@
         function deleteCity(id) { tempLedger.cities=tempLedger.cities.filter(c=>c.id!==id); delete tempLedger.districts[id]; if(selectedCityId===id) selectedCityId=null; renderLedgerConfigUI(); }
         function addDistrict() { if(!selectedCityId) return; let val=document.getElementById('newDistrictInput')?.value.trim(); if(!val) return; if(!tempLedger.districts[selectedCityId]) tempLedger.districts[selectedCityId]=[]; tempLedger.districts[selectedCityId].push({id:Date.now().toString(), name:val}); document.getElementById('newDistrictInput').value=''; renderLedgerConfigUI(); }
         function deleteDistrict(pid,id) { if(tempLedger.districts[pid]) tempLedger.districts[pid]=tempLedger.districts[pid].filter(d=>d.id!==id); renderLedgerConfigUI(); }
-        function addMember() { 
-            let val = document.getElementById('memberInput')?.value.trim(); 
-            if(!val) return; 
-            let name = val, identifier = ''; 
-            let match = val.match(/(.*)<(.+)>/); 
-            if(match) {
-                name = match[1].trim(); 
-                identifier = match[2].trim(); 
-            }
-            if (identifier && !isValidIdentifier(identifier)) {
-                showToast('無效的帳號格式，請輸入 Email 或 09 開頭手機');
+        function addMember() {
+            const name = document.getElementById('memberInput')?.value.trim();
+            const email = document.getElementById('memberEmailInput')?.value.trim();
+            const phone = document.getElementById('memberPhoneInput')?.value.trim();
+            if (!name) { showToast('請輸入成員姓名'); return; }
+            if (!email && !phone) { showToast('請至少填寫 Email 或手機號碼'); return; }
+            if (email && !isValidIdentifier(email) && !isEmailLike(email)) {
+                showToast('請輸入有效的 Email 格式');
                 return;
             }
-            if (tempLedger.members.some(m => m.name === name)) {
-                showToast('成員名稱重複');
+            if (phone && !isValidIdentifier(phone) && normalizePhone(phone).length < 9) {
+                showToast('請輸入有效的手機號碼（09 開頭，10 碼）');
                 return;
             }
-            tempLedger.members.push({ name, email: identifier || '' }); 
-            document.getElementById('memberInput').value=''; 
-            renderMembers(); 
+            const newMember = { name };
+            if (email) newMember.email = email;
+            if (phone) newMember.phone = phone;
+            // 檢查重複
+            const duplicate = tempLedger.members.some(m => {
+                if (m.name === name) return true;
+                if (email && m.email && identifiersMatch(m.email, email)) return true;
+                if (phone && m.phone && identifiersMatch(m.phone, phone)) return true;
+                return false;
+            });
+            if (duplicate) { showToast('成員名稱或識別資訊重複'); return; }
+            tempLedger.members.push(newMember);
+            document.getElementById('memberInput').value = '';
+            document.getElementById('memberEmailInput').value = '';
+            document.getElementById('memberPhoneInput').value = '';
+            renderMembers();
+            showToast(`已新增成員「${name}」`);
         }
         function handleLedgerSubmit(e) {
             e.preventDefault();
@@ -1051,10 +1238,16 @@
             const ledger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
             if (!ledger) return showToast('請先選擇帳冊');
             const members = ledger.members || [];
-            const isMember = members.some(m => identifiersMatch(m.email, currentUser?.email)) || currentUser?.email === APP_ADMIN_EMAIL;
-            if (!isMember) return showToast('您不是此帳冊的成員，無法新增支出');
-            
+            const isMember = members.some(m => {
+                if (!currentUser) return false;
+                if (m.name === currentUser.name) return true;
+                if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
+                if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
+                return false;
+            });
             const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
+            if (!isMember && !isAdmin) return showToast('您不是此帳冊的成員，無法新增支出');
+            
             const isLocked = ledger.locked && !isAdmin;
             
             upgradeAllExpenses();
@@ -1286,12 +1479,14 @@
                 splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.checked = true);
                 if (currentUser) {
                     let payerCandidate = null;
-                    const matchedMember = members.find(m => identifiersMatch(m.email, currentUser.email));
+                    // 比對姓名或 email/phone
+                    const matchedMember = members.find(m => {
+                        if (m.name === currentUser.name) return true;
+                        if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
+                        if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
+                        return false;
+                    });
                     if (matchedMember) payerCandidate = matchedMember.name;
-                    if (!payerCandidate) {
-                        const nameMatch = members.find(m => m.name === currentUser.name);
-                        if (nameMatch) payerCandidate = nameMatch.name;
-                    }
                     if (payerCandidate) payerSelect.value = payerCandidate;
                 }
                 updateSettleButtonsEnable();
@@ -1517,14 +1712,19 @@
             document.getElementById('statTotal').innerText = (waived+settledSum+outstandingSum).toFixed(0);
         }
 
-        // ---------- 核心更新：僅管理者可見備份/還原 ----------
+        // ---------- 核心更新 ----------
         function updateUI() {
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
             const visibleLedgers = appData.ledgers.filter(l => {
                 if(!currentUser) return false;
                 if(currentUser.email===APP_ADMIN_EMAIL) return true;
-                return (l.members || []).some(m=>identifiersMatch(m.email, currentUser.email));
+                return (l.members || []).some(m => {
+                    if (m.name === currentUser.name) return true;
+                    if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
+                    if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
+                    return false;
+                });
             });
             visibleLedgers.forEach(l=>select.add(new Option(`${l.name}${l.locked?' (已鎖定)':''}`, l.id)));
             
@@ -1532,11 +1732,9 @@
             const canEdit = canEditCurrentLedger();
             const isAdmin = currentUser && currentUser.email === APP_ADMIN_EMAIL;
 
-            // 備份與還原按鈕：僅管理者可見
             const backupBtn = document.getElementById('backupLedgerBtn');
             const restoreBtn = document.getElementById('restoreLedgerBtn');
             if (isAdmin) {
-                // 備份按鈕：需選定帳冊
                 if (appData.currentLedgerId && currentLedger) {
                     backupBtn.classList.remove('hidden');
                 } else {
@@ -1604,7 +1802,13 @@
             if(!ledger) { alert('❌ 請先選擇帳冊'); return false; }
             const isAdmin = currentUser?.email === APP_ADMIN_EMAIL;
             if(ledger.locked && !isAdmin) { alert('🔒 帳冊已鎖定，無法修改'); return false; }
-            const isMember = (ledger.members || []).some(m => identifiersMatch(m.email, currentUser?.email));
+            const isMember = (ledger.members || []).some(m => {
+                if (!currentUser) return false;
+                if (m.name === currentUser.name) return true;
+                if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
+                if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
+                return false;
+            });
             if(!isAdmin && !isMember) { alert('👤 您不是此帳冊的成員，無權修改'); return false; }
             return true;
         }
@@ -1836,7 +2040,7 @@
             closeBtn.onclick = onCancel;
         }
 
-        // ---------- 備份功能（僅管理者） ----------
+        // ---------- 備份功能 ----------
         function backupCurrentLedger() {
             if (!currentUser || currentUser.email !== APP_ADMIN_EMAIL) {
                 showToast('僅管理員可執行備份');
@@ -1867,7 +2071,6 @@
             showToast(`✅ 帳冊「${ledger.name}」備份已下載 (${expenses.length} 筆記錄)`);
         }
 
-        // ---------- 還原功能（僅管理者） ----------
         function restoreLedgerFromFile(file) {
             if (!currentUser || currentUser.email !== APP_ADMIN_EMAIL) {
                 showToast('僅管理員可執行還原');
