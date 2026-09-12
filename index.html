@@ -158,6 +158,95 @@
         .member-edit-row input {
             flex: 1;
         }
+
+        /* ========== 手機版 UI 優化：縮短行距、增大可視區域（僅限手機） ========== */
+        @media (max-width: 640px) {
+            body { line-height: 1.35; }
+            .container { padding-left: 10px; padding-right: 10px; }
+
+            nav .container { padding-top: 6px; padding-bottom: 6px; }
+            nav .container > div:first-child > div:first-child { padding: 4px !important; }
+            nav .container h1 { font-size: 1.05rem; }
+            #versionTag { font-size: 0.6rem; }
+            #firebaseStatus { font-size: 0.6rem; padding: 2px 6px; }
+            #viewStatsBtn { padding: 4px 8px; font-size: 0.7rem; }
+            #userBtn, #aboutBtn { width: 30px; height: 30px; font-size: 0.8rem; }
+            #userStatusDot { width: 8px; height: 8px; }
+
+            main { padding-top: 8px; padding-bottom: 8px; }
+            .bg-white.rounded-2xl.shadow-sm.border.border-slate-200.mb-6 { margin-bottom: 10px; }
+            #ledgerToggleHeader { padding: 10px 12px; }
+            #displayLedgerName { font-size: 0.95rem; }
+            #ledgerMetaSummary { font-size: 0.65rem; }
+            #ledgerCollapsible > .p-5.pt-0.border-t { padding: 8px 12px; }
+            .mt-4.flex.flex-wrap.gap-4.items-center { gap: 6px; margin-top: 6px; }
+            #ledgerSelect { padding: 6px 8px; width: 100%; font-size: 0.8rem; }
+            #addLedgerBtn, #editLedgerBtn, #backupLedgerBtn, #restoreLedgerBtn {
+                padding: 6px 10px; font-size: 0.75rem;
+            }
+            #ledgerInfo { padding: 8px; margin-top: 8px; }
+            #ledgerInfo .grid-cols-3 { gap: 4px; }
+            #ledgerInfo .text-sm { font-size: 0.7rem; }
+            .ledger-stats-bar { margin-top: 8px; }
+            .stat-item { padding: 4px; }
+            .stat-item .label { font-size: 0.55rem; }
+            .stat-item .value { font-size: 0.9rem; }
+
+            .bg-white.rounded-2xl.shadow-sm.border.border-slate-200.p-6 { padding: 12px; }
+            .flex.justify-between.items-center.mb-6 { margin-bottom: 10px; }
+            .flex.justify-between.items-center.mb-6 h3 { font-size: 1rem; }
+            #expenseActionButtons { gap: 6px; }
+            #voiceInputBtn, #addExpenseBtn {
+                padding: 8px 12px; font-size: 0.8rem;
+            }
+
+            #expenseList { space-y: 8px; max-height: 500px; }
+            .bg-white.border.rounded-xl.p-4 { padding: 8px 10px; }
+            .bg-white.border.rounded-xl.p-4 .font-bold { font-size: 0.85rem; }
+            .bg-white.border.rounded-xl.p-4 .text-xl { font-size: 1.1rem; }
+            .bg-white.border.rounded-xl.p-4 .text-xs { font-size: 0.65rem; }
+            .bg-white.border.rounded-xl.p-4 .mt-2 { margin-top: 4px; }
+
+            .modal-content { padding: 16px; margin: 10% auto; width: 95%; }
+            .modal-content h3 { font-size: 1.1rem; }
+            .modal-content .text-sm { font-size: 0.75rem; }
+            .modal-content input, .modal-content select, .modal-content textarea {
+                font-size: 0.85rem; padding: 8px;
+            }
+            .modal-content .grid-cols-2 { gap: 8px; }
+            .modal-content .mb-4 { margin-bottom: 10px; }
+
+            #voiceModal .modal-content { padding: 14px; }
+            .voice-textarea { font-size: 0.9rem; min-height: 50px; height: 50px; padding: 8px; }
+            .voice-hint { font-size: 0.65rem; padding: 8px; margin-top: 10px; }
+            #voiceQuickButtons .voice-quick-btn { padding: 4px 10px; font-size: 0.7rem; }
+
+            /* ========== 只有首頁的「語音輸入」和「記一筆」按鈕有 3D 效果 ========== */
+            #voiceInputBtn, #addExpenseBtn {
+                border: none;
+                font-weight: 500;
+                border-radius: 12px;
+                transition: all 0.08s ease-in;
+            }
+            #voiceInputBtn {
+                background-color: #9333ea;
+                box-shadow: 0 4px 0 #6b21a8, 0 5px 8px -1px rgba(0, 0, 0, 0.2);
+                transform: translateY(0);
+            }
+            #voiceInputBtn:active {
+                box-shadow: 0 1px 0 #581c87, 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+                transform: translateY(3px);
+            }
+            #addExpenseBtn {
+                background-color: #16a34a;
+                box-shadow: 0 4px 0 #166534, 0 5px 8px -1px rgba(0, 0, 0, 0.2);
+                transform: translateY(0);
+            }
+            #addExpenseBtn:active {
+                box-shadow: 0 1px 0 #14532d, 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+                transform: translateY(3px);
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
@@ -169,7 +258,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <div id="firebaseStatus" class="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 flex items-center gap-1"><i class="fas fa-plug"></i> <span>連線中...</span></div>
-                <button id="viewStatsBtn" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100 transition flex items-center gap-2"><i class="fas fa-chart-pie"></i> 檢視統計</button>
+                <button id="viewStatsBtn" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100 transition flex items-center gap-2"><i class="fas fa-chart-pie"></i> 檢視</button>
                 <div id="userBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 relative"><i class="fas fa-user"></i><div id="userStatusDot" class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-400 rounded-full border-2 border-white"></div></div>
                 <div id="aboutBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100"><i class="fas fa-info"></i></div>
             </div>
@@ -381,7 +470,7 @@
 
     <script>
         // ==================== 核心功能 ====================
-        const CURRENT_VERSION = 'v20260906.001';
+        const CURRENT_VERSION = 'v20260912.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -680,7 +769,7 @@
             db.ref('.info/connected').on('value', (snap) => {
                 if (snap.val() === true) {
                     isFirebaseConnected = true;
-                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> <span>已連線</span>';
+                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> <span>連線</span>';
                     statusEl.classList.remove('bg-red-100','text-red-600');
                     statusEl.classList.add('bg-green-100','text-green-600');
                 } else {
