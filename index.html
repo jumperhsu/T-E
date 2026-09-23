@@ -221,6 +221,12 @@
             .voice-hint { font-size: 0.65rem; padding: 8px; margin-top: 10px; }
             #voiceQuickButtons .voice-quick-btn { padding: 4px 10px; font-size: 0.7rem; }
 
+            /* 語音輸入：手動切換城市列（手機） */
+            #voiceCitySwitcher { padding: 6px 8px !important; gap: 6px !important; }
+            #voiceCitySwitcher label { font-size: 0.7rem; }
+            #voiceCitySelect { font-size: 0.8rem !important; padding: 4px 6px !important; }
+            #voiceCityModeBadge { font-size: 0.6rem !important; }
+
             /* ========== 只有首頁的「語音輸入」和「記一筆」按鈕有 3D 效果 ========== */
             #voiceInputBtn, #addExpenseBtn {
                 border: none;
@@ -314,6 +320,14 @@
                 <button id="closeVoiceModalBtn" class="close-modal-x text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
             </div>
             <div id="voiceQuickButtons" class="flex flex-wrap gap-2 mb-3 min-h-[44px]"></div>
+
+            <!-- ★ 手動切換使用城市 -->
+            <div id="voiceCitySwitcher" class="hidden flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 mb-3" style="display:none;">
+                <label for="voiceCitySelect" class="text-xs font-bold text-slate-600 whitespace-nowrap"><i class="fas fa-city text-blue-500 mr-1"></i>使用城市</label>
+                <select id="voiceCitySelect" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white flex-1 min-w-[140px]"></select>
+                <span id="voiceCityModeBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 whitespace-nowrap">自動偵測</span>
+            </div>
+
             <div id="locationHintContainer" class="location-hint hidden"></div>
             <div id="voiceSubCatsHint" class="text-xs text-gray-600 mb-2 hidden"></div>
             <textarea id="voiceCommandText" class="voice-textarea" placeholder="請輸入指令（不需空格也能辨識）&#10;例如：增加城市台北&#10;增加區域台北火車站&#10;新增飲食紀錄飲料台北車站50嵐&#10;新增活動紀錄旅拍南京牛首山漢服"></textarea>
@@ -360,6 +374,7 @@
                     <li>新增[主科目名稱]紀錄<strong>次科目地點備註</strong>（會自動匹配您帳冊中的主科目）</li>
                 </ul>
                 <div class="mt-2 text-xs text-gray-500"><i class="fas fa-star text-amber-400"></i> 點擊上方快捷按鈕立即填入標準指令，再補上詳細內容即可</div>
+                <div class="mt-1 text-xs text-blue-600"><i class="fas fa-map-pin"></i> 可於上方「使用城市」手動切換；切換後下次開啟語音輸入時，若偵測位置不同會詢問是否自動切換</div>
             </div>
         </div>
     </div>
@@ -470,7 +485,7 @@
 
     <script>
         // ==================== 核心功能 ====================
-        const CURRENT_VERSION = 'v20260912.001';
+        const CURRENT_VERSION = 'v20260923.002';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -494,6 +509,12 @@
         
         let cachedDetectedCity = null;
         let isGeolocationLoading = false;
+        let geolocationUnavailable = false;   // 若權限被拒或 API 不可用，避免重複請求
+
+        // ★ 手動指定使用城市（依帳冊儲存）
+        const MANUAL_CITY_KEY = 'travelAccountingManualCity';
+        let manualCityStore = {};                 // { ledgerId: cityId }
+        let manualCityPromptedLedgers = new Set(); // 同一次瀏覽階段已詢問過的帳冊
 
         // ----- 手機號碼標準化（僅保留數字） -----
         function normalizePhone(phone) {
@@ -505,20 +526,16 @@
         function normalizeIdentifier(id) {
             if (!id) return '';
             id = id.trim();
-            // 檢查是否為手機號碼（包含 +886 或 09 開頭）
             const phoneDigits = normalizePhone(id);
             if (phoneDigits.length >= 9 && (phoneDigits.startsWith('09') || phoneDigits.startsWith('8869'))) {
-                // 統一轉為 09 開頭 10 碼
                 if (phoneDigits.startsWith('8869') && phoneDigits.length === 12) {
                     return '0' + phoneDigits.slice(3);
                 }
                 if (phoneDigits.startsWith('09') && phoneDigits.length === 10) {
                     return phoneDigits;
                 }
-                // 其他情況回傳純數字
                 return phoneDigits;
             }
-            // 非手機號碼視為 Email，轉小寫
             return id.toLowerCase();
         }
 
@@ -537,11 +554,9 @@
         function isValidIdentifier(id) {
             if (!id) return false;
             id = id.trim();
-            // Email 格式
             if (id.includes('@') && id.split('@').length === 2 && id.split('@')[1].includes('.')) {
                 return true;
             }
-            // 手機號碼格式（包含 +886 或 09）
             const digits = normalizePhone(id);
             if (digits.length >= 9 && (digits.startsWith('09') || digits.startsWith('8869'))) {
                 return true;
@@ -549,7 +564,6 @@
             return false;
         }
 
-        // ----- 顯示手機號碼（格式化） -----
         function formatPhoneDisplay(phone) {
             if (!phone) return '';
             const digits = normalizePhone(phone);
@@ -559,7 +573,6 @@
             return phone;
         }
 
-        // ----- 顯示成員識別資訊 -----
         function getMemberDisplayId(member) {
             if (!member) return '';
             const parts = [];
@@ -595,14 +608,60 @@
                    normalizedAccount.includes(normalizedDetected) || 
                    normalizedDetected.includes(normalizedAccount);
         }
+
+        // ★ 從帳冊城市清單中以名稱模糊比對出城市物件
+        function findLedgerCityByName(ledger, cityName) {
+            if (!ledger || !cityName) return null;
+            const cities = ledger.locations?.cities || [];
+            return cities.find(c => isCityMatch(c.name, cityName)) || null;
+        }
+
+        // ★ 手動指定城市儲存區
+        function loadManualCityStore() {
+            try {
+                const raw = localStorage.getItem(MANUAL_CITY_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                manualCityStore = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+            } catch (e) {
+                manualCityStore = {};
+            }
+        }
+        function saveManualCityStore() {
+            try { localStorage.setItem(MANUAL_CITY_KEY, JSON.stringify(manualCityStore)); } catch (e) {}
+        }
+        function getManualCityId(ledgerId) {
+            if (!ledgerId) return null;
+            return manualCityStore[ledgerId] || null;
+        }
+        function setManualCityId(ledgerId, cityId) {
+            if (!ledgerId) return;
+            if (cityId) manualCityStore[ledgerId] = cityId;
+            else delete manualCityStore[ledgerId];
+            saveManualCityStore();
+        }
         
+        // ★ 修改：加入權限檢查，避免每次進頁面都彈出「允許定位」請求
         async function detectCurrentCity() {
             if (cachedDetectedCity !== null) return cachedDetectedCity;
+            if (isGeolocationLoading) return null;
+            if (geolocationUnavailable) return null;
+            if (!navigator.geolocation) {
+                geolocationUnavailable = true;
+                return null;
+            }
+
+            // 先檢查瀏覽器定位權限狀態：若已「永久拒絕」，就不再請求（避免不斷彈出）
+            if (navigator.permissions && navigator.permissions.query) {
+                try {
+                    const perm = await navigator.permissions.query({ name: 'geolocation' });
+                    if (perm.state === 'denied') {
+                        geolocationUnavailable = true;
+                        return null;
+                    }
+                } catch (e) { /* 某些瀏覽器不支援查詢，繼續原流程 */ }
+            }
+
             return new Promise((resolve) => {
-                if (!navigator.geolocation) {
-                    resolve(null);
-                    return;
-                }
                 isGeolocationLoading = true;
                 navigator.geolocation.getCurrentPosition(
                     async (position) => {
@@ -628,11 +687,111 @@
                     },
                     (error) => {
                         isGeolocationLoading = false;
+                        // 使用者主動拒絕（code 1）→ 標記不再請求，避免打擾
+                        if (error && error.code === 1) {
+                            geolocationUnavailable = true;
+                        }
                         resolve(null);
                     },
                     { timeout: 10000, enableHighAccuracy: false }
                 );
             });
+        }
+
+        // ★ 語音輸入視窗的「使用城市」下拉選單
+        function renderVoiceCitySwitcher(ledger) {
+            const wrap = document.getElementById('voiceCitySwitcher');
+            const sel = document.getElementById('voiceCitySelect');
+            if (!wrap || !sel || !ledger) return;
+            const cities = ledger.locations?.cities || [];
+            if (cities.length === 0) {
+                wrap.style.display = 'none';
+                wrap.classList.add('hidden');
+                return;
+            }
+            wrap.classList.remove('hidden');
+            wrap.style.display = 'flex';
+
+            let manualId = getManualCityId(ledger.id);
+            if (manualId && !cities.some(c => c.id === manualId)) {
+                setManualCityId(ledger.id, null);
+                manualId = null;
+            }
+
+            sel.innerHTML = '';
+            sel.add(new Option('🛰️ 自動偵測（預設）', '__auto__'));
+            cities.forEach(c => sel.add(new Option(c.name, c.id)));
+            sel.value = manualId || '__auto__';
+
+            sel.onchange = () => {
+                const lg = getCurrentLedger();
+                if (!lg) return;
+                const val = sel.value;
+                if (val === '__auto__') {
+                    setManualCityId(lg.id, null);
+                    showToast('已切換為自動偵測城市');
+                } else {
+                    setManualCityId(lg.id, val);
+                    const c = (lg.locations?.cities || []).find(x => x.id === val);
+                    showToast(`已手動設定使用城市：${c ? c.name : ''}`);
+                    // 使用者明確選擇城市後，允許下次再被詢問（重置提示狀態）
+                    manualCityPromptedLedgers.delete(lg.id);
+                }
+                updateVoiceCityModeBadge();
+                updateLocationHintInVoice();
+            };
+
+            updateVoiceCityModeBadge();
+        }
+
+        function updateVoiceCityModeBadge() {
+            const badge = document.getElementById('voiceCityModeBadge');
+            const sel = document.getElementById('voiceCitySelect');
+            if (!badge || !sel) return;
+            if (sel.value === '__auto__') {
+                badge.textContent = '自動偵測';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 whitespace-nowrap';
+            } else {
+                badge.textContent = '手動指定';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap';
+            }
+        }
+
+        // ★ 統一的城市提示渲染
+        function renderCityHint(city, ledger, isManual, detectedCity) {
+            const container = document.getElementById('locationHintContainer');
+            if (!container || !city) return;
+            container.classList.remove('hidden', 'location-warning', 'location-error');
+
+            const districts = ledger.locations?.districts?.[city.id] || [];
+            const districtsHtml = districts.length > 0
+                ? districts.map(d => `<span class="district-tag">${escapeHtml(d.name)}</span>`).join('')
+                : '<span style="color:#6b7280;">（尚未設定任何區域）</span>';
+
+            let extra = '';
+            if (detectedCity) {
+                if (isCityMatch(city.name, detectedCity)) {
+                    extra = `<div class="text-xs mt-1 text-green-700"><i class="fas fa-check-circle"></i> 與目前偵測位置一致。</div>`;
+                } else {
+                    const detectedMatched = findLedgerCityByName(ledger, detectedCity);
+                    if (detectedMatched && detectedMatched.id !== city.id) {
+                        extra = `<div class="text-xs mt-1 text-amber-700"><i class="fas fa-location-arrow"></i> 偵測到您目前位於 <strong>${escapeHtml(detectedCity)}</strong>，可於上方「使用城市」切換為「${escapeHtml(detectedMatched.name)}」。</div>`;
+                    } else if (!detectedMatched) {
+                        extra = `<div class="text-xs mt-1 text-gray-500"><i class="fas fa-location-arrow"></i> 偵測到您目前位於 <strong>${escapeHtml(detectedCity)}</strong>（帳冊尚未設定此城市）。</div>`;
+                    }
+                }
+            }
+
+            const manualBadge = isManual
+                ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 ml-1">手動指定</span>'
+                : '<span class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 ml-1">自動偵測</span>';
+
+            container.innerHTML = `
+                <div class="location-hint-title"><i class="fas fa-location-dot text-blue-600"></i> 📍 目前使用城市：<strong>${escapeHtml(city.name)}</strong> ${manualBadge}</div>
+                <div>已設定區域有：${districtsHtml}</div>
+                <div class="text-xs text-gray-500 mt-1">💡 可直接使用上方區域名稱進行語音輸入</div>
+                ${extra}
+            `;
         }
         
         async function updateLocationHintInVoice() {
@@ -643,36 +802,36 @@
                 container.classList.add('hidden');
                 return;
             }
-            container.innerHTML = '<div class="location-hint-title"><i class="fas fa-spinner fa-pulse"></i> 正在偵測目前位置...</div>';
             container.classList.remove('hidden', 'location-warning', 'location-error');
+
+            const manualId = getManualCityId(ledger.id);
+            const manualCity = manualId ? (ledger.locations?.cities || []).find(c => c.id === manualId) : null;
+
+            if (manualCity) {
+                renderCityHint(manualCity, ledger, true, null);
+            } else {
+                container.innerHTML = '<div class="location-hint-title"><i class="fas fa-spinner fa-pulse"></i> 正在偵測目前位置...</div>';
+            }
+
             const detectedCity = await detectCurrentCity();
+
+            if (manualCity) {
+                renderCityHint(manualCity, ledger, true, detectedCity);
+                return;
+            }
+
             if (!detectedCity) {
                 container.innerHTML = `
                     <div class="location-hint-title"><i class="fas fa-map-marker-alt"></i> 📍 無法取得目前位置</div>
-                    <div>請允許定位權限，或點擊「+城市」手動新增城市。</div>
+                    <div>請允許定位權限，或點擊「+城市」手動新增城市，亦可於上方「使用城市」手動切換。</div>
                 `;
                 container.classList.add('location-error');
                 return;
             }
-            const cities = ledger.locations?.cities || [];
-            let matchedCity = null;
-            for (const city of cities) {
-                if (isCityMatch(city.name, detectedCity)) {
-                    matchedCity = city;
-                    break;
-                }
-            }
+
+            const matchedCity = findLedgerCityByName(ledger, detectedCity);
             if (matchedCity) {
-                const districts = ledger.locations?.districts?.[matchedCity.id] || [];
-                const districtsHtml = districts.length > 0 
-                    ? districts.map(d => `<span class="district-tag">${escapeHtml(d.name)}</span>`).join('')
-                    : '<span style="color:#6b7280;">（尚未設定任何區域）</span>';
-                container.innerHTML = `
-                    <div class="location-hint-title"><i class="fas fa-location-dot text-blue-600"></i> 📍 您目前位於 <strong>${escapeHtml(matchedCity.name)}</strong></div>
-                    <div>已設定區域有：${districtsHtml}</div>
-                    <div class="text-xs text-gray-500 mt-1">💡 可直接使用上方區域名稱進行語音輸入</div>
-                `;
-                container.classList.remove('location-warning', 'location-error');
+                renderCityHint(matchedCity, ledger, false, detectedCity);
             } else {
                 container.innerHTML = `
                     <div class="location-hint-title"><i class="fas fa-map-marker-alt text-amber-600"></i> 📍 您目前位於 <strong>${escapeHtml(detectedCity)}</strong></div>
@@ -680,6 +839,45 @@
                     <div class="text-xs text-gray-500 mt-1">💡 新增後即可快速選取地點</div>
                 `;
                 container.classList.add('location-warning');
+            }
+        }
+
+        // ★ 在語音彈窗開啟時，若「手動設定城市」與偵測到的城市不同，詢問是否自動切換
+        //    每次頁面載入，每個帳冊只詢問一次（避免重複打擾）
+        async function checkManualCitySwitch() {
+            const ledger = getCurrentLedger();
+            if (!ledger) return;
+            if (manualCityPromptedLedgers.has(ledger.id)) return;
+
+            const manualId = getManualCityId(ledger.id);
+            if (!manualId) return;
+            const manualCity = (ledger.locations?.cities || []).find(c => c.id === manualId);
+            if (!manualCity) return;
+
+            const detectedCity = await detectCurrentCity();
+            if (!detectedCity) return;
+            if (isCityMatch(manualCity.name, detectedCity)) return;
+
+            const targetCity = findLedgerCityByName(ledger, detectedCity);
+            if (!targetCity || targetCity.id === manualCity.id) return;
+
+            manualCityPromptedLedgers.add(ledger.id);
+
+            const yes = confirm(
+                `您目前位於${targetCity.name}，是否自動切換(Y/N)？\n\n` +
+                `「確定」(Y) = 自動切換為「${targetCity.name}」\n` +
+                `「取消」(N) = 維持目前設定「${manualCity.name}」`
+            );
+            if (yes) {
+                setManualCityId(ledger.id, targetCity.id);
+                showToast(`已自動切換使用城市為「${targetCity.name}」`);
+                const voiceModal = document.getElementById('voiceModal');
+                if (voiceModal && voiceModal.style.display === 'block') {
+                    renderVoiceCitySwitcher(ledger);
+                    updateLocationHintInVoice();
+                }
+            } else {
+                showToast(`維持使用城市「${manualCity.name}」`);
             }
         }
         
@@ -871,7 +1069,6 @@
             if (ledger.locked) return false;
             const isMember = (ledger.members || []).some(m => {
                 if (!currentUser) return false;
-                // 比對 name 或 email/phone
                 if (m.name === currentUser.name) return true;
                 if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
                 if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
@@ -1025,11 +1222,17 @@
             setupHelperButtons();
             updateDynamicExample(null);
             clearSubCatsHint();
+            const ledger = getCurrentLedger();
+            if (ledger) renderVoiceCitySwitcher(ledger);
             updateLocationHintInVoice();
             const modal = document.getElementById('voiceModal');
             if (modal) modal.style.display = 'block';
             const textarea = document.getElementById('voiceCommandText');
             if (textarea) textarea.focus();
+
+            // ★ 開啟語音彈窗時，檢查手動城市與偵測城市是否不同，需要時詢問是否自動切換
+            // 延遲一點時間讓 updateLocationHintInVoice 有機會先完成定位快取
+            setTimeout(() => { checkManualCitySwitch(); }, 800);
         }
         
         function closeVoiceModal() { 
@@ -1103,7 +1306,6 @@
                 const updatedMember = { name };
                 if (email) updatedMember.email = email;
                 if (phone) updatedMember.phone = phone;
-                // 檢查重複（排除自己）
                 const duplicate = tempLedger.members.some((m, i) => {
                     if (i === index) return false;
                     if (m.name === name) return true;
@@ -1118,7 +1320,6 @@
                 showToast('成員已更新');
             };
 
-            // Enter 鍵觸發儲存
             modal.querySelectorAll('input').forEach(input => {
                 input.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
@@ -1288,7 +1489,6 @@
             const newMember = { name };
             if (email) newMember.email = email;
             if (phone) newMember.phone = phone;
-            // 檢查重複
             const duplicate = tempLedger.members.some(m => {
                 if (m.name === name) return true;
                 if (email && m.email && identifiersMatch(m.email, email)) return true;
@@ -1568,7 +1768,6 @@
                 splittersDiv.querySelectorAll('.splitter-chk').forEach(chk => chk.checked = true);
                 if (currentUser) {
                     let payerCandidate = null;
-                    // 比對姓名或 email/phone
                     const matchedMember = members.find(m => {
                         if (m.name === currentUser.name) return true;
                         if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
@@ -1862,6 +2061,9 @@
                     voiceInputBtn.classList.remove('hidden');
                     editLedgerBtn.classList.remove('hidden');
                 }
+
+                // 不再於頁面載入／切換帳冊時主動請求定位，
+                // 統一改為「開啟語音輸入彈窗」時才檢查（見 showVoiceModal）。
             } else {
                 appData.currentLedgerId = null;
                 document.getElementById('displayLedgerName').innerText = "請選擇或建立帳冊";
@@ -2176,7 +2378,6 @@
                     const ledger = backup.ledger;
                     const expenses = backup.expenses;
                     const existingIndex = appData.ledgers.findIndex(l => l.id === ledger.id);
-                    let confirmOverwrite = true;
                     if (existingIndex !== -1) {
                         if (!confirm(`帳冊「${ledger.name}」已存在，是否覆蓋？\n（選「取消」將以新帳冊匯入）`)) {
                             ledger.id = Date.now().toString() + '_restored';
@@ -2231,7 +2432,12 @@
                     this.value = '';
                 }
             });
-            document.getElementById('deleteLedgerBtn').onclick = () => { if(confirm('刪除帳冊？所有相關支出將一併刪除')){ appData.ledgers = appData.ledgers.filter(l=>l.id!==appData.currentLedgerId); appData.expenses = appData.expenses.filter(e=>e.ledgerId!==appData.currentLedgerId); appData.currentLedgerId=null; saveData(); updateUI(); } };
+            document.getElementById('deleteLedgerBtn').onclick = () => { if(confirm('刪除帳冊？所有相關支出將一併刪除')){ 
+                const deletedId = appData.currentLedgerId;
+                appData.ledgers = appData.ledgers.filter(l=>l.id!==deletedId); 
+                appData.expenses = appData.expenses.filter(e=>e.ledgerId!==deletedId); 
+                if (deletedId && manualCityStore[deletedId]) { delete manualCityStore[deletedId]; saveManualCityStore(); }
+                appData.currentLedgerId=null; saveData(); updateUI(); } };
             document.getElementById('toggleLockLedgerBtn').onclick = () => { const l=appData.ledgers.find(l=>l.id===appData.currentLedgerId); if(l){ l.locked=!l.locked; saveData(); updateUI(); showToast(l.locked?'帳冊已鎖定':'帳冊已解鎖'); } };
             document.getElementById('ledgerForm').onsubmit = handleLedgerSubmit;
             document.getElementById('ledgerCancelBtn').onclick = closeLedgerModal;
@@ -2254,13 +2460,16 @@
         document.getElementById('versionTag').innerText = CURRENT_VERSION;
         document.getElementById('aboutVersion').innerText = CURRENT_VERSION;
         loadLocalData();
+        loadManualCityStore();   // ★ 載入手動指定城市設定
         initUserSystem();
         setupFirebaseSync();
         setupEvents();
         checkUrlParams();
         updateUI();
         
-        detectCurrentCity();
+        // ★ 移除頁面載入時的主動定位請求：改為在使用者「開啟語音輸入彈窗」時才請求，
+        //    避免每次進入頁面都跳出「允許偵測位置」的提示。
+        // detectCurrentCity();  <-- 已移除
     </script>
 </body>
 </html>
