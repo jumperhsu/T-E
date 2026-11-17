@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊收支記帳管家 — 完整操作手冊</title>
+    <title>旅遊收支記帳管家 — 操作手冊</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
         
@@ -143,7 +143,7 @@
 
         .hero-banner {
             background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #4f46e5 100%);
-            color: white;
+            color: #ffffff;
             border-radius: 20px;
             padding: 36px 40px;
             margin-bottom: 36px;
@@ -152,7 +152,8 @@
 
         .hero-badge {
             display: inline-block;
-            background: rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.22);
+            color: #ffffff;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 0.8rem;
@@ -163,14 +164,18 @@
         .hero-banner h1 {
             font-size: 2rem;
             font-weight: 700;
+            color: #ffffff;
             margin-bottom: 10px;
             letter-spacing: 0.5px;
         }
 
+        /* 修正深藍底色下方的文字對比度，避免被全域 p 樣式覆蓋 */
         .hero-banner p {
             font-size: 1rem;
-            opacity: 0.92;
+            color: #f1f5f9;
+            opacity: 0.96;
             max-width: 680px;
+            margin-bottom: 0;
         }
 
         /* 章節卡片 */
@@ -227,7 +232,7 @@
             border-radius: 2px;
         }
 
-        p {
+        .section-card p {
             margin-bottom: 14px;
             color: var(--slate-600);
         }
@@ -438,7 +443,7 @@
             </div>
             <p>「旅遊記帳管家」專為多人出遊設計，提供即時雲端同步、自訂消費分類、地點階層管理以及語音快速記帳功能。</p>
 
-            <!-- 附圖 1：主畫面配置圖解 -->
+            <!-- 附圖 1：主畫面配置圖解（已同步更新頂部操作手冊按鈕與純圖示設計） -->
             <div class="figure-box">
                 <svg viewBox="0 0 760 350" xmlns="http://www.w3.org/2000/svg">
                     <!-- 背景 -->
@@ -449,21 +454,24 @@
                     <rect x="24" y="12" width="30" height="30" rx="6" fill="#2563eb"/>
                     <text x="39" y="32" fill="#ffffff" font-size="14" text-anchor="middle">✈</text>
                     <text x="64" y="30" fill="#1e293b" font-size="15" font-weight="bold">旅遊記帳管家</text>
-                    <text x="64" y="44" fill="#64748b" font-size="9">v20260923.002</text>
+                    <text x="64" y="44" fill="#64748b" font-size="9">v20261117.001</text>
 
-                    <!-- 右側狀態與按鈕 -->
-                    <rect x="440" y="16" width="62" height="22" rx="11" fill="#dcfce7"/>
-                    <text x="471" y="31" fill="#16a34a" font-size="11" font-weight="bold" text-anchor="middle">● 連線</text>
-                    
-                    <rect x="512" y="13" width="66" height="28" rx="6" fill="#eef2ff"/>
-                    <text x="545" y="31" fill="#4f46e5" font-size="11" font-weight="bold" text-anchor="middle">📊 檢視</text>
-                    
-                    <circle cx="602" cy="27" r="14" fill="#f1f5f9"/>
-                    <text x="602" y="31" fill="#334155" font-size="12" text-anchor="middle">👤</text>
-                    <circle cx="612" cy="37" r="4" fill="#22c55e" stroke="#fff" stroke-width="1.5"/>
+                    <!-- 右側狀態與圖示按鈕（對應新版介面） -->
+                    <rect x="466" y="13" width="34" height="28" rx="6" fill="#f1f5f9"/>
+                    <text x="483" y="31" fill="#475569" font-size="13" text-anchor="middle">📖</text>
 
-                    <circle cx="640" cy="27" r="14" fill="#f1f5f9"/>
-                    <text x="640" y="31" fill="#334155" font-size="12" font-weight="bold" text-anchor="middle">i</text>
+                    <circle cx="522" cy="27" r="13" fill="#dcfce7"/>
+                    <text x="522" y="31" fill="#16a34a" font-size="12" font-weight="bold" text-anchor="middle">✓</text>
+                    
+                    <rect x="546" y="13" width="36" height="28" rx="6" fill="#eef2ff"/>
+                    <text x="564" y="31" fill="#4f46e5" font-size="13" text-anchor="middle">📊</text>
+                    
+                    <circle cx="604" cy="27" r="14" fill="#f1f5f9"/>
+                    <text x="604" y="31" fill="#334155" font-size="12" text-anchor="middle">👤</text>
+                    <circle cx="614" cy="37" r="4" fill="#22c55e" stroke="#fff" stroke-width="1.5"/>
+
+                    <circle cx="642" cy="27" r="14" fill="#f1f5f9"/>
+                    <text x="642" y="31" fill="#334155" font-size="12" font-weight="bold" text-anchor="middle">i</text>
 
                     <!-- 帳冊選擇區卡片 -->
                     <rect x="40" y="72" width="680" height="84" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
@@ -493,14 +501,15 @@
                     <text x="684" y="256" fill="#1e293b" font-size="16" font-weight="bold" text-anchor="end">$4,800</text>
                     <text x="76" y="294" fill="#334155" font-size="11"><tspan font-weight="bold">小明</tspan> 付款 | 4人分攤 <tspan fill="#d97706">(2/4 人已付款)</tspan></text>
                 </svg>
-                <div class="figure-caption">▲ 圖 1：主操作畫面結構（頂部導覽列、帳冊摘要面板與支出明細列表）</div>
+                <div class="figure-caption">▲ 圖 1：主操作畫面結構（頂部導覽列快捷圖示、帳冊摘要面板與支出明細列表）</div>
             </div>
 
             <h3>頂部導覽列功能說明</h3>
             <ul>
-                <li><strong>連線狀態燈號</strong>：顯示目前的資料同步狀態。綠色「連線」代表雲端即時同步中；黃色「離線模式」代表資料暫存於本機，待恢復網路後同步。</li>
-                <li><strong>檢視按鈕</strong>：點擊後跳轉至統計報表頁面（<code>view.html</code>），查看視覺化圖表與最終結算明細。</li>
-                <li><strong>使用者圖示（人像）</strong>：右下角亮綠點代表已登入；點擊可編輯暱稱、帳號或切換使用者。</li>
+                <li><strong>操作手冊按鈕（書本圖示 📖）</strong>：點擊後將於新分頁開啟本份線上操作手冊，隨時查閱功能說明與語音指令範例。</li>
+                <li><strong>連線狀態燈號</strong>：顯示目前的資料同步狀態。綠色打勾圖示代表雲端即時同步中；黃色驚嘆號「離線模式」代表資料暫存於本機，待恢復網路後自動同步。</li>
+                <li><strong>檢視報表按鈕（圓餅圖圖示 📊）</strong>：點擊後跳轉至統計報表頁面（<code>view.html</code>），查看視覺化消費圖表與最終結算明細。</li>
+                <li><strong>使用者圖示（人像 👤）</strong>：右下角亮綠點代表已登入；點擊可編輯暱稱、帳號或切換使用者。</li>
                 <li><strong>關於圖示（i）</strong>：顯示版本資訊與當前網頁的 <strong>QR Code</strong>，方便同行旅伴直接掃描加入。</li>
             </ul>
         </section>
@@ -822,7 +831,7 @@
         </section>
 
         <footer>
-            旅遊收支記帳管家 — 完整語音版操作手冊
+            旅遊收支記帳管家 — 操作手冊
         </footer>
     </main>
 
