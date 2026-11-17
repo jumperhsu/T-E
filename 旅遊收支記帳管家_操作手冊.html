@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅遊收支記帳管家 — 完整操作手冊</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        
+        :root {
+            --primary: #2563eb;
+            --primary-light: #eff6ff;
+            --primary-dark: #1e40af;
+            --purple: #9333ea;
+            --purple-light: #f3e8ff;
+            --green: #16a34a;
+            --green-light: #dcfce7;
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-600: #475569;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--slate-100);
+            color: var(--slate-800);
+            line-height: 1.7;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 側邊目錄導覽 */
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid var(--slate-200);
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            padding: 28px 20px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--slate-200);
+            margin-bottom: 20px;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.25);
+        }
+
+        .brand-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--slate-900);
+        }
+
+        .brand-sub {
+            font-size: 0.75rem;
+            color: var(--slate-600);
+        }
+
+        .nav-list {
+            list-style: none;
+        }
+
+        .nav-item {
+            margin-bottom: 6px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: var(--slate-600);
+            text-decoration: none;
+            font-size: 0.92rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .nav-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            background: var(--slate-100);
+            color: var(--slate-600);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .nav-link:hover .nav-num {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* 主要內容區 */
+        .main-content {
+            margin-left: 280px;
+            flex: 1;
+            padding: 40px 48px 80px;
+            max-width: 1040px;
+        }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #4f46e5 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 36px 40px;
+            margin-bottom: 36px;
+            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.18);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .hero-banner h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-banner p {
+            font-size: 1rem;
+            opacity: 0.92;
+            max-width: 680px;
+        }
+
+        /* 章節卡片 */
+        .section-card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px 36px;
+            margin-bottom: 32px;
+            border: 1px solid var(--slate-200);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+            scroll-margin-top: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 2px solid var(--slate-100);
+        }
+
+        .section-badge {
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 0.9rem;
+            padding: 6px 12px;
+            border-radius: 8px;
+        }
+
+        .section-header h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--slate-900);
+        }
+
+        h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--slate-800);
+            margin: 24px 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        p {
+            margin-bottom: 14px;
+            color: var(--slate-600);
+        }
+
+        ul, ol {
+            margin-left: 22px;
+            margin-bottom: 18px;
+            color: var(--slate-600);
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        li strong {
+            color: var(--slate-800);
+        }
+
+        /* 附圖容器 */
+        .figure-box {
+            background: var(--slate-50);
+            border: 1px solid var(--slate-200);
+            border-radius: 14px;
+            padding: 20px;
+            margin: 22px 0;
+            text-align: center;
+        }
+
+        .figure-box svg {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            background: white;
+        }
+
+        .figure-caption {
+            font-size: 0.85rem;
+            color: var(--slate-600);
+            margin-top: 12px;
+            font-weight: 500;
+        }
+
+        /* 提示區塊 */
+        .callout {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin: 18px 0;
+            font-size: 0.92rem;
+            color: #92400e;
+        }
+
+        .callout-info {
+            background: var(--primary-light);
+            border-left-color: var(--primary);
+            color: var(--primary-dark);
+        }
+
+        /* 表格樣式 */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 18px 0;
+            border-radius: 12px;
+            border: 1px solid var(--slate-200);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92rem;
+            text-align: left;
+        }
+
+        th {
+            background: var(--slate-50);
+            color: var(--slate-800);
+            font-weight: 700;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--slate-200);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--slate-200);
+            color: var(--slate-600);
+            vertical-align: top;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        code {
+            background: var(--purple-light);
+            color: var(--purple);
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.86rem;
+            font-weight: 600;
+            display: inline-block;
+            margin: 2px 0;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .stat-card {
+            background: var(--slate-50);
+            border: 1px solid var(--slate-200);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .stat-card .title {
+            font-weight: 700;
+            color: var(--slate-800);
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .stat-card .desc {
+            font-size: 0.8rem;
+            color: var(--slate-600);
+            line-height: 1.4;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--slate-600);
+            font-size: 0.85rem;
+            margin-top: 20px;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                position: static;
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--slate-200);
+                padding: 16px 20px;
+            }
+            .nav-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .nav-item {
+                margin-bottom: 0;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 24px 16px 48px;
+            }
+            .section-card {
+                padding: 22px 20px;
+            }
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 側邊導覽列 -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">✈️</div>
+            <div>
+                <div class="brand-title">旅遊記帳管家</div>
+                <div class="brand-sub">完整語音版操作手冊</div>
+            </div>
+        </div>
+        <ul class="nav-list">
+            <li class="nav-item"><a href="#sec1" class="nav-link"><span class="nav-num">1</span>系統簡介與畫面總覽</a></li>
+            <li class="nav-item"><a href="#sec2" class="nav-link"><span class="nav-num">2</span>帳號登入與身分驗證</a></li>
+            <li class="nav-item"><a href="#sec3" class="nav-link"><span class="nav-num">3</span>帳冊建立與設定管理</a></li>
+            <li class="nav-item"><a href="#sec4" class="nav-link"><span class="nav-num">4</span>手動記帳與多人分攤</a></li>
+            <li class="nav-item"><a href="#sec5" class="nav-link"><span class="nav-num">5</span>語音指令智慧記帳</a></li>
+        </ul>
+    </aside>
+
+    <!-- 主要內容 -->
+    <main class="main-content">
+        <div class="hero-banner">
+            <div class="hero-badge">📖 使用者操作指南</div>
+            <h1>旅遊收支記帳管家 — 操作手冊</h1>
+            <p>支援多人雲端即時同步（Firebase）、多維度分攤結算與自然語意語音輸入，讓同行旅伴輕鬆掌握每一筆旅遊開銷。</p>
+        </div>
+
+        <!-- 第一章 -->
+        <section id="sec1" class="section-card">
+            <div class="section-header">
+                <span class="section-badge">章節 01</span>
+                <h2>系統簡介與畫面總覽</h2>
+            </div>
+            <p>「旅遊記帳管家」專為多人出遊設計，提供即時雲端同步、自訂消費分類、地點階層管理以及語音快速記帳功能。</p>
+
+            <!-- 附圖 1：主畫面配置圖解 -->
+            <div class="figure-box">
+                <svg viewBox="0 0 760 350" xmlns="http://www.w3.org/2000/svg">
+                    <!-- 背景 -->
+                    <rect width="760" height="350" rx="10" fill="#f3f4f6"/>
+                    <!-- 頂部導覽列 -->
+                    <rect x="0" y="0" width="760" height="54" fill="#ffffff"/>
+                    <line x1="0" y1="54" x2="760" y2="54" stroke="#e2e8f0" stroke-width="1"/>
+                    <rect x="24" y="12" width="30" height="30" rx="6" fill="#2563eb"/>
+                    <text x="39" y="32" fill="#ffffff" font-size="14" text-anchor="middle">✈</text>
+                    <text x="64" y="30" fill="#1e293b" font-size="15" font-weight="bold">旅遊記帳管家</text>
+                    <text x="64" y="44" fill="#64748b" font-size="9">v20260923.002</text>
+
+                    <!-- 右側狀態與按鈕 -->
+                    <rect x="440" y="16" width="62" height="22" rx="11" fill="#dcfce7"/>
+                    <text x="471" y="31" fill="#16a34a" font-size="11" font-weight="bold" text-anchor="middle">● 連線</text>
+                    
+                    <rect x="512" y="13" width="66" height="28" rx="6" fill="#eef2ff"/>
+                    <text x="545" y="31" fill="#4f46e5" font-size="11" font-weight="bold" text-anchor="middle">📊 檢視</text>
+                    
+                    <circle cx="602" cy="27" r="14" fill="#f1f5f9"/>
+                    <text x="602" y="31" fill="#334155" font-size="12" text-anchor="middle">👤</text>
+                    <circle cx="612" cy="37" r="4" fill="#22c55e" stroke="#fff" stroke-width="1.5"/>
+
+                    <circle cx="640" cy="27" r="14" fill="#f1f5f9"/>
+                    <text x="640" y="31" fill="#334155" font-size="12" font-weight="bold" text-anchor="middle">i</text>
+
+                    <!-- 帳冊選擇區卡片 -->
+                    <rect x="40" y="72" width="680" height="84" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="60" y="102" fill="#1e293b" font-size="15" font-weight="bold">2026 東京五日賞櫻團</text>
+                    <text x="60" y="122" fill="#64748b" font-size="11">2 個城市 · 4 位成員</text>
+                    <rect x="60" y="132" width="640" height="16" rx="4" fill="#f8fafc"/>
+                    <text x="140" y="143" fill="#475569" font-size="10" text-anchor="middle">請客: 1,200</text>
+                    <text x="300" y="143" fill="#475569" font-size="10" text-anchor="middle">已結: 8,500</text>
+                    <text x="460" y="143" fill="#475569" font-size="10" text-anchor="middle">未結: 4,300</text>
+                    <text x="620" y="143" fill="#1e293b" font-size="10" font-weight="bold" text-anchor="middle">總額: 14,000</text>
+
+                    <!-- 支出明細卡片 -->
+                    <rect x="40" y="170" width="680" height="160" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="60" y="202" fill="#1e293b" font-size="15" font-weight="bold">支出明細</text>
+                    
+                    <!-- 語音輸入 & 記一筆按鈕 -->
+                    <rect x="500" y="182" width="100" height="32" rx="8" fill="#9333ea"/>
+                    <text x="550" y="202" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">🎙️ 語音輸入</text>
+                    
+                    <rect x="610" y="182" width="90" height="32" rx="8" fill="#16a34a"/>
+                    <text x="655" y="202" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">＋ 記一筆</text>
+
+                    <!-- 範例明細項目 -->
+                    <rect x="60" y="226" width="640" height="86" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="76" y="250" fill="#1e293b" font-size="13" font-weight="bold">東京新宿一蘭拉麵</text>
+                    <text x="76" y="268" fill="#64748b" font-size="11">2026-04-02 | 東京 | 飲食 · 正餐</text>
+                    <text x="684" y="256" fill="#1e293b" font-size="16" font-weight="bold" text-anchor="end">$4,800</text>
+                    <text x="76" y="294" fill="#334155" font-size="11"><tspan font-weight="bold">小明</tspan> 付款 | 4人分攤 <tspan fill="#d97706">(2/4 人已付款)</tspan></text>
+                </svg>
+                <div class="figure-caption">▲ 圖 1：主操作畫面結構（頂部導覽列、帳冊摘要面板與支出明細列表）</div>
+            </div>
+
+            <h3>頂部導覽列功能說明</h3>
+            <ul>
+                <li><strong>連線狀態燈號</strong>：顯示目前的資料同步狀態。綠色「連線」代表雲端即時同步中；黃色「離線模式」代表資料暫存於本機，待恢復網路後同步。</li>
+                <li><strong>檢視按鈕</strong>：點擊後跳轉至統計報表頁面（<code>view.html</code>），查看視覺化圖表與最終結算明細。</li>
+                <li><strong>使用者圖示（人像）</strong>：右下角亮綠點代表已登入；點擊可編輯暱稱、帳號或切換使用者。</li>
+                <li><strong>關於圖示（i）</strong>：顯示版本資訊與當前網頁的 <strong>QR Code</strong>，方便同行旅伴直接掃描加入。</li>
+            </ul>
+        </section>
+
+        <!-- 第二章 -->
+        <section id="sec2" class="section-card">
+            <div class="section-header">
+                <span class="section-badge">章節 02</span>
+                <h2>帳號登入與身分驗證</h2>
+            </div>
+            <p>首次開啟系統時會自動彈出登入視窗（或隨時點擊右上角人像圖示開啟）：</p>
+            <ol>
+                <li><strong>顯示名稱（暱稱）</strong>：輸入您在旅程中使用的名稱（建議與帳冊內的成員名稱一致，方便系統在記帳時自動帶入您為預設付款人）。</li>
+                <li><strong>帳號（Email 或 手機號碼）</strong>：
+                    <ul>
+                        <li>支援輸入 Email（例如：<code>example@gmail.com</code>）或台灣 <code>09</code> 開頭的 10 碼手機號碼。</li>
+                        <li>系統在比對手機號碼時，會自動忽略 <code>-</code> 或 <code>( )</code> 等分隔符號，僅比對純數字。</li>
+                    </ul>
+                </li>
+                <li><strong>檢視與編輯權限</strong>：登入後，下拉選單僅會顯示「您被加入為成員」的帳冊；當帳冊未處於鎖定狀態時，成員皆可自由記帳與編輯帳冊設定。</li>
+            </ol>
+        </section>
+
+        <!-- 第三章 -->
+        <section id="sec3" class="section-card">
+            <div class="section-header">
+                <span class="section-badge">章節 03</span>
+                <h2>帳冊建立與設定管理</h2>
+            </div>
+            <p>點擊主畫面上方的「帳冊標題列」可展開或收合帳冊管理面板。</p>
+
+            <!-- 附圖 2：雙欄設定結構圖解 -->
+            <div class="figure-box">
+                <svg viewBox="0 0 760 270" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="760" height="270" rx="10" fill="#f8fafc"/>
+                    
+                    <!-- 左側：科目階層 -->
+                    <text x="30" y="30" fill="#1e293b" font-size="13" font-weight="bold">科目設定（雙欄聯動）</text>
+                    <rect x="30" y="42" width="165" height="205" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+                    <rect x="30" y="42" width="165" height="32" rx="8" fill="#f1f5f9"/>
+                    <text x="44" y="63" fill="#334155" font-size="12" font-weight="bold">主要科目</text>
+                    <rect x="40" y="84" width="145" height="30" rx="6" fill="#eff6ff" stroke="#2563eb"/>
+                    <text x="52" y="103" fill="#1e40af" font-size="12" font-weight="bold">交通（已選取）</text>
+                    <rect x="40" y="122" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="52" y="141" fill="#475569" font-size="12">飲食</text>
+                    <rect x="40" y="160" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="52" y="179" fill="#475569" font-size="12">景點</text>
+                    <rect x="40" y="206" width="110" height="28" rx="5" fill="#f8fafc" stroke="#cbd5e1"/>
+                    <text x="50" y="224" fill="#94a3b8" font-size="11">新科目...</text>
+                    <rect x="156" y="206" width="28" height="28" rx="5" fill="#2563eb"/>
+                    <text x="170" y="224" fill="#ffffff" font-size="14" text-anchor="middle">+</text>
+
+                    <rect x="205" y="42" width="165" height="205" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+                    <rect x="205" y="42" width="165" height="32" rx="8" fill="#f1f5f9"/>
+                    <text x="219" y="63" fill="#334155" font-size="12" font-weight="bold">次要科目</text>
+                    <rect x="215" y="84" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="227" y="103" fill="#334155" font-size="12">高鐵</text>
+                    <rect x="215" y="122" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="227" y="141" fill="#334155" font-size="12">捷運</text>
+                    <rect x="215" y="206" width="110" height="28" rx="5" fill="#f8fafc" stroke="#cbd5e1"/>
+                    <text x="225" y="224" fill="#94a3b8" font-size="11">新次要...</text>
+                    <rect x="331" y="206" width="28" height="28" rx="5" fill="#16a34a"/>
+                    <text x="345" y="224" fill="#ffffff" font-size="14" text-anchor="middle">+</text>
+
+                    <!-- 右側：地點階層 -->
+                    <text x="395" y="30" fill="#1e293b" font-size="13" font-weight="bold">地點設定（雙欄聯動）</text>
+                    <rect x="395" y="42" width="165" height="205" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+                    <rect x="395" y="42" width="165" height="32" rx="8" fill="#f1f5f9"/>
+                    <text x="409" y="63" fill="#334155" font-size="12" font-weight="bold">城市</text>
+                    <rect x="405" y="84" width="145" height="30" rx="6" fill="#eff6ff" stroke="#2563eb"/>
+                    <text x="417" y="103" fill="#1e40af" font-size="12" font-weight="bold">東京（已選取）</text>
+                    <rect x="405" y="122" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="417" y="141" fill="#475569" font-size="12">台北</text>
+                    <rect x="405" y="206" width="110" height="28" rx="5" fill="#f8fafc" stroke="#cbd5e1"/>
+                    <text x="415" y="224" fill="#94a3b8" font-size="11">新城市...</text>
+                    <rect x="521" y="206" width="28" height="28" rx="5" fill="#2563eb"/>
+                    <text x="535" y="224" fill="#ffffff" font-size="14" text-anchor="middle">+</text>
+
+                    <rect x="570" y="42" width="165" height="205" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+                    <rect x="570" y="42" width="165" height="32" rx="8" fill="#f1f5f9"/>
+                    <text x="584" y="63" fill="#334155" font-size="12" font-weight="bold">區域</text>
+                    <rect x="580" y="84" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="592" y="103" fill="#334155" font-size="12">新宿</text>
+                    <rect x="580" y="122" width="145" height="30" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="592" y="141" fill="#334155" font-size="12">淺草</text>
+                    <rect x="580" y="206" width="110" height="28" rx="5" fill="#f8fafc" stroke="#cbd5e1"/>
+                    <text x="590" y="224" fill="#94a3b8" font-size="11">新區域...</text>
+                    <rect x="696" y="206" width="28" height="28" rx="5" fill="#16a34a"/>
+                    <text x="710" y="224" fill="#ffffff" font-size="14" text-anchor="middle">+</text>
+                </svg>
+                <div class="figure-caption">▲ 圖 2：帳冊設定視窗中的雙欄階層管理（先點選左側主項目，再新增右側子項目）</div>
+            </div>
+
+            <h3>建立與編輯帳冊步驟</h3>
+            <ol>
+                <li>點擊 <strong>「+ 新增」</strong>（或針對現有帳冊點擊 <strong>「設定」</strong>），輸入「帳冊名稱」。</li>
+                <li><strong>科目設定</strong>：系統預設建立「交通、飲食、景點、活動、購物、其他」六大主科目。點選左側「主要科目」後，即可在右側新增對應的「次要科目」，並支援上下排序與改名。</li>
+                <li><strong>地點設定</strong>：在左側新增「城市」，點選該城市後於右側新增「區域」。</li>
+                <li><strong>成員設定</strong>：輸入旅伴的「姓名」，並<strong>至少填寫 Email 或手機號碼其中一項</strong>（作為旅伴登入時辨識身分與顯示帳冊的依據）。</li>
+                <li>點擊 <strong>「儲存」</strong> 即可完成設定。</li>
+            </ol>
+
+            <h3>帳冊資訊與統計摘要</h3>
+            <p>展開帳冊面板時，可檢視目前的科目、地點、成員總覽，以及四項核心財務統計：</p>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="title">請客</div>
+                    <div class="desc">勾選「金主請客」的總金額，不計入旅伴分攤</div>
+                </div>
+                <div class="stat-card">
+                    <div class="title">已結</div>
+                    <div class="desc">所有分攤人員皆已標記結清的支出總額</div>
+                </div>
+                <div class="stat-card">
+                    <div class="title">未結</div>
+                    <div class="desc">仍有成員尚未標記結清的支出總額</div>
+                </div>
+                <div class="stat-card">
+                    <div class="title">總額</div>
+                    <div class="desc">該帳冊的所有支出總計</div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <strong>🔒 鎖定狀態說明：</strong>若帳冊標題旁顯示紅色「已鎖定」標籤，代表該帳冊目前僅供檢視明細，無法進行新增、修改或刪除操作。
+            </div>
+        </section>
+
+        <!-- 第四章 -->
+        <section id="sec4" class="section-card">
+            <div class="section-header">
+                <span class="section-badge">章節 04</span>
+                <h2>手動記帳與多人分攤（記一筆）</h2>
+            </div>
+            <p>點擊支出明細右上角的綠色 <strong>「+ 記一筆」</strong> 按鈕開啟記帳表單：</p>
+
+            <!-- 附圖 3：多人分攤與結清機制圖解 -->
+            <div class="figure-box">
+                <svg viewBox="0 0 760 230" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="760" height="230" rx="10" fill="#f8fafc"/>
+                    <rect x="40" y="20" width="680" height="190" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+                    
+                    <text x="64" y="50" fill="#1e293b" font-size="13" font-weight="bold">分攤人員與結清狀態</text>
+                    <rect x="630" y="32" width="66" height="24" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+                    <text x="663" y="48" fill="#334155" font-size="11" text-anchor="middle">全選</text>
+
+                    <!-- 成員卡片 1：已結清 -->
+                    <rect x="64" y="68" width="200" height="44" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+                    <rect x="78" y="82" width="16" height="16" rx="3" fill="#2563eb"/>
+                    <text x="86" y="94" fill="#ffffff" font-size="11" text-anchor="middle">✓</text>
+                    <text x="104" y="95" fill="#1e293b" font-size="13">小明 (付款人)</text>
+                    <circle cx="240" cy="90" r="13" fill="#3b82f6"/>
+                    <text x="240" y="95" fill="#ffffff" font-size="12" text-anchor="middle">✓</text>
+
+                    <!-- 成員卡片 2：未結清 -->
+                    <rect x="280" y="68" width="200" height="44" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+                    <rect x="294" y="82" width="16" height="16" rx="3" fill="#2563eb"/>
+                    <text x="302" y="94" fill="#ffffff" font-size="11" text-anchor="middle">✓</text>
+                    <text x="320" y="95" fill="#1e293b" font-size="13">小華</text>
+                    <circle cx="456" cy="90" r="13" fill="#e2e8f0"/>
+                    <text x="456" y="95" fill="#64748b" font-size="12" text-anchor="middle">✓</text>
+
+                    <!-- 成員卡片 3：未參與分攤 -->
+                    <rect x="496" y="68" width="200" height="44" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+                    <rect x="510" y="82" width="16" height="16" rx="3" fill="#ffffff" stroke="#94a3b8"/>
+                    <text x="536" y="95" fill="#94a3b8" font-size="13">小美 (未分攤)</text>
+                    <circle cx="672" cy="90" r="13" fill="#f1f5f9"/>
+                    <text x="672" y="95" fill="#cbd5e1" font-size="12" text-anchor="middle">✓</text>
+
+                    <!-- 圖例說明 -->
+                    <circle cx="80" cy="142" r="8" fill="#3b82f6"/>
+                    <text x="96" y="146" fill="#475569" font-size="11">藍色圓圈：該成員已還款結清</text>
+                    <circle cx="290" cy="142" r="8" fill="#e2e8f0"/>
+                    <text x="306" y="146" fill="#475569" font-size="11">灰色圓圈：尚未還款（待結算）</text>
+
+                    <text x="696" y="185" fill="#334155" font-size="13" text-anchor="end">每人平均：<tspan fill="#2563eb" font-weight="bold" font-size="16">1,200.00</tspan></text>
+                </svg>
+                <div class="figure-caption">▲ 圖 3：分攤勾選與圓形結清按鈕狀態說明（點擊右側圓形打勾即可切換結清狀態）</div>
+            </div>
+
+            <ol>
+                <li><strong>日期與時間</strong>：預設自動帶入當下時間，可手動調整。</li>
+                <li><strong>科目與地點</strong>：
+                    <ul>
+                        <li><strong>一般科目</strong>：選擇「次要科目」與「地點（城市/區域）」後，系統會自動組合摘要（例如：<code>台北信義區小吃</code>）。</li>
+                        <li><strong>交通科目</strong>：只要主科目名稱包含「交通」，畫面會自動額外顯示 <strong>「目的地點」</strong> 欄位，選擇起點與終點後，摘要會自動生成「起點 往 終點」。</li>
+                    </ul>
+                </li>
+                <li><strong>摘要與金額</strong>：可微調自動生成的摘要文字，並輸入消費金額。</li>
+                <li><strong>付款人</strong>：預設自動帶入當前登入的使用者，也可改選其他墊付的旅伴。</li>
+                <li><strong>分攤人員與結清狀態</strong>：
+                    <ul>
+                        <li>勾選參與分攤的成員（可使用 <strong>「全選」</strong> 快速切換），系統會即時計算「每人平均」金額。</li>
+                        <li><strong>結清標記（圓形打勾按鈕）</strong>：點擊成員右側的圓形打勾圖示，亮起藍色代表該成員已還款給付款人；列表頁會即時顯示 <code>(已付款人數/總分攤人數)</code> 的進度。</li>
+                    </ul>
+                </li>
+                <li><strong>金主請客</strong>：勾選後，每人平均分攤金額將變為 <code>0</code>（顯示刪除線），該筆款項將歸類於「請客」統計中，不向旅伴收款。</li>
+            </ol>
+        </section>
+
+        <!-- 第五章 -->
+        <section id="sec5" class="section-card">
+            <div class="section-header">
+                <span class="section-badge">章節 05</span>
+                <h2>語音指令智慧記帳</h2>
+            </div>
+            <p>點擊紫色 <strong>「語音輸入」</strong> 按鈕，可搭配手機鍵盤的語音輸入法或直接打字，透過自然語句快速建檔與預填表單（<strong>指令不需加空格也能自動辨識</strong>）。</p>
+
+            <!-- 附圖 4：語音輸入視窗圖解 -->
+            <div class="figure-box">
+                <svg viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="760" height="280" rx="10" fill="#f8fafc"/>
+                    <rect x="60" y="16" width="640" height="248" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+                    
+                    <text x="84" y="46" fill="#1e293b" font-size="15" font-weight="bold">🎙️ 語音指令輸入</text>
+                    
+                    <!-- 快捷按鈕列 -->
+                    <rect x="84" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="118" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 交通</text>
+                    <rect x="160" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="194" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 飲食</text>
+                    <rect x="236" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="270" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 景點</text>
+                    <rect x="312" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="346" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 購物</text>
+
+                    <!-- 使用城市切換 -->
+                    <rect x="84" y="96" width="592" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+                    <text x="98" y="117" fill="#475569" font-size="11" font-weight="bold">🏙️ 使用城市： 🛰️ 自動偵測（預設） ▼</text>
+                    <rect x="596" y="103" width="68" height="20" rx="10" fill="#e2e8f0"/>
+                    <text x="630" y="117" fill="#475569" font-size="10" text-anchor="middle">自動偵測</text>
+
+                    <!-- GPS 提示框 -->
+                    <rect x="84" y="138" width="592" height="36" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+                    <text x="98" y="160" fill="#1e40af" font-size="11">📍 目前使用城市：<tspan font-weight="bold">台北</tspan> ｜ 已設定區域：台北車站、信義區</text>
+
+                    <!-- 文字輸入框 -->
+                    <rect x="84" y="182" width="592" height="44" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.5"/>
+                    <text x="98" y="208" fill="#1e293b" font-size="12">新增飲食紀錄飲料台北車站50嵐</text>
+
+                    <!-- 底部輔助與確定按鈕 -->
+                    <rect x="84" y="234" width="64" height="22" rx="11" fill="#e2e8f0"/>
+                    <text x="116" y="249" fill="#334155" font-size="10" text-anchor="middle">+城市</text>
+                    <rect x="154" y="234" width="64" height="22" rx="11" fill="#e2e8f0"/>
+                    <text x="186" y="249" fill="#334155" font-size="10" text-anchor="middle">+區域</text>
+                    <rect x="224" y="234" width="72" height="22" rx="11" fill="#e2e8f0"/>
+                    <text x="260" y="249" fill="#334155" font-size="10" text-anchor="middle">+主科目</text>
+                    <rect x="302" y="234" width="80" height="22" rx="11" fill="#e2e8f0"/>
+                    <text x="342" y="249" fill="#334155" font-size="10" text-anchor="middle">+次要科目</text>
+
+                    <rect x="610" y="232" width="66" height="26" rx="6" fill="#9333ea"/>
+                    <text x="643" y="249" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">確定</text>
+                </svg>
+                <div class="figure-caption">▲ 圖 4：語音指令輸入介面（含主科目快捷鈕、GPS 城市自動偵測與基礎資料新增鈕）</div>
+            </div>
+
+            <h3>定位與使用城市切換</h3>
+            <ul>
+                <li>開啟視窗時，系統會自動偵測您目前的 GPS 所在城市，並顯示該城市已設定的區域標籤供參考。</li>
+                <li>您也可透過上方的 <strong>「使用城市」</strong> 下拉選單手動指定城市；若下次開啟時系統偵測到您已移動至其他城市，會主動詢問是否自動切換。</li>
+            </ul>
+
+            <h3>支援的語音指令格式</h3>
+            <p>視窗上方提供主科目快捷按鈕與 <code>+城市</code>、<code>+區域</code>、<code>+主科目</code>、<code>+次要科目</code> 輔助按鈕，點擊即可帶入指令前綴：</p>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">功能分類</th>
+                            <th style="width: 42%;">指令格式範例</th>
+                            <th style="width: 40%;">執行效果說明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>新增城市</strong></td>
+                            <td><code>增加城市東京</code></td>
+                            <td>直接在目前帳冊中建立新城市。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>新增區域</strong></td>
+                            <td><code>增加區域台北信義區</code></td>
+                            <td>在指定城市下建立新區域（城市須已存在）。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>新增主科目</strong></td>
+                            <td><code>增加主科目住宿</code></td>
+                            <td>建立新的主要消費分類。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>新增次要科目</strong></td>
+                            <td><code>增加次要科目飲食小吃</code></td>
+                            <td>在指定主科目下建立次要分類。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>新增交通紀錄</strong></td>
+                            <td>
+                                <code>新增交通紀錄高鐵台北車站到台中高鐵站</code><br>
+                                <code>新增交通紀錄捷運由西門町往台北101</code>
+                            </td>
+                            <td>支援「到 / 往 / 至」連接起訖點（「由」字可省略），執行後將自動開啟記帳視窗並預填起訖地點與摘要，<strong>只需補上金額即可儲存</strong>。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>新增一般紀錄</strong></td>
+                            <td>
+                                <code>新增飲食紀錄飲料台北車站50嵐</code><br>
+                                <code>新增活動紀錄旅拍南京牛首山漢服</code>
+                            </td>
+                            <td>格式為 <code>新增[主科目]紀錄 + 次要科目 + 地點 + 備註</code>，執行後同樣會開啟預填好的記帳表單供輸入金額。</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-info">
+                <strong>💡 小技巧：</strong>指令中的「城市、區域、主科目、次要科目」名稱需與帳冊內設定的名稱一致，系統才能精準配對並自動帶入表單選項。
+            </div>
+        </section>
+
+        <footer>
+            旅遊收支記帳管家 — 完整語音版操作手冊
+        </footer>
+    </main>
+
+</body>
+</html>
