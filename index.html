@@ -263,6 +263,7 @@
                 <div><h1 class="text-xl font-bold text-slate-800">旅遊記帳管家</h1><span id="versionTag" class="text-xs text-slate-500 font-mono"></span></div>
             </div>
             <div class="flex items-center gap-3">
+                <a href="旅遊收支記帳管家_操作手冊.html" target="_blank" rel="noopener noreferrer" class="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-200 transition flex items-center gap-2"><i class="fas fa-book-open"></i></a>
                 <div id="firebaseStatus" class="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 flex items-center gap-1"><i class="fas fa-plug"></i> <span>連線中...</span></div>
                 <button id="viewStatsBtn" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100 transition flex items-center gap-2"><i class="fas fa-chart-pie"></i> 檢視</button>
                 <div id="userBtn" class="w-9 h-9 flex items-center justify-center rounded-full cursor-pointer bg-slate-100 relative"><i class="fas fa-user"></i><div id="userStatusDot" class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-400 rounded-full border-2 border-white"></div></div>
@@ -485,7 +486,7 @@
 
     <script>
         // ==================== 核心功能 ====================
-        const CURRENT_VERSION = 'v20260923.002';
+        const CURRENT_VERSION = 'v20261117.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -967,7 +968,7 @@
             db.ref('.info/connected').on('value', (snap) => {
                 if (snap.val() === true) {
                     isFirebaseConnected = true;
-                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> <span>連線</span>';
+                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i>';
                     statusEl.classList.remove('bg-red-100','text-red-600');
                     statusEl.classList.add('bg-green-100','text-green-600');
                 } else {
@@ -1464,7 +1465,7 @@
             });
         }
         
-        function addMainCat() { let val = document.getElementById('newMainCatInput')?.value.trim(); if(!val) return; let id=Date.now().toString(); tempLedger.mainCats.push({id,name:val}); tempLedger.subCats[id]=[]; document.getElementById('newMainCatInput').value=''; renderLedgerConfigUI(); selectedMainCatId=id; renderLedgerConfigUI(); }
+function addMainCat() { let val = document.getElementById('newMainCatInput')?.value.trim(); if(!val) return; let id=Date.now().toString(); tempLedger.mainCats.push({id,name:val}); tempLedger.subCats[id]=[]; document.getElementById('newMainCatInput').value=''; renderLedgerConfigUI(); selectedMainCatId=id; renderLedgerConfigUI(); }
         function deleteMainCat(id) { tempLedger.mainCats=tempLedger.mainCats.filter(c=>c.id!==id); delete tempLedger.subCats[id]; if(selectedMainCatId===id) selectedMainCatId=null; renderLedgerConfigUI(); }
         function addSubCat() { if(!selectedMainCatId) return; let val=document.getElementById('newSubCatInput')?.value.trim(); if(!val) return; if(!tempLedger.subCats[selectedMainCatId]) tempLedger.subCats[selectedMainCatId]=[]; tempLedger.subCats[selectedMainCatId].push({id:Date.now().toString(), name:val}); document.getElementById('newSubCatInput').value=''; renderLedgerConfigUI(); }
         function deleteSubCat(pid,id) { if(tempLedger.subCats[pid]) tempLedger.subCats[pid]=tempLedger.subCats[pid].filter(s=>s.id!==id); renderLedgerConfigUI(); }
