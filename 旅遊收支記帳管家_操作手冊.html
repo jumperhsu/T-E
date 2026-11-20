@@ -13,6 +13,7 @@
             --primary-dark: #1e40af;
             --purple: #9333ea;
             --purple-light: #f3e8ff;
+            --purple-dark: #6b21a8;
             --green: #16a34a;
             --green-light: #dcfce7;
             --slate-50: #f8fafc;
@@ -115,6 +116,12 @@
             color: var(--primary);
         }
 
+        .nav-link.highlight-nav {
+            background: var(--purple-light);
+            color: var(--purple-dark);
+            font-weight: 700;
+        }
+
         .nav-num {
             display: inline-flex;
             align-items: center;
@@ -130,6 +137,11 @@
 
         .nav-link:hover .nav-num {
             background: var(--primary);
+            color: white;
+        }
+
+        .nav-link.highlight-nav .nav-num {
+            background: var(--purple);
             color: white;
         }
 
@@ -169,7 +181,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* 修正深藍底色下方的文字對比度，避免被全域 p 樣式覆蓋 */
         .hero-banner p {
             font-size: 1rem;
             color: #f1f5f9;
@@ -187,6 +198,11 @@
             border: 1px solid var(--slate-200);
             box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
             scroll-margin-top: 24px;
+        }
+
+        .section-card.featured-voice {
+            border: 2px solid #d8b4fe;
+            box-shadow: 0 6px 20px rgba(147, 51, 234, 0.06);
         }
 
         .section-header {
@@ -207,6 +223,11 @@
             border-radius: 8px;
         }
 
+        .section-badge.purple {
+            background: var(--purple-light);
+            color: var(--purple-dark);
+        }
+
         .section-header h2 {
             font-size: 1.4rem;
             font-weight: 700;
@@ -214,10 +235,10 @@
         }
 
         h3 {
-            font-size: 1.1rem;
+            font-size: 1.12rem;
             font-weight: 700;
             color: var(--slate-800);
-            margin: 24px 0 12px;
+            margin: 26px 0 12px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -230,6 +251,10 @@
             height: 18px;
             background: var(--primary);
             border-radius: 2px;
+        }
+
+        .featured-voice h3::before {
+            background: var(--purple);
         }
 
         .section-card p {
@@ -293,6 +318,12 @@
             color: var(--primary-dark);
         }
 
+        .callout-purple {
+            background: var(--purple-light);
+            border-left-color: var(--purple);
+            color: var(--purple-dark);
+        }
+
         /* 表格樣式 */
         .table-wrapper {
             overflow-x: auto;
@@ -329,14 +360,90 @@
 
         code {
             background: var(--purple-light);
-            color: var(--purple);
-            padding: 2px 7px;
+            color: var(--purple-dark);
+            padding: 3px 8px;
             border-radius: 5px;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 0.86rem;
             font-weight: 600;
             display: inline-block;
             margin: 2px 0;
+        }
+
+        /* 語音分類範例卡片網格 */
+        .voice-cat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .voice-cat-card {
+            background: var(--slate-50);
+            border: 1px solid var(--slate-200);
+            border-radius: 12px;
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .voice-cat-card.full-width {
+            grid-column: 1 / -1;
+            background: #faf5ff;
+            border-color: #e9d5ff;
+        }
+
+        .voice-cat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--slate-200);
+            padding-bottom: 8px;
+        }
+
+        .voice-cat-card.full-width .voice-cat-header {
+            border-bottom-color: #e9d5ff;
+        }
+
+        .voice-cat-title {
+            font-weight: 700;
+            font-size: 1.02rem;
+            color: var(--slate-900);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .voice-cat-formula {
+            font-size: 0.78rem;
+            background: white;
+            color: var(--purple-dark);
+            border: 1px solid #d8b4fe;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .example-item {
+            background: white;
+            border: 1px solid var(--slate-200);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.88rem;
+        }
+
+        .example-cmd {
+            font-weight: 700;
+            color: var(--purple-dark);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .example-result {
+            font-size: 0.8rem;
+            color: var(--slate-600);
+            line-height: 1.45;
         }
 
         .stat-grid {
@@ -401,8 +508,8 @@
             .section-card {
                 padding: 22px 20px;
             }
-            .stat-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .stat-grid, .voice-cat-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -420,19 +527,19 @@
         </div>
         <ul class="nav-list">
             <li class="nav-item"><a href="#sec1" class="nav-link"><span class="nav-num">1</span>系統簡介與畫面總覽</a></li>
-            <li class="nav-item"><a href="#sec2" class="nav-link"><span class="nav-num">2</span>帳號登入與身分驗證</a></li>
+            <li class="nav-item"><a href="#sec2" class="nav-link"><span class="nav-num">2</span>帳號登入與個人帳冊</a></li>
             <li class="nav-item"><a href="#sec3" class="nav-link"><span class="nav-num">3</span>帳冊建立與設定管理</a></li>
-            <li class="nav-item"><a href="#sec4" class="nav-link"><span class="nav-num">4</span>手動記帳與多人分攤</a></li>
-            <li class="nav-item"><a href="#sec5" class="nav-link"><span class="nav-num">5</span>語音指令智慧記帳</a></li>
+            <li class="nav-item"><a href="#sec4" class="nav-link highlight-nav"><span class="nav-num">4</span>語音指令智慧記帳（重點）</a></li>
+            <li class="nav-item"><a href="#sec5" class="nav-link"><span class="nav-num">5</span>手動記帳與多人分攤</a></li>
         </ul>
     </aside>
 
     <!-- 主要內容 -->
     <main class="main-content">
         <div class="hero-banner">
-            <div class="hero-badge">📖 使用者操作指南</div>
+            <div class="hero-badge">📖 使用者操作指南（v20261120.002）</div>
             <h1>旅遊收支記帳管家 — 操作手冊</h1>
-            <p>支援多人雲端即時同步（Firebase）、多維度分攤結算與自然語意語音輸入，讓同行旅伴輕鬆掌握每一筆旅遊開銷。</p>
+            <p>支援多人雲端即時同步（Firebase）、個人化預設帳冊切換、多維度分攤結算與自然語意語音輸入，讓同行旅伴輕鬆掌握每一筆旅遊開銷。</p>
         </div>
 
         <!-- 第一章 -->
@@ -443,10 +550,9 @@
             </div>
             <p>「旅遊記帳管家」專為多人出遊設計，提供即時雲端同步、自訂消費分類、地點階層管理以及語音快速記帳功能。</p>
 
-            <!-- 附圖 1：主畫面配置圖解（已同步更新頂部操作手冊按鈕與純圖示設計） -->
+            <!-- 附圖 1：主畫面配置圖解 -->
             <div class="figure-box">
                 <svg viewBox="0 0 760 350" xmlns="http://www.w3.org/2000/svg">
-                    <!-- 背景 -->
                     <rect width="760" height="350" rx="10" fill="#f3f4f6"/>
                     <!-- 頂部導覽列 -->
                     <rect x="0" y="0" width="760" height="54" fill="#ffffff"/>
@@ -454,9 +560,9 @@
                     <rect x="24" y="12" width="30" height="30" rx="6" fill="#2563eb"/>
                     <text x="39" y="32" fill="#ffffff" font-size="14" text-anchor="middle">✈</text>
                     <text x="64" y="30" fill="#1e293b" font-size="15" font-weight="bold">旅遊記帳管家</text>
-                    <text x="64" y="44" fill="#64748b" font-size="9">v20261117.001</text>
+                    <text x="64" y="44" fill="#64748b" font-size="9">v20261120.002</text>
 
-                    <!-- 右側狀態與圖示按鈕（對應新版介面） -->
+                    <!-- 右側狀態與圖示按鈕 -->
                     <rect x="466" y="13" width="34" height="28" rx="6" fill="#f1f5f9"/>
                     <text x="483" y="31" fill="#475569" font-size="13" text-anchor="middle">📖</text>
 
@@ -507,7 +613,7 @@
             <h3>頂部導覽列功能說明</h3>
             <ul>
                 <li><strong>操作手冊按鈕（書本圖示 📖）</strong>：點擊後將於新分頁開啟本份線上操作手冊，隨時查閱功能說明與語音指令範例。</li>
-                <li><strong>連線狀態燈號</strong>：顯示目前的資料同步狀態。綠色打勾圖示代表雲端即時同步中；黃色驚嘆號「離線模式」代表資料暫存於本機，待恢復網路後自動同步。</li>
+                <li><strong>連線狀態燈號</strong>：綠色打勾圖示代表雲端即時同步中；黃色驚嘆號「離線模式」代表資料暫存於本機，待恢復網路後自動同步。</li>
                 <li><strong>檢視報表按鈕（圓餅圖圖示 📊）</strong>：點擊後跳轉至統計報表頁面（<code>view.html</code>），查看視覺化消費圖表與最終結算明細。</li>
                 <li><strong>使用者圖示（人像 👤）</strong>：右下角亮綠點代表已登入；點擊可編輯暱稱、帳號或切換使用者。</li>
                 <li><strong>關於圖示（i）</strong>：顯示版本資訊與當前網頁的 <strong>QR Code</strong>，方便同行旅伴直接掃描加入。</li>
@@ -518,7 +624,7 @@
         <section id="sec2" class="section-card">
             <div class="section-header">
                 <span class="section-badge">章節 02</span>
-                <h2>帳號登入與身分驗證</h2>
+                <h2>帳號登入與個人帳冊獨立切換</h2>
             </div>
             <p>首次開啟系統時會自動彈出登入視窗（或隨時點擊右上角人像圖示開啟）：</p>
             <ol>
@@ -529,7 +635,12 @@
                         <li>系統在比對手機號碼時，會自動忽略 <code>-</code> 或 <code>( )</code> 等分隔符號，僅比對純數字。</li>
                     </ul>
                 </li>
-                <li><strong>檢視與編輯權限</strong>：登入後，下拉選單僅會顯示「您被加入為成員」的帳冊；當帳冊未處於鎖定狀態時，成員皆可自由記帳與編輯帳冊設定。</li>
+                <li><strong>個人帳冊獨立記憶與自動挑選</strong>：
+                    <ul>
+                        <li>系統會<strong>依據每位登入者獨立記錄當前使用的帳冊</strong>（不會因為其他旅伴在雲端切換帳冊而干擾您的畫面）。</li>
+                        <li>登入後系統會自動為您挑選「您是成員且尚未鎖定」的帳冊；若您同時參與多趟旅程，可隨時於下拉選單自由切換。</li>
+                    </ul>
+                </li>
             </ol>
         </section>
 
@@ -638,15 +749,256 @@
             </div>
         </section>
 
-        <!-- 第四章 -->
-        <section id="sec4" class="section-card">
+        <!-- 第四章：語音指令智慧記帳（重點強化章節） -->
+        <section id="sec4" class="section-card featured-voice">
             <div class="section-header">
-                <span class="section-badge">章節 04</span>
+                <span class="section-badge purple">章節 04 ★ 核心重點</span>
+                <h2>語音指令智慧記帳完整教學</h2>
+            </div>
+            <p>點擊支出明細右上角的紫色 <strong>「語音輸入」</strong> 按鈕，可搭配手機鍵盤的麥克風語音轉文字（或直接打字），用一句話完成「基礎資料建立」或「消費明細預填」。<strong>所有指令皆支援「無空格連續輸入」與「空格分隔輸入」兩種方式！</strong></p>
+
+            <!-- 附圖 3：語音輸入視窗圖解 -->
+            <div class="figure-box">
+                <svg viewBox="0 0 760 310" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="760" height="310" rx="10" fill="#f8fafc"/>
+                    <rect x="50" y="14" width="660" height="282" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+                    
+                    <text x="74" y="44" fill="#1e293b" font-size="15" font-weight="bold">🎙️ 語音指令輸入</text>
+                    
+                    <!-- ① 動態主科目快捷按鈕列 -->
+                    <rect x="74" y="56" width="66" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="107" y="73" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 交通</text>
+                    <rect x="148" y="56" width="66" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="181" y="73" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 飲食</text>
+                    <rect x="222" y="56" width="66" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="255" y="73" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 景點</text>
+                    <rect x="296" y="56" width="66" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="329" y="73" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 活動</text>
+                    <rect x="370" y="56" width="66" height="26" rx="13" fill="#f3e8ff"/>
+                    <text x="403" y="73" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 購物</text>
+                    <text x="448" y="73" fill="#7e22ce" font-size="10">← ① 點擊自動填入「新增[科目]紀錄 」</text>
+
+                    <!-- ② 使用城市切換 -->
+                    <rect x="74" y="90" width="612" height="32" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+                    <text x="88" y="110" fill="#475569" font-size="11" font-weight="bold">🏙️ 使用城市： 🛰️ 自動偵測（預設） ▼</text>
+                    <rect x="520" y="96" width="68" height="20" rx="10" fill="#e2e8f0"/>
+                    <text x="554" y="110" fill="#475569" font-size="10" text-anchor="middle">自動偵測</text>
+                    <text x="596" y="110" fill="#2563eb" font-size="10">← ② 手動切換城市</text>
+
+                    <!-- ③ GPS 與次要科目提示框 -->
+                    <rect x="74" y="130" width="612" height="46" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+                    <text x="88" y="149" fill="#1e40af" font-size="11">📍 目前使用城市：<tspan font-weight="bold">台北</tspan> ｜ 已設定區域：<tspan fill="#1d4ed8">台北車站</tspan>、<tspan fill="#1d4ed8">信義區</tspan>、<tspan fill="#1d4ed8">西門町</tspan></text>
+                    <text x="88" y="167" fill="#6b21a8" font-size="10">🏷️ 飲食的次要科目：正餐、小吃、飲料、咖啡甜點（點選上方主科目鈕後即時提示）</text>
+
+                    <!-- ④ 文字輸入框 -->
+                    <rect x="74" y="184" width="612" height="46" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.5"/>
+                    <text x="88" y="211" fill="#1e293b" font-size="12.5" font-weight="bold">新增飲食紀錄 飲料 台北車站 50嵐波霸紅茶拿鐵</text>
+
+                    <!-- ⑤ 底部基礎資料輔助與確定按鈕 -->
+                    <rect x="74" y="242" width="64" height="24" rx="12" fill="#e2e8f0"/>
+                    <text x="106" y="258" fill="#334155" font-size="10.5" text-anchor="middle">+城市</text>
+                    <rect x="144" y="242" width="64" height="24" rx="12" fill="#e2e8f0"/>
+                    <text x="176" y="258" fill="#334155" font-size="10.5" text-anchor="middle">+區域</text>
+                    <rect x="214" y="242" width="72" height="24" rx="12" fill="#e2e8f0"/>
+                    <text x="250" y="258" fill="#334155" font-size="10.5" text-anchor="middle">+主科目</text>
+                    <rect x="292" y="242" width="80" height="24" rx="12" fill="#e2e8f0"/>
+                    <text x="332" y="258" fill="#334155" font-size="10.5" text-anchor="middle">+次要科目</text>
+                    <text x="382" y="258" fill="#64748b" font-size="10">← ⑤ 快速建立分類與地點</text>
+
+                    <rect x="616" y="240" width="70" height="28" rx="6" fill="#9333ea"/>
+                    <text x="651" y="258" fill="#ffffff" font-size="11.5" font-weight="bold" text-anchor="middle">確定</text>
+                </svg>
+                <div class="figure-caption">▲ 圖 3：語音指令輸入介面五大輔助區（主科目快捷鈕、城市切換、可用區域/次科目即時提示與基礎建檔鈕）</div>
+            </div>
+
+            <h3>一、語音記帳 3 步驟操作流程</h3>
+            <ol>
+                <li><strong>開啟視窗與確認可用標籤</strong>：點擊「語音輸入」後，系統會自動偵測您目前的 GPS 城市，並列出該城市已設定的<strong>區域標籤</strong>；點選上方紫色主科目快捷鈕（如 <code>+ 飲食</code>），還會即時顯示該科目底下已建立的<strong>次要科目清單</strong>。</li>
+                <li><strong>說出或輸入指令</strong>：點擊快捷鈕帶入指令開頭後，直接開啟手機語音輸入法說出內容（例如：<code>飲料台北車站50嵐</code>），不需刻意停頓加空格。</li>
+                <li><strong>確認並補填金額</strong>：按下 <strong>「確定」</strong> 後，系統會自動打開記帳表單並預填好「科目、地點（及交通終點）、摘要」，您<strong>只需輸入消費金額並按儲存</strong>即可完成記帳！</li>
+            </ol>
+
+            <h3>二、GPS 城市自動偵測與手動切換說明</h3>
+            <ul>
+                <li><strong>開啟彈窗時才偵測定位</strong>：為避免干擾瀏覽，系統僅在您點擊「語音輸入」時才會取得 GPS 位置，並顯示目前所在城市的可用區域。</li>
+                <li><strong>手動指定「使用城市」</strong>：若您正在補記前一天其他城市的消費，可透過上方的 <strong>「使用城市」</strong> 下拉選單手動切換城市。</li>
+                <li><strong>跨城市移動自動提醒</strong>：若您曾手動指定過城市，下次開啟語音輸入時系統偵測到您已移動至帳冊內的另一個城市，會主動跳出視窗詢問<em>「您目前位於○○，是否自動切換？」</em>，按確定即可一鍵同步。</li>
+            </ul>
+
+            <h3>三、各類別語音記帳指令範例大全</h3>
+            <p>系統在解析記帳指令時，會自動比對您帳冊內已建立的「主科目、次要科目、城市、區域」，並將剩餘文字自動整理為「備註摘要」：</p>
+
+            <div class="voice-cat-grid">
+                <!-- 1. 交通類別（全寬強調，因為規則最特別） -->
+                <div class="voice-cat-card full-width">
+                    <div class="voice-cat-header">
+                        <span class="voice-cat-title">🚄 1. 交通類別（支援起點與終點雙地點解析）</span>
+                        <span class="voice-cat-formula">新增交通紀錄 + 交通工具 + [由]起點 + (到/往/至) + 終點</span>
+                    </div>
+                    <p style="font-size: 0.86rem; margin-bottom: 4px;">系統會自動辨識連接詞 <strong>「到」、「往」、「至」</strong>（「由」字可省略），將前後兩個地點分別填入「地點（起點）」與「目的地點（終點）」，並自動生成「起點 往 終點」摘要：</p>
+                    <div class="example-item">
+                        <span class="example-cmd">範例 A（無空格、省略「由」）：新增交通紀錄高鐵台北車站到台中高鐵站</span>
+                        <div class="example-result">👉 自動帶入：科目 <strong>交通 · 高鐵</strong> ｜ 起點 <strong>台北台北車站</strong> ｜ 終點 <strong>台中台中高鐵站</strong> ｜ 摘要 <strong>台北車站 往 台中高鐵站</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">範例 B（包含「由」與「往」）：新增交通紀錄捷運由西門町往台北101</span>
+                        <div class="example-result">👉 自動帶入：科目 <strong>交通 · 捷運</strong> ｜ 起點 <strong>台北西門町</strong> ｜ 終點 <strong>台北台北101</strong> ｜ 摘要 <strong>西門町 往 台北101</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">範例 C（跨城市或僅填城市名）：新增交通紀錄新幹線東京新宿至京都</span>
+                        <div class="example-result">👉 自動帶入：科目 <strong>交通 · 新幹線</strong> ｜ 起點 <strong>東京新宿</strong> ｜ 終點 <strong>京都</strong> ｜ 摘要 <strong>東京新宿 往 京都</strong></div>
+                    </div>
+                </div>
+
+                <!-- 2. 飲食類別 -->
+                <div class="voice-cat-card">
+                    <div class="voice-cat-header">
+                        <span class="voice-cat-title">🍜 2. 飲食類別</span>
+                        <span class="voice-cat-formula">新增飲食紀錄 + 次科目 + 地點 + 備註</span>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增飲食紀錄飲料台北車站50嵐</span>
+                        <div class="example-result">👉 科目：<strong>飲食 · 飲料</strong> ｜ 地點：<strong>台北台北車站</strong><br>👉 摘要：<strong>台北台北車站飲料 - 50嵐</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增飲食紀錄 小吃 台北寧夏夜市 蚵仔煎與木瓜牛奶</span>
+                        <div class="example-result">👉 科目：<strong>飲食 · 小吃</strong> ｜ 地點：<strong>台北寧夏夜市</strong><br>👉 摘要：<strong>台北寧夏夜市小吃 - 蚵仔煎與木瓜牛奶</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增飲食紀錄正餐東京新宿一蘭拉麵</span>
+                        <div class="example-result">👉 科目：<strong>飲食 · 正餐</strong> ｜ 地點：<strong>東京新宿</strong><br>👉 摘要：<strong>東京新宿正餐 - 一蘭拉麵</strong></div>
+                    </div>
+                </div>
+
+                <!-- 3. 景點類別 -->
+                <div class="voice-cat-card">
+                    <div class="voice-cat-header">
+                        <span class="voice-cat-title">🏯 3. 景點類別</span>
+                        <span class="voice-cat-formula">新增景點紀錄 + 次科目 + 地點 + 備註</span>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增景點紀錄門票東京迪士尼海洋樂園</span>
+                        <div class="example-result">👉 科目：<strong>景點 · 門票</strong> ｜ 地點：<strong>東京迪士尼</strong><br>👉 摘要：<strong>東京迪士尼門票 - 海洋樂園</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增景點紀錄 導覽 台北故宮 語音導覽機租借</span>
+                        <div class="example-result">👉 科目：<strong>景點 · 導覽</strong> ｜ 地點：<strong>台北故宮</strong><br>👉 摘要：<strong>台北故宮導覽 - 語音導覽機租借</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增景點紀錄展望台東京晴空塔</span>
+                        <div class="example-result">👉 科目：<strong>景點 · 展望台</strong> ｜ 地點：<strong>東京晴空塔</strong>（無額外備註）<br>👉 摘要：<strong>東京晴空塔展望台</strong></div>
+                    </div>
+                </div>
+
+                <!-- 4. 活動類別 -->
+                <div class="voice-cat-card">
+                    <div class="voice-cat-header">
+                        <span class="voice-cat-title">🎭 4. 活動類別</span>
+                        <span class="voice-cat-formula">新增活動紀錄 + 次科目 + 地點 + 備註</span>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增活動紀錄旅拍南京牛首山漢服</span>
+                        <div class="example-result">👉 科目：<strong>活動 · 旅拍</strong> ｜ 地點：<strong>南京牛首山</strong><br>👉 摘要：<strong>南京牛首山旅拍 - 漢服</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增活動紀錄 和服體驗 京都淺草 情侶方案</span>
+                        <div class="example-result">👉 科目：<strong>活動 · 和服體驗</strong> ｜ 地點：<strong>京都淺草</strong><br>👉 摘要：<strong>京都淺草和服體驗 - 情侶方案</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增活動紀錄溫泉箱根一泊二食湯屋</span>
+                        <div class="example-result">👉 科目：<strong>活動 · 溫泉</strong> ｜ 地點：<strong>箱根</strong>（僅比對城市）<br>👉 摘要：<strong>箱根溫泉 - 一泊二食湯屋</strong></div>
+                    </div>
+                </div>
+
+                <!-- 5. 購物與自訂主科目類別 -->
+                <div class="voice-cat-card">
+                    <div class="voice-cat-header">
+                        <span class="voice-cat-title">🛍️ 5. 購物與自訂主科目（如住宿）</span>
+                        <span class="voice-cat-formula">新增[主科目]紀錄 + 次科目 + 地點 + 備註</span>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增購物紀錄伴手禮台北信義區鳳梨酥禮盒</span>
+                        <div class="example-result">👉 科目：<strong>購物 · 伴手禮</strong> ｜ 地點：<strong>台北信義區</strong><br>👉 摘要：<strong>台北信義區伴手禮 - 鳳梨酥禮盒</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增購物紀錄藥妝東京澀谷松本清退稅</span>
+                        <div class="example-result">👉 科目：<strong>購物 · 藥妝</strong> ｜ 地點：<strong>東京澀谷</strong><br>👉 摘要：<strong>東京澀谷藥妝 - 松本清退稅</strong></div>
+                    </div>
+                    <div class="example-item">
+                        <span class="example-cmd">新增住宿紀錄 飯店 大阪難波 兩晚雙人房</span>
+                        <div class="example-result">👉 只要帳冊有建立「住宿」主科目與「飯店」次科目，系統即會自動匹配帶入！</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>四、基礎資料建檔指令（臨時新增城市、區域與科目）</h3>
+            <p>旅途中若發現某個城市、區域或科目尚未建立，無需跳出開啟帳冊設定，直接點擊輸入框下方的 <code>+城市</code>、<code>+區域</code>、<code>+主科目</code>、<code>+次要科目</code> 灰色膠囊按鈕即可用一句話新增：</p>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">建檔類型</th>
+                            <th style="width: 44%;">語音指令範例（有空格 / 無空格皆可）</th>
+                            <th style="width: 38%;">執行說明與注意事項</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>增加城市</strong></td>
+                            <td>
+                                <code>增加城市東京</code><br>
+                                <code>增加城市 曼谷</code>
+                            </td>
+                            <td>立即在目前帳冊中建立新城市（若已存在會提示）。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>增加區域</strong></td>
+                            <td>
+                                <code>增加區域台北信義區</code><br>
+                                <code>增加區域 東京 新宿</code>
+                            </td>
+                            <td>在指定城市下建立新區域；<strong>所屬城市必須先存在於帳冊中</strong>。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>增加主科目</strong></td>
+                            <td>
+                                <code>增加主科目住宿</code><br>
+                                <code>增加主科目 娛樂</code>
+                            </td>
+                            <td>建立新的主要消費分類，建立後上方會同步出現該主科目的紫色快捷按鈕。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>增加次要科目</strong></td>
+                            <td>
+                                <code>增加次要科目交通高鐵</code><br>
+                                <code>增加次要科目 飲食 小吃</code>
+                            </td>
+                            <td>在指定主科目下建立次要分類；<strong>主科目必須先存在於帳冊中</strong>。</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-purple">
+                <strong>💡 語音辨識小秘訣：</strong>
+                <ul style="margin-top: 6px; margin-bottom: 0; color: #581c87;">
+                    <li><strong>地點只需說出帳冊內的「城市＋區域」即可</strong>：例如帳冊設定城市「台北」、區域「台北車站」，語音說 <code>台北車站</code> 會解析為城市「台北」＋無區域；說 <code>台北台北車站</code> 則會精準對應到「台北」底下的「台北車站」區域！</li>
+                    <li><strong>店名或細節直接接在地點後面</strong>：系統切出「城市/區域」後，後面的文字（例如 <code>50嵐</code>、<code>一蘭拉麵</code>）會自動成為摘要的備註內容。</li>
+                    <li><strong>善用「+ 城市 / + 區域 / + 次要科目」快速建檔</strong>：到達新景點時，先喊一句 <code>增加區域東京淺草</code>，接著就能立刻用 <code>新增飲食紀錄小吃東京淺草人形燒</code> 記帳。</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 第五章 -->
+        <section id="sec5" class="section-card">
+            <div class="section-header">
+                <span class="section-badge">章節 05</span>
                 <h2>手動記帳與多人分攤（記一筆）</h2>
             </div>
-            <p>點擊支出明細右上角的綠色 <strong>「+ 記一筆」</strong> 按鈕開啟記帳表單：</p>
+            <p>點擊支出明細右上角的綠色 <strong>「+ 記一筆」</strong> 按鈕開啟記帳表單（透過語音輸入預填後也會開啟此表單）：</p>
 
-            <!-- 附圖 3：多人分攤與結清機制圖解 -->
+            <!-- 附圖 4：多人分攤與結清機制圖解 -->
             <div class="figure-box">
                 <svg viewBox="0 0 760 230" xmlns="http://www.w3.org/2000/svg">
                     <rect width="760" height="230" rx="10" fill="#f8fafc"/>
@@ -687,7 +1039,7 @@
 
                     <text x="696" y="185" fill="#334155" font-size="13" text-anchor="end">每人平均：<tspan fill="#2563eb" font-weight="bold" font-size="16">1,200.00</tspan></text>
                 </svg>
-                <div class="figure-caption">▲ 圖 3：分攤勾選與圓形結清按鈕狀態說明（點擊右側圓形打勾即可切換結清狀態）</div>
+                <div class="figure-caption">▲ 圖 4：分攤勾選與圓形結清按鈕狀態說明（點擊右側圓形打勾即可切換結清狀態）</div>
             </div>
 
             <ol>
@@ -710,128 +1062,8 @@
             </ol>
         </section>
 
-        <!-- 第五章 -->
-        <section id="sec5" class="section-card">
-            <div class="section-header">
-                <span class="section-badge">章節 05</span>
-                <h2>語音指令智慧記帳</h2>
-            </div>
-            <p>點擊紫色 <strong>「語音輸入」</strong> 按鈕，可搭配手機鍵盤的語音輸入法或直接打字，透過自然語句快速建檔與預填表單（<strong>指令不需加空格也能自動辨識</strong>）。</p>
-
-            <!-- 附圖 4：語音輸入視窗圖解 -->
-            <div class="figure-box">
-                <svg viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="760" height="280" rx="10" fill="#f8fafc"/>
-                    <rect x="60" y="16" width="640" height="248" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
-                    
-                    <text x="84" y="46" fill="#1e293b" font-size="15" font-weight="bold">🎙️ 語音指令輸入</text>
-                    
-                    <!-- 快捷按鈕列 -->
-                    <rect x="84" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
-                    <text x="118" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 交通</text>
-                    <rect x="160" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
-                    <text x="194" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 飲食</text>
-                    <rect x="236" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
-                    <text x="270" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 景點</text>
-                    <rect x="312" y="60" width="68" height="26" rx="13" fill="#f3e8ff"/>
-                    <text x="346" y="77" fill="#6b21a8" font-size="11" font-weight="bold" text-anchor="middle">+ 購物</text>
-
-                    <!-- 使用城市切換 -->
-                    <rect x="84" y="96" width="592" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
-                    <text x="98" y="117" fill="#475569" font-size="11" font-weight="bold">🏙️ 使用城市： 🛰️ 自動偵測（預設） ▼</text>
-                    <rect x="596" y="103" width="68" height="20" rx="10" fill="#e2e8f0"/>
-                    <text x="630" y="117" fill="#475569" font-size="10" text-anchor="middle">自動偵測</text>
-
-                    <!-- GPS 提示框 -->
-                    <rect x="84" y="138" width="592" height="36" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
-                    <text x="98" y="160" fill="#1e40af" font-size="11">📍 目前使用城市：<tspan font-weight="bold">台北</tspan> ｜ 已設定區域：台北車站、信義區</text>
-
-                    <!-- 文字輸入框 -->
-                    <rect x="84" y="182" width="592" height="44" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.5"/>
-                    <text x="98" y="208" fill="#1e293b" font-size="12">新增飲食紀錄飲料台北車站50嵐</text>
-
-                    <!-- 底部輔助與確定按鈕 -->
-                    <rect x="84" y="234" width="64" height="22" rx="11" fill="#e2e8f0"/>
-                    <text x="116" y="249" fill="#334155" font-size="10" text-anchor="middle">+城市</text>
-                    <rect x="154" y="234" width="64" height="22" rx="11" fill="#e2e8f0"/>
-                    <text x="186" y="249" fill="#334155" font-size="10" text-anchor="middle">+區域</text>
-                    <rect x="224" y="234" width="72" height="22" rx="11" fill="#e2e8f0"/>
-                    <text x="260" y="249" fill="#334155" font-size="10" text-anchor="middle">+主科目</text>
-                    <rect x="302" y="234" width="80" height="22" rx="11" fill="#e2e8f0"/>
-                    <text x="342" y="249" fill="#334155" font-size="10" text-anchor="middle">+次要科目</text>
-
-                    <rect x="610" y="232" width="66" height="26" rx="6" fill="#9333ea"/>
-                    <text x="643" y="249" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">確定</text>
-                </svg>
-                <div class="figure-caption">▲ 圖 4：語音指令輸入介面（含主科目快捷鈕、GPS 城市自動偵測與基礎資料新增鈕）</div>
-            </div>
-
-            <h3>定位與使用城市切換</h3>
-            <ul>
-                <li>開啟視窗時，系統會自動偵測您目前的 GPS 所在城市，並顯示該城市已設定的區域標籤供參考。</li>
-                <li>您也可透過上方的 <strong>「使用城市」</strong> 下拉選單手動指定城市；若下次開啟時系統偵測到您已移動至其他城市，會主動詢問是否自動切換。</li>
-            </ul>
-
-            <h3>支援的語音指令格式</h3>
-            <p>視窗上方提供主科目快捷按鈕與 <code>+城市</code>、<code>+區域</code>、<code>+主科目</code>、<code>+次要科目</code> 輔助按鈕，點擊即可帶入指令前綴：</p>
-
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 18%;">功能分類</th>
-                            <th style="width: 42%;">指令格式範例</th>
-                            <th style="width: 40%;">執行效果說明</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>新增城市</strong></td>
-                            <td><code>增加城市東京</code></td>
-                            <td>直接在目前帳冊中建立新城市。</td>
-                        </tr>
-                        <tr>
-                            <td><strong>新增區域</strong></td>
-                            <td><code>增加區域台北信義區</code></td>
-                            <td>在指定城市下建立新區域（城市須已存在）。</td>
-                        </tr>
-                        <tr>
-                            <td><strong>新增主科目</strong></td>
-                            <td><code>增加主科目住宿</code></td>
-                            <td>建立新的主要消費分類。</td>
-                        </tr>
-                        <tr>
-                            <td><strong>新增次要科目</strong></td>
-                            <td><code>增加次要科目飲食小吃</code></td>
-                            <td>在指定主科目下建立次要分類。</td>
-                        </tr>
-                        <tr>
-                            <td><strong>新增交通紀錄</strong></td>
-                            <td>
-                                <code>新增交通紀錄高鐵台北車站到台中高鐵站</code><br>
-                                <code>新增交通紀錄捷運由西門町往台北101</code>
-                            </td>
-                            <td>支援「到 / 往 / 至」連接起訖點（「由」字可省略），執行後將自動開啟記帳視窗並預填起訖地點與摘要，<strong>只需補上金額即可儲存</strong>。</td>
-                        </tr>
-                        <tr>
-                            <td><strong>新增一般紀錄</strong></td>
-                            <td>
-                                <code>新增飲食紀錄飲料台北車站50嵐</code><br>
-                                <code>新增活動紀錄旅拍南京牛首山漢服</code>
-                            </td>
-                            <td>格式為 <code>新增[主科目]紀錄 + 次要科目 + 地點 + 備註</code>，執行後同樣會開啟預填好的記帳表單供輸入金額。</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="callout callout-info">
-                <strong>💡 小技巧：</strong>指令中的「城市、區域、主科目、次要科目」名稱需與帳冊內設定的名稱一致，系統才能精準配對並自動帶入表單選項。
-            </div>
-        </section>
-
         <footer>
-            旅遊收支記帳管家 — 操作手冊
+            旅遊收支記帳管家（v20261120.002）— 操作手冊
         </footer>
     </main>
 

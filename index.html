@@ -486,7 +486,7 @@
 
     <script>
         // ==================== 核心功能 ====================
-        const CURRENT_VERSION = 'v20261120.001';
+        const CURRENT_VERSION = 'v20261120.002';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -693,22 +693,14 @@
 
         // ★ 為使用者挑一個「是成員且未鎖定」的帳冊
         //   優先採用該使用者上次選擇的帳冊；管理員若全部鎖定，仍可挑鎖定帳冊
+         // ★ 一律挑「可存取且未鎖定的第一本」帳冊；若無則回傳 null（保留空白）
+        //   不論管理員或一般使用者，皆跳過已鎖定帳冊
         function pickAutoLedgerForUser(user) {
             if (!user) return null;
-            const isAdmin = user.email === APP_ADMIN_EMAIL;
             const accessible = appData.ledgers.filter(l => canUserAccessLedger(l, user));
             if (accessible.length === 0) return null;
-
-            const unlocked = accessible.filter(l => !l.locked);
-            const candidates = unlocked.length > 0 ? unlocked : (isAdmin ? accessible : []);
-            if (candidates.length === 0) return null;
-
-            const savedId = getSavedLedgerIdForUser();
-            if (savedId) {
-                const saved = candidates.find(l => l.id === savedId);
-                if (saved) return saved.id;
-            }
-            return candidates[0].id;
+            const firstUnlocked = accessible.find(l => !l.locked);
+            return firstUnlocked ? firstUnlocked.id : null;
         }
 
         // ★ 登入/資料到齊後，執行一次自動挑選
@@ -737,13 +729,16 @@
         }
 
         // ★ 使用者手動切換帳冊時，記錄到「他自己的」本機紀錄
-        function setupLedgerSelectPersistence() {
+		function setupLedgerSelectPersistence() {
             const sel = document.getElementById('ledgerSelect');
             if (!sel || sel.dataset.persistBound === '1') return;
             sel.dataset.persistBound = '1';
             sel.addEventListener('change', function () {
-                autoLedgerPending = false;   // 使用者已自行選擇，停止自動挑選
-                if (currentUser) setSavedLedgerIdForUser(this.value || null);
+                autoLedgerPending = false;
+                appData.currentLedgerId = this.value || null;
+                if (currentUser) setSavedLedgerIdForUser(appData.currentLedgerId);
+                updateUI();
+                saveData();
             });
         }
         // ==================== 以上為使用者帳冊隔離機制 ====================
@@ -1127,7 +1122,10 @@
                             updateUI();
                         }
                     }
-                } else if(appData.ledgers.length > 0) saveData();
+                } else if(appData.ledgers.length > 0) {
+                    ensureAutoLedgerSelection();
+                    saveData();
+                }
             });
         }
 
@@ -1184,29 +1182,18 @@
                 return showToast('請輸入有效的 Email 或 09 開頭的手機號碼（可包含 - ( ) 符號）');
             }
 
-            const previousUser = currentUser;
-            const userChanged = !previousUser || !identifiersMatch(previousUser.email, identifier);
-
             currentUser = { name, email: identifier };
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
             document.getElementById('userProfileModal').style.display = 'none';
             updateUserUI();
 
-            if (userChanged) {
-                // 切換使用者：依「這位使用者」自己的紀錄還原或自動挑選帳冊
-                autoLedgerPending = true;
-                ensureAutoLedgerSelection();
-            } else {
-                // 同一位使用者更新資料：保留目前的帳冊，若已無效才重挑
-                if (validateCurrentLedgerForUser()) {
-                    autoLedgerPending = true;
-                    ensureAutoLedgerSelection();
-                }
-            }
+            autoLedgerPending = true;
+            ensureAutoLedgerSelection();
 
             updateUI();
             showToast(`歡迎, ${name}`);
         }
+		
         function updateUserUI() {
             const dot = document.getElementById('userStatusDot');
             if (currentUser) dot.classList.replace('bg-red-400','bg-green-500');
@@ -2576,7 +2563,6 @@ function addMainCat() { let val = document.getElementById('newMainCatInput')?.va
             document.getElementById('cancelExpenseBtn').onclick = closeExpenseModal;
             document.getElementById('expenseModalCloseX').onclick = closeExpenseModal;
             document.getElementById('expenseForm').onsubmit = handleExpenseSubmit;
-            document.getElementById('ledgerSelect').onchange = (e) => { appData.currentLedgerId = e.target.value; updateUI(); saveData(); };
             document.getElementById('addLedgerBtn').onclick = () => openLedgerModal();
             document.getElementById('editLedgerBtn').onclick = () => { if(appData.currentLedgerId) openLedgerModal(appData.currentLedgerId); else showToast('請先選擇帳冊'); };
             document.getElementById('backupLedgerBtn').addEventListener('click', backupCurrentLedger);
