@@ -486,7 +486,7 @@
 
     <script>
         // ==================== 核心功能 ====================
-        const CURRENT_VERSION = 'v20261117.001';
+        const CURRENT_VERSION = 'v20261120.001';
         const APP_ADMIN_EMAIL = 'jumper.hsu@gmail.com';
         const firebaseConfig = {
             apiKey: "AIzaSyBpnGdgoel-wn9jyoHjkQJKJ7c7qRbbSvk",
@@ -516,6 +516,10 @@
         const MANUAL_CITY_KEY = 'travelAccountingManualCity';
         let manualCityStore = {};                 // { ledgerId: cityId }
         let manualCityPromptedLedgers = new Set(); // 同一次瀏覽階段已詢問過的帳冊
+
+        // ★ 每位使用者各自的「目前帳冊」記錄（本機保存，不與他人共用）
+        const USER_LEDGER_KEY = 'travelAccountingUserLedger';
+        let autoLedgerPending = false;   // 登入後尚未完成自動挑選帳冊
 
         // ----- 手機號碼標準化（僅保留數字） -----
         function normalizePhone(phone) {
@@ -640,6 +644,109 @@
             else delete manualCityStore[ledgerId];
             saveManualCityStore();
         }
+
+        // ==================== ★ 每位使用者獨立的「目前帳冊」機制 ====================
+        function loadUserLedgerMap() {
+            try {
+                const raw = localStorage.getItem(USER_LEDGER_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+            } catch (e) { return {}; }
+        }
+        function saveUserLedgerMap(map) {
+            try { localStorage.setItem(USER_LEDGER_KEY, JSON.stringify(map)); } catch (e) {}
+        }
+        function getUserLedgerKey() {
+            if (!currentUser || !currentUser.email) return null;
+            return normalizeIdentifier(currentUser.email);
+        }
+        function getSavedLedgerIdForUser() {
+            const key = getUserLedgerKey();
+            if (!key) return null;
+            const map = loadUserLedgerMap();
+            return map[key] || null;
+        }
+        function setSavedLedgerIdForUser(ledgerId) {
+            const key = getUserLedgerKey();
+            if (!key) return;
+            const map = loadUserLedgerMap();
+            if (ledgerId) map[key] = ledgerId;
+            else delete map[key];
+            saveUserLedgerMap(map);
+        }
+
+        // ★ 帳冊存取權限（管理員全通；一般使用者需為成員）
+        function isUserMemberOfLedger(ledger, user) {
+            if (!ledger || !user) return false;
+            return (ledger.members || []).some(m => {
+                if (m.name === user.name) return true;
+                if (m.email && identifiersMatch(m.email, user.email)) return true;
+                if (m.phone && identifiersMatch(m.phone, user.email)) return true;
+                return false;
+            });
+        }
+        function canUserAccessLedger(ledger, user) {
+            if (!ledger || !user) return false;
+            if (user.email === APP_ADMIN_EMAIL) return true;
+            return isUserMemberOfLedger(ledger, user);
+        }
+
+        // ★ 為使用者挑一個「是成員且未鎖定」的帳冊
+        //   優先採用該使用者上次選擇的帳冊；管理員若全部鎖定，仍可挑鎖定帳冊
+        function pickAutoLedgerForUser(user) {
+            if (!user) return null;
+            const isAdmin = user.email === APP_ADMIN_EMAIL;
+            const accessible = appData.ledgers.filter(l => canUserAccessLedger(l, user));
+            if (accessible.length === 0) return null;
+
+            const unlocked = accessible.filter(l => !l.locked);
+            const candidates = unlocked.length > 0 ? unlocked : (isAdmin ? accessible : []);
+            if (candidates.length === 0) return null;
+
+            const savedId = getSavedLedgerIdForUser();
+            if (savedId) {
+                const saved = candidates.find(l => l.id === savedId);
+                if (saved) return saved.id;
+            }
+            return candidates[0].id;
+        }
+
+        // ★ 登入/資料到齊後，執行一次自動挑選
+        function ensureAutoLedgerSelection() {
+            if (!autoLedgerPending) return;
+            if (!currentUser) return;
+            if (!appData.ledgers || appData.ledgers.length === 0) return; // 等資料到齊再挑
+            appData.currentLedgerId = pickAutoLedgerForUser(currentUser);
+            autoLedgerPending = false;
+            if (appData.currentLedgerId) setSavedLedgerIdForUser(appData.currentLedgerId);
+        }
+
+        // ★ 驗證目前帳冊對當前使用者是否仍有效（被刪除或無權限則清空）
+        function validateCurrentLedgerForUser() {
+            if (!currentUser) {
+                if (appData.currentLedgerId) { appData.currentLedgerId = null; return true; }
+                return false;
+            }
+            if (!appData.currentLedgerId) return false;
+            const l = appData.ledgers.find(x => x.id === appData.currentLedgerId);
+            if (!l || !canUserAccessLedger(l, currentUser)) {
+                appData.currentLedgerId = null;
+                return true;
+            }
+            return false;
+        }
+
+        // ★ 使用者手動切換帳冊時，記錄到「他自己的」本機紀錄
+        function setupLedgerSelectPersistence() {
+            const sel = document.getElementById('ledgerSelect');
+            if (!sel || sel.dataset.persistBound === '1') return;
+            sel.dataset.persistBound = '1';
+            sel.addEventListener('change', function () {
+                autoLedgerPending = false;   // 使用者已自行選擇，停止自動挑選
+                if (currentUser) setSavedLedgerIdForUser(this.value || null);
+            });
+        }
+        // ==================== 以上為使用者帳冊隔離機制 ====================
         
         // ★ 修改：加入權限檢查，避免每次進頁面都彈出「允許定位」請求
         async function detectCurrentCity() {
@@ -929,6 +1036,7 @@
             return exp;
         }
         
+        // ★ 修改：不再從本機還原共用的 currentLedgerId
         function loadLocalData() {
             const saved = localStorage.getItem('travelAccountingApp');
             if (saved) {
@@ -936,12 +1044,12 @@
                     const parsed = JSON.parse(saved);
                     appData = {
                         ledgers: Array.isArray(parsed.ledgers) ? parsed.ledgers : [],
-                        currentLedgerId: parsed.currentLedgerId || null,
+                        currentLedgerId: null,   // 一律由登入使用者各自決定
                         expenses: (Array.isArray(parsed.expenses) ? parsed.expenses : [])
                     };
                 } catch(e) { console.error(e); appData = { ledgers: [], currentLedgerId: null, expenses: [] }; }
             }
-            if (appData.currentLedgerId && !appData.ledgers.find(l => l.id === appData.currentLedgerId)) appData.currentLedgerId = null;
+            appData.currentLedgerId = null;
         }
         
         function upgradeAllExpenses() {
@@ -958,11 +1066,23 @@
             }
         }
         
+        // ★ 修改：只同步共用資料，並記錄每位使用者的選擇
         function saveData() {
             localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
-            if(isFirebaseConnected) db.ref('travel_data').set(appData).catch(e => console.error(e));
+
+            // 把「目前帳冊」記錄到當前使用者自己的本機紀錄
+            if (currentUser) setSavedLedgerIdForUser(appData.currentLedgerId || null);
+
+            if(isFirebaseConnected) {
+                // 只同步共用資料，不上傳 currentLedgerId，避免影響其他使用者
+                db.ref('travel_data').update({
+                    ledgers: appData.ledgers,
+                    expenses: appData.expenses || []
+                }).catch(e => console.error(e));
+            }
         }
         
+        // ★ 修改：只比對共用資料（不含 currentLedgerId）
         function setupFirebaseSync() {
             const statusEl = document.getElementById('firebaseStatus');
             db.ref('.info/connected').on('value', (snap) => {
@@ -979,30 +1099,52 @@
                     showToast('Firebase 連線失敗，資料僅儲存於本機');
                 }
             });
+
             db.ref('travel_data').on('value', (snap) => {
                 if (snap.val()) {
                     const remote = snap.val();
-                    const newAppData = {
-                        ledgers: Array.isArray(remote.ledgers) ? remote.ledgers : [],
-                        currentLedgerId: remote.currentLedgerId || null,
-                        expenses: (Array.isArray(remote.expenses) ? remote.expenses : [])
-                    };
-                    if(JSON.stringify(appData) !== JSON.stringify(newAppData)) {
-                        appData = newAppData;
+                    const remoteLedgers = Array.isArray(remote.ledgers) ? remote.ledgers : [];
+                    const remoteExpenses = Array.isArray(remote.expenses) ? remote.expenses : [];
+
+                    const localShared = JSON.stringify({ ledgers: appData.ledgers, expenses: appData.expenses || [] });
+                    const remoteShared = JSON.stringify({ ledgers: remoteLedgers, expenses: remoteExpenses });
+
+                    if (localShared !== remoteShared) {
+                        appData.ledgers = remoteLedgers;
+                        appData.expenses = remoteExpenses;
+                        // 不動 appData.currentLedgerId（保留本機使用者自己的選擇）
                         localStorage.setItem('travelAccountingApp', JSON.stringify(appData));
                         upgradeAllExpenses();
+                        ensureAutoLedgerSelection();
                         updateUI();
                         showToast('雲端資料已同步');
+                    } else {
+                        ensureAutoLedgerSelection();
+                        if (appData.currentLedgerId &&
+                            !appData.ledgers.some(l => l.id === appData.currentLedgerId)) {
+                            autoLedgerPending = true;
+                            ensureAutoLedgerSelection();
+                            updateUI();
+                        }
                     }
                 } else if(appData.ledgers.length > 0) saveData();
             });
         }
 
+        // ★ 修改：載入時觸發自動挑選
         function initUserSystem() {
+            loadManualCityStore();
             const savedUser = localStorage.getItem('travelAccountingUser');
             if (savedUser) {
-                try { currentUser = JSON.parse(savedUser); updateUserUI(); }
-                catch(e) { currentUser = null; showUserModal(); }
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    updateUserUI();
+                    autoLedgerPending = true;
+                    ensureAutoLedgerSelection();
+                } catch(e) {
+                    currentUser = null;
+                    showUserModal();
+                }
             } else showUserModal();
         }
         function showUserModal() {
@@ -1032,6 +1174,7 @@
             }
             modal.style.display = 'block';
         }
+        // ★ 修改：切換使用者時依各自的紀錄還原或自動挑選
         function handleUserLogin(e) {
             e.preventDefault();
             const name = document.getElementById('inputUserName').value.trim();
@@ -1040,14 +1183,27 @@
             if (!isValidIdentifier(identifier)) {
                 return showToast('請輸入有效的 Email 或 09 開頭的手機號碼（可包含 - ( ) 符號）');
             }
+
             const previousUser = currentUser;
+            const userChanged = !previousUser || !identifiersMatch(previousUser.email, identifier);
+
             currentUser = { name, email: identifier };
             localStorage.setItem('travelAccountingUser', JSON.stringify(currentUser));
             document.getElementById('userProfileModal').style.display = 'none';
             updateUserUI();
-            if (!previousUser || !identifiersMatch(previousUser.email, identifier)) {
-                appData.currentLedgerId = null;
+
+            if (userChanged) {
+                // 切換使用者：依「這位使用者」自己的紀錄還原或自動挑選帳冊
+                autoLedgerPending = true;
+                ensureAutoLedgerSelection();
+            } else {
+                // 同一位使用者更新資料：保留目前的帳冊，若已無效才重挑
+                if (validateCurrentLedgerForUser()) {
+                    autoLedgerPending = true;
+                    ensureAutoLedgerSelection();
+                }
             }
+
             updateUI();
             showToast(`歡迎, ${name}`);
         }
@@ -1085,6 +1241,8 @@
             const ledgerId = urlParams.get('ledgerId');
             if (action === 'edit' && expenseId && ledgerId) {
                 appData.currentLedgerId = ledgerId;
+                autoLedgerPending = false;
+                if (currentUser) setSavedLedgerIdForUser(ledgerId);
                 updateUI();
                 setTimeout(() => { openExpenseModal(expenseId); }, 500);
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -1231,8 +1389,7 @@
             const textarea = document.getElementById('voiceCommandText');
             if (textarea) textarea.focus();
 
-            // ★ 開啟語音彈窗時，檢查手動城市與偵測城市是否不同，需要時詢問是否自動切換
-            // 延遲一點時間讓 updateLocationHintInVoice 有機會先完成定位快取
+            // 開啟語音彈窗時，檢查手動城市與偵測城市是否不同，需要時詢問是否自動切換
             setTimeout(() => { checkManualCitySwitch(); }, 800);
         }
         
@@ -2002,19 +2159,22 @@ function addMainCat() { let val = document.getElementById('newMainCatInput')?.va
         }
 
         // ---------- 核心更新 ----------
+        // ★ 修改：加入自動挑選、有效性驗證與切換持久化
         function updateUI() {
+            // 先確保自動挑選與有效性（不影響其他使用者）
+            ensureAutoLedgerSelection();
+            if (validateCurrentLedgerForUser()) {
+                autoLedgerPending = true;
+                ensureAutoLedgerSelection();
+            }
+            setupLedgerSelectPersistence();
+
             const select = document.getElementById('ledgerSelect');
             select.innerHTML = '<option value="">請選擇帳冊</option>';
-            const visibleLedgers = appData.ledgers.filter(l => {
-                if(!currentUser) return false;
-                if(currentUser.email===APP_ADMIN_EMAIL) return true;
-                return (l.members || []).some(m => {
-                    if (m.name === currentUser.name) return true;
-                    if (m.email && identifiersMatch(m.email, currentUser.email)) return true;
-                    if (m.phone && identifiersMatch(m.phone, currentUser.email)) return true;
-                    return false;
-                });
-            });
+
+            // 改用統一的權限判斷（邏輯與原本一致）
+            const visibleLedgers = appData.ledgers.filter(l => canUserAccessLedger(l, currentUser));
+
             visibleLedgers.forEach(l=>select.add(new Option(`${l.name}${l.locked?' (已鎖定)':''}`, l.id)));
             
             const currentLedger = appData.ledgers.find(l => l.id === appData.currentLedgerId);
@@ -2229,7 +2389,7 @@ function addMainCat() { let val = document.getElementById('newMainCatInput')?.va
                 if (!mainTrans) { alert('❌ 帳冊尚未建立「交通」主科目'); return false; }
                 if (!ledgerNow.categories?.sub?.[mainTrans.id]?.some(s => s.name === parsed.transport)) { alert(`❌ 交通方式「${parsed.transport}」尚未建立，請先增加次要科目`); return false; }
                 const fromInfo = parseCityAndDistrict(parsed.from, ledgerNow);
-                const toInfo = parseCityAndDistrict(parsed.to, ledgerNow);
+				const toInfo = parseCityAndDistrict(parsed.to, ledgerNow);
                 if (!fromInfo || !fromInfo.city) { alert(`❌ 起點「${parsed.from}」無法解析城市/區域`); return false; }
                 if (!toInfo || !toInfo.city) { alert(`❌ 迄點「${parsed.to}」無法解析城市/區域`); return false; }
                 const fromVal = getLocationValue(fromInfo.city, fromInfo.district, ledgerNow);
